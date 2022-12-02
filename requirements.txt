@@ -1,0 +1,10 @@
+torch==1.12.0
+rdt==0.4.0
+tqdm
+sklearn
+matplotlib
+seaborn
+evosax
+folktables
+jax
+sklearn

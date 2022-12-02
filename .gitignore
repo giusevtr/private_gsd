@@ -1,0 +1,14 @@
+*.pyc
+__pycache__
+.DS_Store 
+*.ipynb_checkpoints
+.idea/*
+
+
+save
+results
+Datasets
+watchdog
+*.ipynb
+*.csv
+*.zip
