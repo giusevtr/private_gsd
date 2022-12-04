@@ -1,12 +1,8 @@
 from examples.run_example import generate_private_SD, run_experiment
 from models import PrivGA, RelaxedProjection
 from stats import Marginals, TwoWayPrefix
-
 from utils.utils_data import get_data
 
-
-from folktables import ACSDataSource, ACSIncome
-# def run_single_
 
 if __name__ == "__main__":
 
@@ -15,6 +11,7 @@ if __name__ == "__main__":
 
 
     get_gen_list = [
+        RelaxedProjection.get_generator(learning_rate=0.01),
         PrivGA.get_generator(popsize=10000,
                              top_k=100,
                              num_generations=500,

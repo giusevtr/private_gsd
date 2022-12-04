@@ -53,7 +53,7 @@ class TwoWayPrefix(Statistic):
             answers = jnp.prod(jnp.stack([answers_1, answers_2]), axis=0)
             stats = answers.mean(axis=0)
             return stats
-        return  stat_fn
+        return stat_fn
 
     def get_differentiable_stats_fn(self):
         def diff_stat_fn(X, sigmoid):

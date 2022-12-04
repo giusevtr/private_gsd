@@ -181,5 +181,7 @@ class PrivGA(Generator):
 
         self.key, rng_final = jax.random.split(self.key, 2)
         X_sync = state.best_member
-        return X_sync
+
+        sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
+        return sync_dataset
 

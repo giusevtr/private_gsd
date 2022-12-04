@@ -75,25 +75,12 @@ def generate_private_SD(
     stime = time.time()
     n, dim = X.shape
 
-    # prefix = Prefix(data.domain, num_thresholds=30)
-    # prefix_fn = prefix.get_stats_fn()
-    # prefix_stats = prefix_fn(X)
-    # key = jax.random.PRNGKey(0)
-    # init_X = prefix.get_starting_real_dataset(key, noisy_threshold_answers=prefix_stats, data_size=100)
     init_X = None
-
-    # plot_1d_data(init_X[:, 0], title='init_X[0]')
-    # plot_1d_data(init_X[:, 1], title='init_X[1]')
 
     n = X.shape[0]
     delta = 1 / (n ** 2)
     rho = cdp_rho(epsilon, delta)
     rng = np.random.default_rng(seed)
-
-    # how many queries can we answer with accuracy alpha
-    # num_queries = int( rho * alpha**2 * n**2 )
-
-
 
     # Get statistics and noisy statistics
     stat_module = generator.stat_module
@@ -117,23 +104,12 @@ def generate_private_SD(
           f' Max = {gaussian_error.max():.5f}')
 
 
-    # key = jax.random.PRNGKey(0)
-    # init_X = stat_module.get_starting_real_dataset(key, noisy_threshold_answers=true_stats_noise, data_size=100)
-    # init_X = None
-
-    # generator = get_generator(domain=data.domain, data_size=sync_data_size, seed=seed)
-
-    # if str(generator) in ['RP++']:
-    #     # Use differential stats
-    #     train_stats_fn = stat_module.get_sigmoid_stats_fn()
-    # else:
-    #     train_stats_fn = jax.jit(stat_module.get_stats_fn())
-
-    X_sync = generator.fit(true_stats_noise,  init_X=init_X)
+    dataset: Dataset
+    dataset = generator.fit(true_stats_noise,  init_X=init_X)
+    X_sync = dataset.to_numpy()
 
     elapsed_time = time.time() - stime
-    # plot_1d_data(X_sync[:, 0], title='X_sync[0]')
-    # plot_1d_data(X_sync[:, 1], title='X_sync[1]')
+
     # Use large statistic set to evaluate the final synthetic data.
     # evaluate_stats_fn = stat_module.get_stats_fn(num_cols=dim, num_rand_queries=10000, seed=0)
     evaluate_true_stats = stats_fn(X)
@@ -144,9 +120,5 @@ def generate_private_SD(
     max_error = errors.max()
     print(f'Final L1 error = {error:.5f}, L2 error = {error_l2:.5f},  max error ={max_error:.5f}\n')
 
-
-    # Plot resulting dataset
-    # plot_2d_data_sync(X, X_sync, alpha =0.2, title=f'Synthetic: {str(generator)}, Stats={stat_module.NAME}, eps={epsilon}\n'
-    #                                       f'l1-error={error:.3f}, max-error={max_error:.3f}, time={elapsed_time:.5}(s)')
 
     return X_sync, error, max_error, elapsed_time

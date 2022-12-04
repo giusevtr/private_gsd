@@ -5,6 +5,8 @@ import jax.numpy as jnp
 from jax import random
 import pandas as pd
 from utils import Domain
+from sklearn.preprocessing import OneHotEncoder
+
 
 def get_data_onehot(data):
     df_data = data.df
@@ -115,6 +117,11 @@ class Dataset:
         return res
 
 
+    @staticmethod
+    def from_numpy_to_dataset(domain, X):
+        df = pd.DataFrame(X, columns=domain.attrs)
+        return Dataset(df, domain=domain)
+
     def to_numpy(self):
         cols = [self.df.values[:, i].astype(int) if n > 1 else self.df.values[:, i].astype(float) for i, n in enumerate(self.domain.shape)]
         df_numpy = np.vstack(cols).T
@@ -135,6 +142,46 @@ class Dataset:
         data_onehot = jnp.concatenate(oh_encoded, axis=1)
 
         return data_onehot.astype(float)
+
+    @staticmethod
+    def from_onehot_to_dataset(domain: Domain, X_oh):
+
+        dtypes = []
+        start = 0
+        output = []
+        column_names = domain.attrs
+        cat_cols = domain.get_categorical_cols()
+        for col in domain.attrs:
+            dimensions = domain.size(col)
+            column_onehot_encoding = X_oh[:, start:start + dimensions]
+
+
+            if col in cat_cols:
+                encoder = OneHotEncoder()
+                # encoder.categories_ = [list(range(domain.size(col)))]
+                dummy = [[v] for v in range(domain.size(col))]
+                encoder.fit(dummy)
+                col_values = encoder.inverse_transform(column_onehot_encoding)
+                dtypes.append('int64')
+            else:
+                col_values = column_onehot_encoding.squeeze()
+                dtypes.append('float')
+
+            output.append(col_values)
+            start += dimensions
+
+        data_np = np.column_stack(output)
+
+        data_df = pd.DataFrame(data_np, columns=column_names)
+
+        dtypes = pd.Series(dtypes, data_df.columns)
+
+        data_df = data_df.astype(dtypes)
+
+        data = Dataset(data_df, domain=domain)
+
+        return data
+
 
     @staticmethod
     def apply_softmax(domain: Domain, X_relaxed: jnp.ndarray) -> jnp.ndarray:
@@ -225,21 +272,38 @@ class Dataset:
         return X_onehot
 
 
-    @staticmethod
-    def from_onehot_to_dataset(domain: Domain, X_onehot: jnp.ndarray):
-        return Dataset(pd.DataFrame(X_onehot, columns=domain.attrs), domain)
 
+##################################################
+# Test
+##################################################
+
+def test_onehot_encoding():
+    # data_size = 10
+    # import numpy as np
+    # rng = np.random.default_rng(9)
+    cols = ['A', 'B', 'C']
+    dom = Domain(cols, [3, 1, 4])
+
+    raw_data_array = pd.DataFrame([
+                        [0, 0.0, 1],
+                        [0, 0.1, 3],
+                        [1, 0.2, 1]], columns=cols)
+    # data = Dataset.synthetic_rng(dom, data_size, rng)
+    data = Dataset(raw_data_array, dom)
+    print(f'Initial data in original format')
+    print(data.df)
+
+    data_oh = data.to_onehot()
+    assert data_oh.shape == (3, 8)
+    print(f'Onehot dataset')
+    print(data_oh)
+
+    data_2 = Dataset.from_onehot_to_dataset(dom, data_oh)
+
+    print(f'Final data in original format')
+    print(data_2.df)
+
+    # assert raw_data_array
 
 if __name__ == "__main__":
-    from utils.domain import Domain
-    domain = Domain(['A', 'B', 'C', 'D'], [2, 2, 1, 2])
-    data = Dataset.synthetic(domain, 10)
-
-    key = jax.random.PRNGKey(0)
-    X_relaxed = jax.random.uniform(key, shape=(10, 7))
-
-    softmax_example = Dataset.apply_softmax(domain, X_relaxed)
-    print(softmax_example)
-
-    tmep = Dataset.get_sample_onehot(key, domain, softmax_example, num_samples=3)
-    print(tmep.shape)
+    test_onehot_encoding()

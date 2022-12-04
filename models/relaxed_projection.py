@@ -3,10 +3,12 @@ import jax.numpy as jnp
 import optax
 from models import Generator
 from utils import Dataset
+from stats import Statistic
+
 
 class RelaxedProjection(Generator):
-    def __init__(self, domain, data_size, seed, iterations=1000, learning_rate=0.001):
-        super().__init__(domain, data_size, seed)
+    def __init__(self, domain, stat_module: Statistic, data_size, seed, iterations=1000, learning_rate=0.001):
+        super().__init__(domain, stat_module, data_size, seed)
         self.iterations = iterations
         self.learning_rate = learning_rate
         self.early_stop_percent = 0.001
@@ -16,11 +18,14 @@ class RelaxedProjection(Generator):
 
     @staticmethod
     def get_generator(iterations=1000, learning_rate=0.001):
-        generator_init = lambda data_dim, data_size, seed:   RelaxedProjection(data_dim, data_size, seed,
+        generator_init = lambda domain, stat_moudule, data_size, seed:   RelaxedProjection(domain, stat_moudule,
+                                                                                           data_size, seed,
                                                                                iterations, learning_rate)
         return generator_init
 
-    def fit(self, true_stats, stat_fn, init_X=None):
+    def fit(self, true_stats, init_X=None):
+
+        stat_fn = jax.jit(self.stat_module.get_differentiable_stats_fn())
 
         self.key, subkey = jax.random.split(self.key, 2)
         self.synthetic_data = jax.random.uniform(subkey, shape=(self.data_size, self.data_dim), minval=0, maxval=1)
@@ -63,7 +68,9 @@ class RelaxedProjection(Generator):
 
         self.key, subkey = jax.random.split(self.key, 2)
         X_onehot = Dataset.get_sample_onehot(subkey, self.domain, self.synthetic_data, num_samples=30)
-        return X_onehot
+
+        sync_dataset = Dataset.from_onehot_to_dataset(self.domain, X_onehot)
+        return sync_dataset
 
         # return self.synthetic_data
 
