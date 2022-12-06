@@ -164,7 +164,7 @@ class PrivGA(Generator):
                     print(f'\tGeneration {t}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
                     print(f'\ttime={time.time() -init_time:.3f}(s):', end='')
                     print(f'\t\tmax_error={max_error:.3f}', end='')
-                    print(f'\tsigma={state.sigma:.3f}', end='')
+                    # print(f'\tsigma={state.sigma:.3f}', end='')
                     print()
 
                 last_fitness = best_fitness
