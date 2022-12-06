@@ -15,8 +15,8 @@ if __name__ == "__main__":
         PrivGA.get_generator(popsize=5000,
                             top_k=100,
                             num_generations=150,
-                            sigma_scale=0.3,
-                             crossover=False,
+                             crossover=5,
+                             mutations=5,
                             stop_loss_time_window=50,
                             print_progress=True),
 

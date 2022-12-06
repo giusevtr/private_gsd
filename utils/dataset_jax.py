@@ -10,9 +10,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 def get_data_onehot(data):
     df_data = data.df
-
     dim = sum(data.domain.shape)
-
     i = 0
     oh_encoded = []
     for attr, num_classes in zip(data.domain.attrs, data.domain.shape):
@@ -28,6 +26,7 @@ def get_data_onehot(data):
 
     return data_onehot.astype(float)
 
+
 class Dataset:
     def __init__(self, df, domain):
         """ create a Dataset object
@@ -42,6 +41,20 @@ class Dataset:
     def __len__(self):
         return len(self.df)
 
+
+    @staticmethod
+    def synthetic_jax_rng(domain, N, rng):
+        """
+        Generate synthetic data conforming to the given domain
+        :param domain: The domain object
+        :param N: the number of individuals
+        """
+        d = len(domain.shape)
+        rng_split = jax.random.split(rng, d)
+        arr = [jax.random.randint(rng_temp, shape=(N, ), minval=0, maxval=n) if n > 1 else
+               jax.random.uniform(rng_temp, shape=(N, )) for (rng_temp, n) in zip(rng_split, domain.shape)]
+        values = jnp.array(arr).T
+        return values
 
     @staticmethod
     def synthetic_rng(domain, N, rng):

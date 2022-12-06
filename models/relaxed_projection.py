@@ -24,7 +24,6 @@ class RelaxedProjection(Generator):
         return generator_init
 
     def fit(self, true_stats, init_X=None):
-
         stat_fn = jax.jit(self.stat_module.get_differentiable_stats_fn())
 
         self.key, subkey = jax.random.split(self.key, 2)
@@ -43,7 +42,6 @@ class RelaxedProjection(Generator):
         update_fn = lambda params,  state: self.optimizer.update(jax.grad(compute_loss)(params), state)
         update_fn_jit = jax.jit(update_fn)
 
-
         last_loss = None
         smooth_loss_sum = 0
         stop_loss_window = 20
@@ -60,7 +58,6 @@ class RelaxedProjection(Generator):
                     loss_change = jnp.abs(smooth_loss_avg - last_loss) / last_loss
                     if loss_change < self.early_stop_percent:
                         break
-                # print(f'smooth_loss_avg={smooth_loss_avg}')
                 last_loss = smooth_loss_avg
                 smooth_loss_sum = 0
 

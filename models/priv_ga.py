@@ -58,8 +58,6 @@ class PrivGA(Generator):
         # Initialize statistics
         self.stat_fn = jax.jit(stat_module.get_stats_fn())
 
-
-
     @staticmethod
     def get_generator(num_generations=100, popsize=20, top_k=5, sigma_scale=0.01, crossover=False,
                        clip_max=1, stop_loss_time_window=10,  print_progress=False):
@@ -68,7 +66,7 @@ class PrivGA(Generator):
                                                                          popsize=popsize,
                                                                          top_k=top_k,
                                                                          sigma_scale=sigma_scale,
-                                                                             crossover=crossover,
+                                                                         crossover=crossover,
                                                                          clip_max=clip_max,
                                                                          stop_loss_time_window=stop_loss_time_window,
                                                                          print_progress=print_progress)
@@ -84,7 +82,6 @@ class PrivGA(Generator):
         num_devices = jax.device_count()
         if num_devices>1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
-
 
         # FITNESS
         compute_error_fn = lambda X: (jnp.linalg.norm(true_stats - self.stat_fn(X), ord=2)**2 ).squeeze()
@@ -103,7 +100,6 @@ class PrivGA(Generator):
             fitness = compute_error_pmap(X_distributed)
             fitness = jnp.concatenate(fitness)
             return fitness.squeeze()
-
 
         def std_criterion(fitness):
             """Restart strategy if fitness std across population is small."""

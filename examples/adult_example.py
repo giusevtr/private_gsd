@@ -15,14 +15,14 @@ if __name__ == "__main__":
     data = get_data('adult', 'adult', root_path='../data_files/')
 
     get_gen_list = [
-        RelaxedProjection.get_generator(learning_rate=0.01),
+        # RelaxedProjection.get_generator(learning_rate=0.01),
         PrivGA.get_generator(popsize=10000,
                              top_k=100,
-                             num_generations=500,
-                             sigma_scale=0.5,
-                             crossover=True,
+                             num_generations=200,
+                             crossover=5,
+                             mutations=5,
                              stop_loss_time_window=50,
-                             print_progress=False)
+                             print_progress=True)
     ]
 
     stat_module_list = [
@@ -34,6 +34,6 @@ if __name__ == "__main__":
                    stat_modules=stat_module_list,
                    # epsilon_list=[0.03],
                    epsilon_list=[0.03, 0.05, 0.07, 0.1, 0.2],
-                   seed_list=[0, 1, 2],
-                   plot_results=False,
+                   seed_list=[0],
+                   plot_results=True,
                    data_size=100)
