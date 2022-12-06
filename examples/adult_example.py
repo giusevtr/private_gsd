@@ -3,12 +3,12 @@ from models import PrivGA, RelaxedProjection
 from stats import Marginals, TwoWayPrefix
 from utils.utils_data import get_data
 
+import pdb
 
 if __name__ == "__main__":
 
     # Get Data
     data = get_data('adult', 'adult', root_path='../data_files/')
-
 
     get_gen_list = [
         # RelaxedProjection.get_generator(learning_rate=0.01),
@@ -28,8 +28,8 @@ if __name__ == "__main__":
                    data_name='adult',
                    generators=get_gen_list,
                    stat_modules=stat_module_list,
-                   # epsilon_list=[0.03],
-                   epsilon_list=[0.03, 0.05, 0.07, 0.1, 0.2],
+                   epsilon_list=[1.0],
+                   # epsilon_list=[0.07, 0.15, 0.23, 0.41, 0.52, 0.62, 0.74, 0.87, 1.0],
                    seed_list=[0],
                    plot_results=True,
                    data_size=100)
