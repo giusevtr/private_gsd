@@ -32,6 +32,12 @@ class EvoParams:
     clip_min: float = -jnp.finfo(jnp.float32).max
     clip_max: float = jnp.finfo(jnp.float32).max
 
+
+
+
+
+
+
 """
 Implement crossover that is specific to synthetic data
 """
@@ -241,6 +247,7 @@ def get_perturbation(rng, col, domain: Domain, sigma):
     else:
         return jax.random.normal(rng3, (1, )) * sigma
 
+
 def mutation_strategy(rng: chex.PRNGKey, x, sigma, domain: Domain):
     pop_size, n, d = x.shape
 
@@ -257,12 +264,12 @@ def mutation_strategy(rng: chex.PRNGKey, x, sigma, domain: Domain):
     cat_cols = domain.get_categorical_cols()
 
     new_x = []
-    cat_mutations = jnp.zeros(shape=(pop_size, 1))
+    # cat_mutations = jnp.zeros(shape=(pop_size, 1))
     ones = jnp.ones(shape=(pop_size, 1))
     i = jnp.array([[i] for i in range(pop_size)])
     for col, att in enumerate(domain.attrs):
         temp = (col_mutation == col).astype(dtype=jnp.int32).squeeze().reshape(-1, 1, 1)
-        cat_mutations = jnp.logical_or(cat_mutations, temp)
+        # cat_mutations = jnp.logical_or(cat_mutations, temp)
 
         rng3, rng3_sub = jax.random.split(rng3, 2)
         # pop_indices = jnp.argwhere(col_mutation == col)

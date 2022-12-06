@@ -1,6 +1,6 @@
 import pandas as pd
 from sklearn.datasets import make_classification
-from es_jax.utils_jax import Dataset, Domain
+from utils import Dataset, Domain
 import numpy as np
 
 
@@ -11,9 +11,9 @@ def get_classification(DATA_SIZE=100, d=2, seed=0):
     x_min = X.min(axis=0)
     X = (X - x_min) / (x_max - x_min)
     # arr = np.concatenate([X, y.reshape(-1, 1)], axis=1)
-    arr =X
-    cols = [f'f{i}' for i in range(d)]
-    domain = Domain(cols, [1 for _ in range(d)] )
+    arr = np.column_stack((X, y))
+    cols = [f'f{i}' for i in range(d)] + ['label']
+    domain = Domain(cols, [1 for _ in range(d)] + [2])
     df = pd.DataFrame(arr, columns=cols)
     data = Dataset(df, domain)
     return data
