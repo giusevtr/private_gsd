@@ -69,6 +69,11 @@ class Dataset:
         return Dataset(df, domain)
 
     @staticmethod
+    def synthetic(domain, N, seed: int):
+        rng = np.random.default_rng(seed)
+        return Dataset.synthetic_rng(domain, N, rng)
+
+    @staticmethod
     def load(path, domain):
         """ Load data into a dataset object
 
