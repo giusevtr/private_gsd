@@ -11,10 +11,10 @@ def plot_2d_data(data_array, i=0, j=1, alpha=0.5, title=''):
     plt.figure(figsize=(5, 5))
     plt.title(title)
     plt.scatter(data_array[:, i], data_array[:, j], alpha=alpha)
-
     plt.xlim(0, 1)
     plt.ylim(0, 1)
     plt.show()
+
 def plot_2d_data_sync(data_array, sync_data_array,  i=0, j=1, alpha=0.5, title=''):
     plt.figure(figsize=(5, 5))
     plt.title(title)
