@@ -51,7 +51,7 @@ def run_experiment(
             RESULTS.append([data_name, str(generator), str(stat_module), epsilon, seed, float(error), float(max_error), elapsed_time])
     results_df = pd.DataFrame(RESULTS, columns=['data', 'generator', 'stats', 'epsilon', 'seed', 'l1 error', 'max error', 'time'])
 
-    # results_df.to_csv(f'result/results_{data_name}_{str(stat_modules[0])}.csv', index_label=False)
+    results_df.to_csv(f'results/results_{data_name}_{str(stat_modules[0])}.csv', index_label=False)
     if plot_results:
         plt.title(f'data={data_name}')
         sns.relplot(data=results_df, x='epsilon', y='l1 error', hue='generator', row='data', col='stats', kind='line')

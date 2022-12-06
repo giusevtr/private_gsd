@@ -1,14 +1,18 @@
+import sys
+
+sys.path.append("..")
+sys.path.append("../..")
 from examples.run_example import generate_private_SD, run_experiment
 from models import PrivGA, RelaxedProjection
 from stats import Marginals, TwoWayPrefix
 from utils.utils_data import get_data
+import os
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 if __name__ == "__main__":
-
     # Get Data
     data = get_data('adult', 'adult', root_path='../data_files/')
-
 
     get_gen_list = [
         RelaxedProjection.get_generator(learning_rate=0.01),
@@ -33,5 +37,3 @@ if __name__ == "__main__":
                    seed_list=[0, 1, 2],
                    plot_results=False,
                    data_size=100)
-
-
