@@ -46,19 +46,10 @@ class PrivGA(Generator):
             mutations=mutations,
             num_devices=num_devices)
 
-        # self.es_params = self.strategy.default_params.replace(
-        #     sigma_init=float(self.sigma_scale),
-        #     # sigma_limit=0.01,
-        #     sigma_limit=float(self.sigma_scale),
-        #     sigma_decay=0.999,
-        #     init_min=0.0,
-        #     init_max=1.0,
-        #     clip_max=1,
-        #     clip_min=0.0
-        # )
-
         # Initialize statistics
         self.stat_fn = jax.jit(stat_module.get_stats_fn())
+
+        # self.init_population_fn = jax.jit(get_initialize_population)
 
 
     @staticmethod
@@ -78,12 +69,13 @@ class PrivGA(Generator):
         return generator_init
 
     def __str__(self):
-        return f'SimpleGA: (cross={self.crossover}, mut={self.mutations})'
+        return f'SimpleGA(cross={self.crossover}, mut={self.mutations})'
 
     def fit(self, true_stats, init_X=None):
         """
         Minimize error between real_stats and sync_stats
         """
+        init_time = time.time()
         num_devices = jax.device_count()
         if num_devices>1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
@@ -107,16 +99,13 @@ class PrivGA(Generator):
             fitness = jnp.concatenate(fitness)
             return fitness.squeeze()
 
-        def std_criterion(fitness):
-            """Restart strategy if fitness std across population is small."""
-            return fitness.std() < 0.005
-
+        stime = time.time()
         self.key, subkey = jax.random.split(self.key, 2)
         state = self.strategy.initialize(subkey)
         if init_X is not None:
             state = state.replace(mean=init_X.reshape(-1))
+        print(f'population initialization time = {time.time() - stime:.3f}')
 
-        init_time = time.time()
         last_fitness = None
         best_fitness_avg = 100000
         last_best_fitness_avg = None
@@ -126,10 +115,18 @@ class PrivGA(Generator):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             x, state = self.strategy.ask(ask_subkey, state)
 
+            if t == 0:
+                print(f'ask time = {time.time() - stime:.3f}')
+
             # FITNESS
             fitness = fitness_fn(x)
+            if t == 0:
+                print(f'fitness time = {time.time() - stime:.3f}')
+
             state = self.strategy.tell(x, fitness, state)
             best_fitness = fitness.min()
+            if t == 0:
+                print(f'tell time = {time.time() - stime:.3f}')
 
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
@@ -268,7 +265,6 @@ class SimpleGAforSyncData:
     ) -> Tuple[chex.Array, EvoState]:
         """
         """
-        num_elites_to_keep = 1
 
         rng, rng_eps, rng_idx_a, rng_idx_b, rng_cross = jax.random.split(rng, 5)
 
