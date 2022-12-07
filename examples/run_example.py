@@ -62,6 +62,7 @@ def run_experiment(
         if os.path.exists('results/'):
             plt.savefig(f'results/{data_name}_{str(stat_modules[0])}_max.png')
         plt.show()
+    return results_df
 
 def generate_private_SD(
         data: Dataset,

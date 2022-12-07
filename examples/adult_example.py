@@ -14,11 +14,11 @@ if __name__ == "__main__":
         # RelaxedProjection.get_generator(learning_rate=0.01),
         PrivGA.get_generator(popsize=10000,
                              top_k=100,
-                             num_generations=200,
-                             crossover=1,
+                             num_generations=30,
+                             crossover=cross,
                              mutations=5,
                              stop_loss_time_window=50,
-                             print_progress=True)
+                             print_progress=False) for cross in [-1, 1, 10, 50]
     ]
 
     stat_module_list = [

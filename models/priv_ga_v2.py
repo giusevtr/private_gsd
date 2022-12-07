@@ -287,9 +287,6 @@ class SimpleGAforSyncData:
     def ask_strategy(
         self, rng: chex.PRNGKey, state: EvoState
     ) -> Tuple[chex.Array, EvoState]:
-        """
-        """
-
         rng, rng_mate, rng_idx_a, rng_idx_b, rng_cross = jax.random.split(rng, 5)
 
         archive_size = state.archive.shape[0]
