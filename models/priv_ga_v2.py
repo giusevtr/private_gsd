@@ -84,7 +84,6 @@ class PrivGA(Generator):
         """
         Minimize error between real_stats and sync_stats
         """
-        print('true params = ', true_stats)
         num_devices = jax.device_count()
         if num_devices>1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
@@ -126,25 +125,16 @@ class PrivGA(Generator):
             stime = time.time()
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             x, state = self.strategy.ask(ask_subkey, state)
-            # x, state = self.strategy.ask_strategy(ask_subkey, state)
 
             # FITNESS
             fitness = fitness_fn(x)
             state = self.strategy.tell(x, fitness, state)
             best_fitness = fitness.min()
 
-            print(f't={t:<10} best fitness = {best_fitness:<10.3f}, std={fitness.std()}')
-            params = self.stat_fn(state.best_member)
-            print(f'Sync params: ', params)
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
 
-            # if std_criterion(fitness):
-            #     print('Stopping early')
-            #     break
-
             if t % self.stop_loss_time_window == 0 and t > 0:
-                # best_fitness_avg = best_fitness_avg / self.stop_loss_time_window
                 if last_best_fitness_avg is not None:
                     percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
                     if percent_change < 0.001:
@@ -165,7 +155,6 @@ class PrivGA(Generator):
                     print(f'\t\tmax_error={max_error:.3f}', end='')
                     # print(f'\tsigma={state.sigma:.3f}', end='')
                     print()
-
 
 
                 last_fitness = best_fitness
