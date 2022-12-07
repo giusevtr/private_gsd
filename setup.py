@@ -1,4 +1,4 @@
-from setuptools import setup
+tfrom setuptools import setup
 
 setup(
     name='evo-privsyn',
