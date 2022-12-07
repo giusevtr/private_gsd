@@ -229,7 +229,7 @@ class SimpleGAforSyncData:
         mutate = get_mutation_fn(domain, self.mutations)
         self.mutate_vmap = jax.jit(jax.vmap(mutate, in_axes=(0, 0)))
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def initialize(
         self, rng: chex.PRNGKey
     ) -> EvoState:
