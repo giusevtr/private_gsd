@@ -51,7 +51,6 @@ class PrivGA(Generator):
 
         # self.init_population_fn = jax.jit(get_initialize_population)
 
-
     @staticmethod
     def get_generator(num_generations=100, popsize=20, top_k=5, crossover: int =1, mutations:int =1,
                        clip_max=1, stop_loss_time_window=10,  print_progress=False):
@@ -168,6 +167,27 @@ class PrivGA(Generator):
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         return sync_dataset
 
+
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+
+
+
+
+
+
+
+
 import jax
 import numpy as np
 import chex
@@ -224,10 +244,14 @@ class SimpleGAforSyncData:
 
         # self.sparsity, self.min_sparsity, self.sparsity_decay = self.perturbation_sparsity
 
-        self.mate_vmap = jax.jit(jax.vmap(single_mate, in_axes=(0, 0, 0, None)), static_argnums=3)
+        if crossover == -1:
+            self.mate_vmap = jax.jit(jax.vmap(get_dynamic_mating_fn(), in_axes=(0, 0, 0)))
+        else:
+            self.mate_vmap = jax.jit(jax.vmap(get_mating_fn(crossover), in_axes=(0, 0, 0)))
 
         mutate = get_mutation_fn(domain, self.mutations)
         self.mutate_vmap = jax.jit(jax.vmap(mutate, in_axes=(0, 0)))
+
 
     # @partial(jax.jit, static_argnums=(0,))
     def initialize(
@@ -266,11 +290,11 @@ class SimpleGAforSyncData:
         """
         """
 
-        rng, rng_eps, rng_idx_a, rng_idx_b, rng_cross = jax.random.split(rng, 5)
+        rng, rng_mate, rng_idx_a, rng_idx_b, rng_cross = jax.random.split(rng, 5)
 
         archive_size = state.archive.shape[0]
         num_mates = self.popsize - archive_size
-        rng_mate = jax.random.split(rng, num_mates)
+        rng_mate = jax.random.split(rng_mate, num_mates)
 
         elite_ids = jnp.arange(self.elite_popsize)
         idx_a = jax.random.choice(rng_idx_a, elite_ids, (num_mates,))
@@ -278,23 +302,14 @@ class SimpleGAforSyncData:
         members_a = state.archive[idx_a]
         members_b = state.archive[idx_b]
 
-        if self.crossover > 0:
-            # cross_over_rates = jnp.zeros(shape=(num_mates,))
-            x = self.mate_vmap(
-                    rng_mate, members_a, members_b, self.crossover
-                )
-        else:
-            x = members_a[:num_mates]
-
-        # Add archive
+        # Combine crossover population with elite population and mutate all members
+        x = self.mate_vmap(
+                rng_mate, members_a, members_b
+            )
         x = jnp.vstack([x, state.archive])
-
         rng_mutate = jax.random.split(rng, self.popsize)
         x = self.mutate_vmap(rng_mutate, x)
 
-        # ADD best
-        # x = jnp.vstack([x[num_elites_to_keep:, :, :], state.archive[:num_elites_to_keep, :, :]])
-        # return jnp.squeeze(x), state
         return x.astype(jnp.float32), state
 
 
@@ -375,24 +390,36 @@ def get_mutation_fn(domain: Domain, mutations: int):
 
     return mutate
 
+def get_mating_fn(crossover_number):
 
-def single_mate(
-    rng: chex.PRNGKey, X: chex.Array, Y: chex.Array, crossover
-) -> chex.Array:
-    """Only cross-over dims for x% of all dims."""
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    X = jax.random.permutation(rng3, X, axis=0)
-    Y = jax.random.permutation(rng4, Y, axis=0)
-    n, d = X.shape
-    # n, d = sync_data_shape
+    def single_mate(rng: chex.PRNGKey, X: chex.Array, Y: chex.Array) -> chex.Array:
+        """Only cross-over dims for x% of all dims."""
+        rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+        X = jax.random.permutation(rng3, X, axis=0)
+        Y = jax.random.permutation(rng4, Y, axis=0)
+        n, d = X.shape
+        # n, d = sync_data_shape
 
-    idx = jnp.concatenate((jnp.ones(crossover), jnp.zeros(n-crossover))).reshape((n, 1))
+        idx = jnp.concatenate((jnp.ones(crossover_number), jnp.zeros(n-crossover_number))).reshape((n, 1))
 
-    XY = X * (1 - idx) + Y * idx
-    cross_over_candidate = XY
-    return cross_over_candidate
+        XY = X * (1 - idx) + Y * idx
+        cross_over_candidate = XY
+        return cross_over_candidate
+    return single_mate
 
 
+def get_dynamic_mating_fn():
+    def dynamic_mating(rng: chex.PRNGKey, X: chex.Array, Y: chex.Array,) -> chex.Array:
+        """Only cross-over dims for x% of all dims."""
+        n, d = X.shape
+        rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+        cross_over_rate = jax.random.uniform(rng1, shape=(1,))
+        idx = (jax.random.uniform(rng2, (n, )) > cross_over_rate).reshape((n, 1))
+        X = jax.random.permutation(rng3, X, axis=0)
+        Y = jax.random.permutation(rng4, Y, axis=0)
+        XY = X * (1 - idx) + Y * idx
+        return XY
+    return dynamic_mating
 ######################################################################
 ######################################################################
 ######################################################################
