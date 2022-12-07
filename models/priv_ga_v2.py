@@ -68,7 +68,7 @@ class PrivGA(Generator):
         return generator_init
 
     def __str__(self):
-        return f'SimpleGA(cross={self.crossover}, mut={self.mutations})'
+        return f'SimpleGA(topk={self.top_k}, cross={self.crossover}, mut={self.mutations})'
 
     def fit(self, true_stats, init_X=None):
         """
