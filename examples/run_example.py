@@ -48,10 +48,14 @@ def run_experiment(
             X_sync, error, max_error, elapsed_time = generate_private_SD(data, generator,  epsilon, seed)
             if callback_fn is not None:
                 callback_fn(X_sync)
-            RESULTS.append([data_name, str(generator), str(stat_module), epsilon, seed, float(error), float(max_error), elapsed_time])
-    results_df = pd.DataFrame(RESULTS, columns=['data', 'generator', 'stats', 'epsilon', 'seed', 'l1 error', 'max error', 'time'])
+                RESULTS.append(
+                    [data_name, str(generator), str(stat_module), epsilon, seed, float(error), float(max_error),elapsed_time])
+        results_df = pd.DataFrame(RESULTS,
+                                  columns=['data', 'generator', 'stats', 'epsilon', 'seed', 'l1 error', 'max error', 'time'])
+    #         RESULTS.append([data_name, str(generator), str(stat_module), epsilon, seed, float(error), float(max_error),generator.top_k,generator.crossover, generator.mutations, elapsed_time])
+    # results_df = pd.DataFrame(RESULTS, columns=['data', 'generator', 'stats', 'epsilon', 'seed', 'l1 error', 'max error','top_k','crossover','mutations', 'time'])
 
-    results_df.to_csv(f'results/results_{data_name}_{str(stat_modules[0])}.csv', index_label=False)
+    # results_df.to_csv(f'results/results_{data_name}_{str(stat_modules[0])}_parameters.csv', index_label=False)
     if plot_results:
         plt.title(f'data={data_name}')
         sns.relplot(data=results_df, x='epsilon', y='l1 error', hue='generator', row='data', col='stats', kind='line')
@@ -62,6 +66,7 @@ def run_experiment(
         if os.path.exists('results/'):
             plt.savefig(f'results/{data_name}_{str(stat_modules[0])}_max.png')
         plt.show()
+    return results_df
 
 def generate_private_SD(
         data: Dataset,

@@ -78,7 +78,7 @@ class PrivGA(Generator):
         return generator_init
 
     def __str__(self):
-        return f'SimpleGA: (cross={self.crossover}, mut={self.mutations})'
+        return f'PrivGA: (cross={self.crossover}, mut={self.mutations})'
 
     def fit(self, true_stats, init_X=None):
         """
@@ -113,6 +113,7 @@ class PrivGA(Generator):
 
         self.key, subkey = jax.random.split(self.key, 2)
         state = self.strategy.initialize(subkey)
+        print("check2")
         if init_X is not None:
             state = state.replace(mean=init_X.reshape(-1))
         # Run ask-eval-tell loop - NOTE: By default minimization!
@@ -367,6 +368,7 @@ def initialize_population(rng: chex.PRNGKey, pop_size, domain: Domain, data_size
     for s in range(pop_size):
         # data = Dataset.synthetic_rng(domain, data_size, rng_np)
         rng, rng_sub = jax.random.split(rng)
+        st=time.time()
         X = Dataset.synthetic_jax_rng(domain, data_size, rng_sub)
         temp.append(X)
 
@@ -378,6 +380,7 @@ def get_mutation_fn(domain: Domain, mutations: int):
 
     def mutate(rng: chex.PRNGKey, X):
         n, d = X.shape
+        print("shape:",X.shape)
         rng1, rng2 = jax.random.split(rng, 2)
         total_params = n * d
         idx = jnp.concatenate((jnp.ones(mutations), jnp.zeros(total_params-mutations)))
