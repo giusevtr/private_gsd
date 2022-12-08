@@ -123,8 +123,7 @@ class PrivGA(Generator):
             best_fitness = fitness.min()
 
             if best_fitness > best_fitness_avg:
-                print(f'Did not improve fitness on round {t}')
-                state = state.replace(mutations=(state.mutations + 1) / 2)
+                state = state.replace(mutations=(state.mutations + 1) // 2)
 
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
@@ -148,7 +147,7 @@ class PrivGA(Generator):
                     print(f'\tGeneration {t}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
                     print(f'\ttime={time.time() -init_time:.3f}(s):', end='')
                     print(f'\t\tmax_error={max_error:.3f}', end='')
-                    print(f'\tmutations={state.mutations:.3f}', end='')
+                    print(f'\tmutations={state.mutations}', end='')
                     print()
 
 
