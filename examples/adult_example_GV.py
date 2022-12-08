@@ -16,7 +16,8 @@ if __name__ == "__main__":
                              top_k=10,
                              num_generations=200,
                              stop_loss_time_window=50,
-                             print_progress=True)
+                             print_progress=True,
+                             start_mutations=2)
     ]
 
     stat_module_list = [

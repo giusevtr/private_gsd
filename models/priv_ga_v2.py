@@ -31,7 +31,9 @@ class PrivGA(Generator):
                  popsize: int,
                  top_k: int,
                  stop_loss_time_window:int,
-                 print_progress: bool):
+                 print_progress: bool,
+                 start_mutations:int = None,
+                 ):
 
         # Instantiate the search strategy
         super().__init__(domain, stat_module, data_size, seed)
@@ -41,6 +43,7 @@ class PrivGA(Generator):
         self.elite_ratio = top_k / popsize
         self.print_progress = print_progress
         self.stop_loss_time_window = stop_loss_time_window
+        self.start_mutations = start_mutations
         num_devices = jax.device_count()
 
         self.strategy = SimpleGAforSyncData(
@@ -58,7 +61,7 @@ class PrivGA(Generator):
 
     @staticmethod
     def get_generator(num_generations=100, popsize=20, top_k=5,
-                       clip_max=1, stop_loss_time_window=10,  print_progress=False):
+                       clip_max=1, stop_loss_time_window=10,  print_progress=False, start_mutations: int = None):
         generator_init = lambda domain, stat_module, data_size, seed: PrivGA(domain,
                                                                             stat_module,
                                                                             data_size,
@@ -67,7 +70,8 @@ class PrivGA(Generator):
                                                                             popsize=popsize,
                                                                             top_k=top_k,
                                                                             stop_loss_time_window=stop_loss_time_window,
-                                                                            print_progress=print_progress)
+                                                                            print_progress=print_progress,
+                                                                             start_mutations=start_mutations)
         return generator_init
 
     def __str__(self):
@@ -105,7 +109,8 @@ class PrivGA(Generator):
         stime = time.time()
         self.key, subkey = jax.random.split(self.key, 2)
         state = self.strategy.initialize(subkey)
-        state = state.replace(mutations=self.data_size)
+        if self.start_mutations is not None:
+            state = state.replace(mutations=self.start_mutations)
         print(f'population initialization time = {time.time() - stime:.3f}')
 
         last_fitness = None
@@ -215,7 +220,7 @@ class SimpleGAforSyncData:
                  generations:int,
                  popsize: int,
                  elite_ratio: float = 0.5,
-                 num_devices=1
+                 num_devices=1,
                  ):
         """Simple Genetic Algorithm For Synthetic Data Search Adapted from (Such et al., 2017)
         Reference: https://arxiv.org/abs/1712.06567
