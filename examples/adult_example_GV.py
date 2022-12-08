@@ -8,15 +8,15 @@ import pdb
 if __name__ == "__main__":
 
     # Get Data
-    data = get_data('adult', 'adult', root_path='../data_files/')
+    data = get_data('adult', 'adult-mini', root_path='../data_files/')
 
     get_gen_list = [
         # RelaxedProjection.get_generator(learning_rate=0.01),
         PrivGA.get_generator(popsize=10000,
-                             top_k=100,
-                             num_generations=30,
+                             top_k=10,
+                             num_generations=200,
                              stop_loss_time_window=50,
-                             print_progress=False)
+                             print_progress=True)
     ]
 
     stat_module_list = [

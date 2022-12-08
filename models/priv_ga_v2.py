@@ -11,15 +11,25 @@ from stats import Statistic
 
 
 class PrivGA(Generator):
-    def __init__(self, domain: Domain,
+    # domain: Domain
+    # stat_module: Statistic
+    # data_size: int
+    # seed: int
+    # num_generations: int
+    # popsize: int
+    # top_k: int
+    # crossover: int
+    # mutations: int,
+    # stop_loss_time_window: int,
+    # splits: int,
+    def __init__(self,
+                 domain: Domain,
                  stat_module: Statistic,
                  data_size,
                  seed,
                  num_generations: int,
                  popsize: int,
                  top_k: int,
-                 crossover: int,
-                 mutations: int,
                  stop_loss_time_window:int,
                  print_progress: bool):
 
@@ -28,12 +38,9 @@ class PrivGA(Generator):
         self.num_generations = num_generations
         self.popsize = popsize
         self.top_k = top_k
-        self.crossover = crossover
-        self.mutations = mutations
         self.elite_ratio = top_k / popsize
         self.print_progress = print_progress
         self.stop_loss_time_window = stop_loss_time_window
-
         num_devices = jax.device_count()
 
         self.strategy = SimpleGAforSyncData(
@@ -42,8 +49,6 @@ class PrivGA(Generator):
             generations=num_generations,
             popsize=self.popsize,
             elite_ratio=self.elite_ratio,
-            crossover=crossover,
-            mutations=mutations,
             num_devices=num_devices)
 
         # Initialize statistics
@@ -52,7 +57,7 @@ class PrivGA(Generator):
         # self.init_population_fn = jax.jit(get_initialize_population)
 
     @staticmethod
-    def get_generator(num_generations=100, popsize=20, top_k=5, crossover: int =1, mutations:int =1,
+    def get_generator(num_generations=100, popsize=20, top_k=5,
                        clip_max=1, stop_loss_time_window=10,  print_progress=False):
         generator_init = lambda domain, stat_module, data_size, seed: PrivGA(domain,
                                                                             stat_module,
@@ -61,14 +66,12 @@ class PrivGA(Generator):
                                                                             num_generations=num_generations,
                                                                             popsize=popsize,
                                                                             top_k=top_k,
-                                                                            crossover=crossover,
-                                                                            mutations=mutations,
                                                                             stop_loss_time_window=stop_loss_time_window,
                                                                             print_progress=print_progress)
         return generator_init
 
     def __str__(self):
-        return f'SimpleGA(topk={self.top_k}, cross={self.crossover}, mut={self.mutations})'
+        return f'SimpleGA(popsize={self.popsize}, topk={self.top_k})'
 
     def fit(self, true_stats, init_X=None):
         """
@@ -87,13 +90,14 @@ class PrivGA(Generator):
             return compute_error_vmap(X)
         compute_error_pmap = jax.pmap(distributed_error_fn, in_axes=(0, ))
 
-        def fitness_fn(X):
+        def fitness_fn(x):
             """
             Evaluate the error of the synthetic data
             """
             if num_devices == 1:
-                return compute_error_vmap(X)
-            X_distributed = X.reshape((num_devices, -1, self.data_size, self.data_dim))
+                return compute_error_vmap(x)
+
+            X_distributed = x.reshape((num_devices, -1, self.data_size, self.data_dim))
             fitness = compute_error_pmap(X_distributed)
             fitness = jnp.concatenate(fitness)
             return fitness.squeeze()
@@ -101,8 +105,7 @@ class PrivGA(Generator):
         stime = time.time()
         self.key, subkey = jax.random.split(self.key, 2)
         state = self.strategy.initialize(subkey)
-        if init_X is not None:
-            state = state.replace(mean=init_X.reshape(-1))
+        state = state.replace(mutations=self.data_size)
         print(f'population initialization time = {time.time() - stime:.3f}')
 
         last_fitness = None
@@ -110,22 +113,18 @@ class PrivGA(Generator):
         last_best_fitness_avg = None
 
         for t in range(self.num_generations):
-            stime = time.time()
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             x, state = self.strategy.ask(ask_subkey, state)
 
-            if t == 0:
-                print(f'ask time = {time.time() - stime:.3f}')
-
             # FITNESS
             fitness = fitness_fn(x)
-            if t == 0:
-                print(f'fitness time = {time.time() - stime:.3f}')
 
             state = self.strategy.tell(x, fitness, state)
             best_fitness = fitness.min()
-            if t == 0:
-                print(f'tell time = {time.time() - stime:.3f}')
+
+            if best_fitness > best_fitness_avg:
+                print(f'Did not improve fitness on round {t}')
+                state = state.replace(mutations=(state.mutations + 1) / 2)
 
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
@@ -149,7 +148,7 @@ class PrivGA(Generator):
                     print(f'\tGeneration {t}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
                     print(f'\ttime={time.time() -init_time:.3f}(s):', end='')
                     print(f'\t\tmax_error={max_error:.3f}', end='')
-                    # print(f'\tsigma={state.sigma:.3f}', end='')
+                    print(f'\tmutations={state.mutations:.3f}', end='')
                     print()
 
 
@@ -191,8 +190,6 @@ class PrivGA(Generator):
 import jax
 import numpy as np
 import chex
-from typing import Tuple
-from evosax.strategy import Strategy
 from flax import struct
 from utils import Dataset, Domain
 from functools import partial
@@ -207,6 +204,7 @@ class EvoState:
     best_member: chex.Array
     best_fitness: float = jnp.finfo(jnp.float32).max
     gen_counter: int = 0
+    mutations: int = 1
 
 """
 Implement crossover that is specific to synthetic data
@@ -217,8 +215,6 @@ class SimpleGAforSyncData:
                  data_size: int, # number of synthetic data rows
                  generations:int,
                  popsize: int,
-                 crossover: int = 1,
-                 mutations: int = 1,
                  elite_ratio: float = 0.5,
                  num_devices=1
                  ):
@@ -237,20 +233,13 @@ class SimpleGAforSyncData:
         self.elite_ratio = elite_ratio
         self.elite_popsize = max(1, int(self.popsize * self.elite_ratio))
         self.strategy_name = "SimpleGA"
-        self.crossover = crossover
-        self.mutations = mutations
+        # self.crossover = crossover
+        # self.mutations = mutations
         self.num_devices = num_devices
         self.domain = domain
 
-        # self.sparsity, self.min_sparsity, self.sparsity_decay = self.perturbation_sparsity
-
-        if crossover == -1:
-            self.mate_vmap = jax.jit(jax.vmap(get_dynamic_mating_fn(), in_axes=(0, 0, 0)))
-        else:
-            self.mate_vmap = jax.jit(jax.vmap(get_mating_fn(crossover), in_axes=(0, 0, 0)))
-
-        mutate = get_mutation_fn(domain, self.mutations)
-        self.mutate_vmap = jax.jit(jax.vmap(mutate, in_axes=(0, 0)))
+        mutate = get_mutation_fn(domain)
+        self.mutate_vmap = jax.jit(jax.vmap(mutate, in_axes=(0, 0, None)))
 
 
     # @partial(jax.jit, static_argnums=(0,))
@@ -271,6 +260,7 @@ class SimpleGAforSyncData:
             archive=initialization,
             fitness=jnp.zeros(self.elite_popsize) + jnp.finfo(jnp.float32).max,
             best_member=initialization[0],
+            mutations=self.data_size
         )
         return state
 
@@ -287,26 +277,12 @@ class SimpleGAforSyncData:
     def ask_strategy(
         self, rng: chex.PRNGKey, state: EvoState
     ) -> Tuple[chex.Array, EvoState]:
-        rng, rng_mate, rng_idx_a, rng_idx_b, rng_cross = jax.random.split(rng, 5)
-
-        archive_size = state.archive.shape[0]
-        num_mates = self.popsize - archive_size
-        rng_mate = jax.random.split(rng_mate, num_mates)
-
+        rng, rng_1, rng_2 = jax.random.split(rng, 3)
         elite_ids = jnp.arange(self.elite_popsize)
-        idx_a = jax.random.choice(rng_idx_a, elite_ids, (num_mates,))
-        idx_b = jax.random.choice(rng_idx_b, elite_ids, (num_mates,))
-        members_a = state.archive[idx_a]
-        members_b = state.archive[idx_b]
-
-        # Combine crossover population with elite population and mutate all members
-        x = self.mate_vmap(
-                rng_mate, members_a, members_b
-            )
-        x = jnp.vstack([x, state.archive])
-        rng_mutate = jax.random.split(rng, self.popsize)
-        x = self.mutate_vmap(rng_mutate, x)
-
+        idx_a = jax.random.choice(rng_1, elite_ids, (self.popsize,))
+        x = state.archive[idx_a]
+        rng_mutate = jax.random.split(rng_2, self.popsize)
+        x = self.mutate_vmap(rng_mutate, x, state.mutations)
         return x.astype(jnp.float32), state
 
 
@@ -316,7 +292,7 @@ class SimpleGAforSyncData:
         x: chex.Array,
         fitness: chex.Array,
         state: EvoState,
-    ) -> chex.ArrayTree:
+    ) -> EvoState:
         """`tell` performance data for strategy state update."""
 
         # Update the search state based on strategy-specific update
@@ -359,11 +335,8 @@ class SimpleGAforSyncData:
 
 
 def initialize_population(rng: chex.PRNGKey, pop_size, domain: Domain, data_size):
-    # seed = np.array(jax.random.randint(rng, shape=(1,), minval=0, maxval=1000000))[0]
     temp = []
-    # rng_np = np.random.default_rng(seed)
     for s in range(pop_size):
-        # data = Dataset.synthetic_rng(domain, data_size, rng_np)
         rng, rng_sub = jax.random.split(rng)
         X = Dataset.synthetic_jax_rng(domain, data_size, rng_sub)
         temp.append(X)
@@ -372,83 +345,43 @@ def initialize_population(rng: chex.PRNGKey, pop_size, domain: Domain, data_size
     return initialization
 
 
-def get_mutation_fn(domain: Domain, mutations: int):
+def get_mutation_fn(domain: Domain):
 
-    def mutate(rng: chex.PRNGKey, X):
+    def mutate(rng: chex.PRNGKey, X, mutations):
         n, d = X.shape
         rng1, rng2 = jax.random.split(rng, 2)
         total_params = n * d
-        idx = jnp.concatenate((jnp.ones(mutations), jnp.zeros(total_params-mutations)))
-        idx = jax.random.permutation(rng1, idx)
-        idx = idx.reshape((n, d))
+
+        # mut_coordinates = jnp.array([i < mutations for i in range(total_params)])
+        mut_coordinates = jnp.arange(total_params) < mutations
+        # idx = jnp.concatenate((jnp.ones(mutations), jnp.zeros(total_params-mutations)))
+        mut_coordinates = jax.random.permutation(rng1, mut_coordinates)
+        mut_coordinates = mut_coordinates.reshape((n, d))
         initialization = Dataset.synthetic_jax_rng(domain, n, rng2)
-        X = X * (1-idx) + initialization * idx
+        X = X * (1-mut_coordinates) + initialization * mut_coordinates
         return X
 
     return mutate
 
-def get_mating_fn(crossover_number):
-
-    def single_mate(rng: chex.PRNGKey, X: chex.Array, Y: chex.Array) -> chex.Array:
-        """Only cross-over dims for x% of all dims."""
-        rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-        X = jax.random.permutation(rng3, X, axis=0)
-        Y = jax.random.permutation(rng4, Y, axis=0)
-        n, d = X.shape
-        # n, d = sync_data_shape
-
-        idx = jnp.concatenate((jnp.ones(crossover_number), jnp.zeros(n-crossover_number))).reshape((n, 1))
-
-        XY = X * (1 - idx) + Y * idx
-        cross_over_candidate = XY
-        return cross_over_candidate
-    return single_mate
-
-
-def get_dynamic_mating_fn():
-    def dynamic_mating(rng: chex.PRNGKey, X: chex.Array, Y: chex.Array,) -> chex.Array:
-        """Only cross-over dims for x% of all dims."""
-        n, d = X.shape
-        rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-        cross_over_rate = jax.random.uniform(rng1, shape=(1,))
-        idx = (jax.random.uniform(rng2, (n, )) > cross_over_rate).reshape((n, 1))
-        X = jax.random.permutation(rng3, X, axis=0)
-        Y = jax.random.permutation(rng4, Y, axis=0)
-        XY = X * (1 - idx) + Y * idx
-        return XY
-    return dynamic_mating
 ######################################################################
 ######################################################################
 ######################################################################
 ######################################################################
 ######################################################################
 
-def test_crossover():
-
-    domain = Domain(['A', 'B'], [10, 3])
-    rng = np.random.default_rng(0)
-    X = jnp.array(Dataset.synthetic_rng(domain, 5, rng).to_numpy())
-    Y = jnp.array(Dataset.synthetic_rng(domain, 5, rng).to_numpy())
-
-    rng_jax = jax.random.PRNGKey(0)
-    XY = single_mate(rng_jax, X, Y, crossover=2)
-
-    print(X)
-    print(Y)
-    print(XY)
 
 def test_mutation():
 
     domain = Domain(['A', 'B', 'C'], [10, 10, 1])
 
-    mutate = jax.jit(get_mutation_fn(domain, mutations=2))
+    mutate = jax.jit(get_mutation_fn(domain))
     rng = jax.random.PRNGKey(2)
     # x = initialize_population(rng, pop_size=3, domain=domain, data_size=4)
 
     x = Dataset.synthetic_jax_rng(domain, 4, rng)
 
     rng, rng_sub = jax.random.split(rng)
-    x2 = mutate(rng_sub, x)
+    x2 = mutate(rng_sub, x, 2)
 
     print('x =')
     print(x)
