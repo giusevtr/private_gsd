@@ -117,6 +117,8 @@ class PrivGA(Generator):
         best_fitness_avg = 100000
         last_best_fitness_avg = None
 
+        MUT_UPT_CNT = 10000 // self.popsize
+        counter = 0
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             x, state = self.strategy.ask(ask_subkey, state)
@@ -128,7 +130,10 @@ class PrivGA(Generator):
             best_fitness = fitness.min()
 
             if best_fitness > best_fitness_avg:
-                state = state.replace(mutations=(state.mutations + 1) // 2)
+                counter = counter + 1
+                if counter >= MUT_UPT_CNT:
+                    state = state.replace(mutations=(state.mutations + 1) // 2)
+                    counter = 0
 
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
