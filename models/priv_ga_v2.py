@@ -46,20 +46,10 @@ class PrivGA(Generator):
             mutations=mutations,
             num_devices=num_devices)
 
-        # self.es_params = self.strategy.default_params.replace(
-        #     sigma_init=float(self.sigma_scale),
-        #     # sigma_limit=0.01,
-        #     sigma_limit=float(self.sigma_scale),
-        #     sigma_decay=0.999,
-        #     init_min=0.0,
-        #     init_max=1.0,
-        #     clip_max=1,
-        #     clip_min=0.0
-        # )
-
         # Initialize statistics
         self.stat_fn = jax.jit(stat_module.get_stats_fn())
 
+        # self.init_population_fn = jax.jit(get_initialize_population)
 
     @staticmethod
     def get_generator(num_generations=100, popsize=20, top_k=5, crossover: int =1, mutations:int =1,
@@ -78,12 +68,13 @@ class PrivGA(Generator):
         return generator_init
 
     def __str__(self):
-        return f'PrivGA: (cross={self.crossover}, mut={self.mutations})'
+        return f'PrivGA(topk={self.top_k}, cross={self.crossover}, mut={self.mutations})'
 
     def fit(self, true_stats, init_X=None):
         """
         Minimize error between real_stats and sync_stats
         """
+        init_time = time.time()
         num_devices = jax.device_count()
         if num_devices>1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
@@ -107,21 +98,13 @@ class PrivGA(Generator):
             fitness = jnp.concatenate(fitness)
             return fitness.squeeze()
 
-        def std_criterion(fitness):
-            """Restart strategy if fitness std across population is small."""
-            return fitness.std() < 0.005
-
+        stime = time.time()
         self.key, subkey = jax.random.split(self.key, 2)
         state = self.strategy.initialize(subkey)
-        print("check2")
         if init_X is not None:
             state = state.replace(mean=init_X.reshape(-1))
-        # Run ask-eval-tell loop - NOTE: By default minimization!
-        # batch_ask = jax.jit(self.strategy.ask)
-        batch_ask = self.strategy.ask
-        batch_tell = self.strategy.tell
+        print(f'population initialization time = {time.time() - stime:.3f}')
 
-        init_time = time.time()
         last_fitness = None
         best_fitness_avg = 100000
         last_best_fitness_avg = None
@@ -129,24 +112,25 @@ class PrivGA(Generator):
         for t in range(self.num_generations):
             stime = time.time()
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
-            # x, state = batch_ask(ask_subkey, state, self.es_params)
-            x, state = self.strategy.ask_strategy(ask_subkey, state)
+            x, state = self.strategy.ask(ask_subkey, state)
+
+            if t == 0:
+                print(f'ask time = {time.time() - stime:.3f}')
 
             # FITNESS
             fitness = fitness_fn(x)
-            state = batch_tell(x, fitness, state)
-            best_fitness = fitness.min()
+            if t == 0:
+                print(f'fitness time = {time.time() - stime:.3f}')
 
-            # print(f't={t:<10} best fitness = {best_fitness:<10.3f}, std={fitness.std()}')
+            state = self.strategy.tell(x, fitness, state)
+            best_fitness = fitness.min()
+            if t == 0:
+                print(f'tell time = {time.time() - stime:.3f}')
+
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
 
-            # if std_criterion(fitness):
-            #     print('Stopping early')
-            #     break
-
             if t % self.stop_loss_time_window == 0 and t > 0:
-                # best_fitness_avg = best_fitness_avg / self.stop_loss_time_window
                 if last_best_fitness_avg is not None:
                     percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
                     if percent_change < 0.001:
@@ -168,6 +152,7 @@ class PrivGA(Generator):
                     # print(f'\tsigma={state.sigma:.3f}', end='')
                     print()
 
+
                 last_fitness = best_fitness
 
             # if self.print_progress:
@@ -181,6 +166,27 @@ class PrivGA(Generator):
 
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         return sync_dataset
+
+
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+
+
+
+
+
+
+
 
 import jax
 import numpy as np
@@ -238,12 +244,16 @@ class SimpleGAforSyncData:
 
         # self.sparsity, self.min_sparsity, self.sparsity_decay = self.perturbation_sparsity
 
-        self.mate_vmap = jax.jit(jax.vmap(single_mate, in_axes=(0, 0, 0, None)), static_argnums=3)
+        if crossover == -1:
+            self.mate_vmap = jax.jit(jax.vmap(get_dynamic_mating_fn(), in_axes=(0, 0, 0)))
+        else:
+            self.mate_vmap = jax.jit(jax.vmap(get_mating_fn(crossover), in_axes=(0, 0, 0)))
 
         mutate = get_mutation_fn(domain, self.mutations)
         self.mutate_vmap = jax.jit(jax.vmap(mutate, in_axes=(0, 0)))
 
-    @partial(jax.jit, static_argnums=(0,))
+
+    # @partial(jax.jit, static_argnums=(0,))
     def initialize(
         self, rng: chex.PRNGKey
     ) -> EvoState:
@@ -277,15 +287,11 @@ class SimpleGAforSyncData:
     def ask_strategy(
         self, rng: chex.PRNGKey, state: EvoState
     ) -> Tuple[chex.Array, EvoState]:
-        """
-        """
-        num_elites_to_keep = 1
-
-        rng, rng_eps, rng_idx_a, rng_idx_b, rng_cross = jax.random.split(rng, 5)
+        rng, rng_mate, rng_idx_a, rng_idx_b, rng_cross = jax.random.split(rng, 5)
 
         archive_size = state.archive.shape[0]
         num_mates = self.popsize - archive_size
-        rng_mate = jax.random.split(rng, num_mates)
+        rng_mate = jax.random.split(rng_mate, num_mates)
 
         elite_ids = jnp.arange(self.elite_popsize)
         idx_a = jax.random.choice(rng_idx_a, elite_ids, (num_mates,))
@@ -293,23 +299,14 @@ class SimpleGAforSyncData:
         members_a = state.archive[idx_a]
         members_b = state.archive[idx_b]
 
-        if self.crossover > 0:
-            # cross_over_rates = jnp.zeros(shape=(num_mates,))
-            x = self.mate_vmap(
-                    rng_mate, members_a, members_b, self.crossover
-                )
-        else:
-            x = members_a[:num_mates]
-
-        # Add archive
+        # Combine crossover population with elite population and mutate all members
+        x = self.mate_vmap(
+                rng_mate, members_a, members_b
+            )
         x = jnp.vstack([x, state.archive])
-
         rng_mutate = jax.random.split(rng, self.popsize)
         x = self.mutate_vmap(rng_mutate, x)
 
-        # ADD best
-        # x = jnp.vstack([x[num_elites_to_keep:, :, :], state.archive[:num_elites_to_keep, :, :]])
-        # return jnp.squeeze(x), state
         return x.astype(jnp.float32), state
 
 
@@ -368,7 +365,6 @@ def initialize_population(rng: chex.PRNGKey, pop_size, domain: Domain, data_size
     for s in range(pop_size):
         # data = Dataset.synthetic_rng(domain, data_size, rng_np)
         rng, rng_sub = jax.random.split(rng)
-        st=time.time()
         X = Dataset.synthetic_jax_rng(domain, data_size, rng_sub)
         temp.append(X)
 
@@ -380,7 +376,6 @@ def get_mutation_fn(domain: Domain, mutations: int):
 
     def mutate(rng: chex.PRNGKey, X):
         n, d = X.shape
-        print("shape:",X.shape)
         rng1, rng2 = jax.random.split(rng, 2)
         total_params = n * d
         idx = jnp.concatenate((jnp.ones(mutations), jnp.zeros(total_params-mutations)))
@@ -392,24 +387,36 @@ def get_mutation_fn(domain: Domain, mutations: int):
 
     return mutate
 
+def get_mating_fn(crossover_number):
 
-def single_mate(
-    rng: chex.PRNGKey, X: chex.Array, Y: chex.Array, crossover
-) -> chex.Array:
-    """Only cross-over dims for x% of all dims."""
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    X = jax.random.permutation(rng3, X, axis=0)
-    Y = jax.random.permutation(rng4, Y, axis=0)
-    n, d = X.shape
-    # n, d = sync_data_shape
+    def single_mate(rng: chex.PRNGKey, X: chex.Array, Y: chex.Array) -> chex.Array:
+        """Only cross-over dims for x% of all dims."""
+        rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+        X = jax.random.permutation(rng3, X, axis=0)
+        Y = jax.random.permutation(rng4, Y, axis=0)
+        n, d = X.shape
+        # n, d = sync_data_shape
 
-    idx = jnp.concatenate((jnp.ones(crossover), jnp.zeros(n-crossover))).reshape((n, 1))
+        idx = jnp.concatenate((jnp.ones(crossover_number), jnp.zeros(n-crossover_number))).reshape((n, 1))
 
-    XY = X * (1 - idx) + Y * idx
-    cross_over_candidate = XY
-    return cross_over_candidate
+        XY = X * (1 - idx) + Y * idx
+        cross_over_candidate = XY
+        return cross_over_candidate
+    return single_mate
 
 
+def get_dynamic_mating_fn():
+    def dynamic_mating(rng: chex.PRNGKey, X: chex.Array, Y: chex.Array,) -> chex.Array:
+        """Only cross-over dims for x% of all dims."""
+        n, d = X.shape
+        rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+        cross_over_rate = jax.random.uniform(rng1, shape=(1,))
+        idx = (jax.random.uniform(rng2, (n, )) > cross_over_rate).reshape((n, 1))
+        X = jax.random.permutation(rng3, X, axis=0)
+        Y = jax.random.permutation(rng4, Y, axis=0)
+        XY = X * (1 - idx) + Y * idx
+        return XY
+    return dynamic_mating
 ######################################################################
 ######################################################################
 ######################################################################

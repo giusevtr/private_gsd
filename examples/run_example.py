@@ -45,7 +45,7 @@ def run_experiment(
     for get_gen, stat_module, seed in itertools.product(generators, stat_modules, seed_list):
         generator = get_gen(data.domain, stat_module, data_size=data_size, seed=seed)
         for epsilon in epsilon_list:
-            X_sync, error, max_error, elapsed_time = generate_private_SD(data, generator,  epsilon, seed)
+            X_sync, error, l2_error, max_error, elapsed_time = generate_private_SD(data, generator,  epsilon, seed)
             if callback_fn is not None:
                 callback_fn(X_sync)
                 RESULTS.append(
@@ -126,4 +126,4 @@ def generate_private_SD(
     print(f'Final L1 error = {error:.5f}, L2 error = {error_l2:.5f},  max error ={max_error:.5f}\n')
 
 
-    return X_sync, error, max_error, elapsed_time
+    return X_sync, error, error_l2, max_error, elapsed_time
