@@ -2,6 +2,7 @@ import itertools
 import jax.numpy as jnp
 from utils import Dataset, Domain
 from stats import Statistic
+import jax
 
 
 class Marginals(Statistic):
@@ -42,13 +43,28 @@ class Marginals(Statistic):
         return Marginals(domain, kway_combinations, name=f'{k}-way Marginals')
 
     def get_stats_fn(self):
-        I_split = jnp.array_split(self.I, 10)
-        V_split = jnp.array_split(self.V, 10)
+        cat_columns = self.domain.get_categorical_cols()
+        indices = self.domain.get_attribute_indices(cat_columns)
+        sizes = [self.domain.size(col) for col in cat_columns]
+        kway_combinations_idx = list(itertools.combinations(indices, 2))
+        kway_combinations_sz = list(itertools.combinations(sizes, 2))
+        col_indices = [jnp.array(list(idx)) for idx in kway_combinations_idx]
+        col_sizes = [jnp.array(list(sz)) for sz in kway_combinations_sz]
+
+
         def stat_fn(X):
-            # return jnp.array([jnp.prod(X[:, self.I] == self.V, axis=2).sum(0)] ) / X.shape[0]
-            return jnp.concatenate(
-                    [jnp.prod(X[:, i] == v, axis=2).sum(0) for i, v in zip(I_split, V_split)]
-                ) / X.shape[0]
+            # data = Dataset.from_numpy_to_dataset(self.domain, X)
+            stats = []
+            for idx, sizes in zip(col_indices, col_sizes):
+                X_proj = X[:, idx]
+                # proj = data.project(mar).datavector_jax()
+                # bins = [jnp.array(list(range(n + 1))) for n in self.domain.shape]
+                # stats.append(proj)
+                ans = jnp.histogramdd(X_proj, sizes)[0].flatten()
+                stats.append(ans)
+
+            return jnp.concatenate(stats) / X.shape[0]
+
         return stat_fn
 
     def get_differentiable_stats_fn(self):
@@ -69,19 +85,22 @@ def test_discrete_data():
     cols = ['A', 'B', 'C', 'D', 'E']
     domain = Domain(cols, [16, 7, 2, 2, 1])
     data = Dataset.synthetic(domain, 100, 0)
-    X = data.to_numpy()
+    X = jnp.array(data.to_numpy())
     X_oh = data.to_onehot()
 
     stat_mod = Marginals.get_all_kway_combinations(domain, 2)
 
-    fn1 = stat_mod.get_stats_fn()
-    fn2 = stat_mod.get_differentiable_stats_fn()
+    fn1 = jax.jit(stat_mod.get_stats_fn())
+    # fn1 = stat_mod.get_stats_fn()
+    fn_diff = jax.jit(stat_mod.get_differentiable_stats_fn())
+    # fn_diff = stat_mod.get_differentiable_stats_fn()
     stats1 = fn1(X)
-    stats2 = fn2(X_oh)
-    # print(stats1.shape)
-    print(stats1)
-    print(stats2)
-    print(jnp.abs(stats2-stats1).max())
+    stats2 = fn_diff(X_oh)
+    # print(stats1)
+    # print(stats2)
+
+    print(f'diff:')
+    print(jnp.abs(stats2-stats1))
 
 
 if __name__ == "__main__":
