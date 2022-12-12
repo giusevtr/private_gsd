@@ -101,7 +101,7 @@ class PrivGA(Generator):
             if num_devices == 1:
                 return compute_error_vmap(x)
 
-            X_distributed = x.reshape((num_devices, -1, self.data_size, self.data_dim))
+            X_distributed = x.reshape((num_devices, -1, self.data_size, self.data_dim_original))
             fitness = compute_error_pmap(X_distributed)
             fitness = jnp.concatenate(fitness)
             return fitness.squeeze()

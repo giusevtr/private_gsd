@@ -21,6 +21,9 @@ class Domain:
     def get_dimension(self):
         return sum(self.shape)
 
+    def get_dimension_original(self):
+        return len(self.shape)
+
     def project(self, attrs):
         """ project the domain onto a subset of attributes
         

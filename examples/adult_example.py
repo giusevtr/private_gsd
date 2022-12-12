@@ -16,16 +16,17 @@ if __name__ == "__main__":
     data = get_data('adult', 'adult', root_path='../data_files/')
 
     get_gen_list = [
+
+        PrivGA.get_generator(popsize=100,
+                             top_k=2,
+                             num_generations=20000,
+                             stop_loss_time_window=500,
+                             print_progress=True),
         RelaxedProjection.get_generator(learning_rate=0.005,iterations=10000),
-        # PrivGA.get_generator(popsize=100,
-        #                      top_k=2,
-        #                      num_generations=15000,
-        #                      stop_loss_time_window=500,
-        #                      print_progress=True)
     ]
 
     stat_module_list = [
-        Marginals.get_all_kway_combinations(data.domain, k=2),
+        Marginals.get_all_kway_combinations(data.domain, k=3),
     ]
     result_df = run_experiment(data,
                    data_name='adult',
@@ -37,4 +38,4 @@ if __name__ == "__main__":
                    plot_results=True,
                    data_size=1000)
 
-    result_df.to_csv(f'results/compare2.csv')
+    result_df.to_csv(f'results/compare_k_3.csv')

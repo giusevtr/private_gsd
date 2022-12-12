@@ -10,6 +10,7 @@ class Generator:
         self.stat_module = stat_module
         self.data_size = data_size
         self.data_dim = domain.get_dimension()
+        self.data_dim_original = domain.get_dimension_original()
 
     @staticmethod
     def get_generator(self):
