@@ -83,7 +83,7 @@ class PrivGA(Generator):
         """
         init_time = time.time()
         num_devices = jax.device_count()
-        if num_devices>1:
+        if num_devices > 1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
         # FITNESS
@@ -111,13 +111,15 @@ class PrivGA(Generator):
         state = self.strategy.initialize(subkey)
         if self.start_mutations is not None:
             state = state.replace(mutations=self.start_mutations)
-        print(f'population initialization time = {time.time() - stime:.3f}')
 
+        if init_X is None:
+            state.archive = jnp.stack((init_X, state.archive[1:, :, :]))
         last_fitness = None
         best_fitness_avg = 100000
         last_best_fitness_avg = None
 
-        MUT_UPT_CNT = 10000 // self.popsize
+        # MUT_UPT_CNT = 10000 // self.popsize
+        MUT_UPT_CNT = 1
         counter = 0
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
@@ -142,7 +144,6 @@ class PrivGA(Generator):
                 if last_best_fitness_avg is not None:
                     percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
                     if percent_change < 0.001:
-                        print('Stop early ast iteration', t)
                         break
 
                 last_best_fitness_avg = best_fitness_avg
@@ -163,15 +164,7 @@ class PrivGA(Generator):
 
                 last_fitness = best_fitness
 
-            # if self.print_progress:
-            #     log = es_logging.update(log, x, fitness)
-        # # Save best.
-        # if self.print_progress:
-        #     es_logging.plot(log, "ES", ylims=(0, 30))
-
-        self.key, rng_final = jax.random.split(self.key, 2)
         X_sync = state.best_member
-
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         return sync_dataset
 

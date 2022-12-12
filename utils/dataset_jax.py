@@ -100,6 +100,14 @@ class Dataset:
     def datavector(self, flatten=True, weights=None, density=False):
         """ return the database in vector-of-counts form """
         bins = [range(n+1) for n in self.domain.shape]
+        ans = np.histogramdd(self.df.values, bins, weights=weights, density=density)[0]
+        return ans.flatten() if flatten else ans
+
+    def datavector_jax(self, flatten=True, weights=None, density=False):
+        """ return the database in vector-of-counts form """
+        # bins = jnp.array([range(n+1) for n in self.domain.shape])
+        bins = [jnp.array(list(range(n+1))) for n in self.domain.shape]
+        # bins = jnp.array([(n+1) for n in self.domain.shape])
         ans = jnp.histogramdd(self.df.values, bins, weights=weights, density=density)[0]
         return ans.flatten() if flatten else ans
 
