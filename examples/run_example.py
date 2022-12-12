@@ -48,10 +48,10 @@ def run_experiment(
             X_sync, error, l2_error, max_error, elapsed_time = generate_private_SD(data, generator,  epsilon, seed)
             if callback_fn is not None:
                 callback_fn(X_sync)
-                RESULTS.append(
-                    [data_name, str(generator), str(stat_module), epsilon, seed, float(error), float(max_error),elapsed_time])
+            RESULTS.append(
+                [data_name, str(generator), str(stat_module), epsilon, seed, float(error), float(l2_error), float(max_error),elapsed_time])
         results_df = pd.DataFrame(RESULTS,
-                                  columns=['data', 'generator', 'stats', 'epsilon', 'seed', 'l1 error', 'max error', 'time'])
+                                  columns=['data', 'generator', 'stats', 'epsilon', 'seed', 'l1 error','l2 error', 'max error', 'time'])
     #         RESULTS.append([data_name, str(generator), str(stat_module), epsilon, seed, float(error), float(max_error),generator.top_k,generator.crossover, generator.mutations, elapsed_time])
     # results_df = pd.DataFrame(RESULTS, columns=['data', 'generator', 'stats', 'epsilon', 'seed', 'l1 error', 'max error','top_k','crossover','mutations', 'time'])
 

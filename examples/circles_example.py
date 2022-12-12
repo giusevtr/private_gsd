@@ -16,8 +16,6 @@ if __name__ == "__main__":
         PrivGA.get_generator(popsize=5000,
                             top_k=100,
                             num_generations=150,
-                             crossover=cross,
-                             mutations=mut,
                             stop_loss_time_window=50,
                             print_progress=False)
         # for cross, mut in itertools.product([1, 2, 4, 8], [1, 2, 4, 8])
