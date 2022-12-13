@@ -7,13 +7,17 @@ def plot_1d_data(array, title=''):
     plt.xlim(0, 1)
     plt.show()
 
-def plot_2d_data(data_array, i=0, j=1, alpha=0.5, title=''):
+def plot_2d_data(data_array, i=0, j=1, alpha=0.9, title='', save_path=None):
     plt.figure(figsize=(5, 5))
     plt.title(title)
-    plt.scatter(data_array[:, i], data_array[:, j], alpha=alpha)
+    plt.scatter(data_array[:, i], data_array[:, j], alpha=alpha, s=0.5)
     plt.xlim(0, 1)
     plt.ylim(0, 1)
-    plt.show()
+    if save_path is None:
+        plt.show()
+    else:
+        plt.savefig(save_path)
+    plt.close()
 
 def plot_2d_data_sync(data_array, sync_data_array,  i=0, j=1, alpha=0.5, title=''):
     plt.figure(figsize=(5, 5))

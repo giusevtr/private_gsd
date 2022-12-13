@@ -8,6 +8,7 @@ from models import Generator
 import time
 from utils import Dataset, Domain
 from stats import Statistic
+from visualize.plot_low_dim_data import plot_2d_data
 
 
 class PrivGA(Generator):
@@ -55,7 +56,8 @@ class PrivGA(Generator):
             num_devices=num_devices)
 
         # Initialize statistics
-        self.stat_fn = jax.jit(stat_module.get_stats_fn())
+        # self.stat_fn = jax.jit(stat_module.get_stats_fn())
+        self.stat_fn = stat_module.get_stats_fn()
 
         # self.init_population_fn = jax.jit(get_initialize_population)
 
@@ -88,7 +90,8 @@ class PrivGA(Generator):
 
         # FITNESS
         compute_error_fn = lambda X: (jnp.linalg.norm(true_stats - self.stat_fn(X), ord=2)**2 ).squeeze()
-        compute_error_vmap = jax.jit(jax.vmap(compute_error_fn, in_axes=(0, )))
+        # compute_error_vmap = jax.jit(jax.vmap(compute_error_fn, in_axes=(0, )))
+        compute_error_vmap = jax.vmap(compute_error_fn, in_axes=(0, ))
 
         def distributed_error_fn(X):
             return compute_error_vmap(X)
@@ -112,14 +115,14 @@ class PrivGA(Generator):
         if self.start_mutations is not None:
             state = state.replace(mutations=self.start_mutations)
 
-        if init_X is None:
-            state.archive = jnp.stack((init_X, state.archive[1:, :, :]))
+        # if init_X is not None:
+        #     state.archive = jnp.stack((init_X, state.archive[1:, :, :]))
         last_fitness = None
         best_fitness_avg = 100000
         last_best_fitness_avg = None
 
         # MUT_UPT_CNT = 10000 // self.popsize
-        MUT_UPT_CNT = 1
+        MUT_UPT_CNT = 3
         counter = 0
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
@@ -139,6 +142,8 @@ class PrivGA(Generator):
 
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
+
+            plot_2d_data(state.best_member, title=f'g={t}, fitness={best_fitness:.2f}', save_path=f'progress/{t:04}.png')
 
             if t % self.stop_loss_time_window == 0 and t > 0:
                 if last_best_fitness_avg is not None:
@@ -214,8 +219,8 @@ Implement crossover that is specific to synthetic data
 class SimpleGAforSyncData:
     def __init__(self,
                  domain: Domain,
-                 data_size: int, # number of synthetic data rows
-                 generations:int,
+                 data_size: int,  # number of synthetic data rows
+                 generations: int,
                  popsize: int,
                  elite_ratio: float = 0.5,
                  num_devices=1,
@@ -243,6 +248,7 @@ class SimpleGAforSyncData:
         mutate = get_mutation_fn(domain)
         self.mutate_vmap = jax.jit(jax.vmap(mutate, in_axes=(0, 0, None)))
 
+        self.mate_vmap = jax.jit(jax.vmap(single_mate, in_axes=(0, 0, 0)))
 
     # @partial(jax.jit, static_argnums=(0,))
     def initialize(
@@ -279,10 +285,21 @@ class SimpleGAforSyncData:
     def ask_strategy(
         self, rng: chex.PRNGKey, state: EvoState
     ) -> Tuple[chex.Array, EvoState]:
-        rng, rng_1, rng_2 = jax.random.split(rng, 3)
+        rng, rng_a, rng_b, rng_mate, rng_2 = jax.random.split(rng, 5)
         elite_ids = jnp.arange(self.elite_popsize)
-        idx_a = jax.random.choice(rng_1, elite_ids, (self.popsize,))
-        x = state.archive[idx_a]
+
+
+
+        idx_a = jax.random.choice(rng_a, elite_ids, (self.popsize // 2,))
+        idx_b = jax.random.choice(rng_b, elite_ids, (self.popsize // 2,))
+        A = state.archive[idx_a]
+        B = state.archive[idx_b]
+
+        rng_mate_split = jax.random.split(rng_mate, self.popsize // 2)
+        C = self.mate_vmap(rng_mate_split, A, B)
+
+        x = jnp.concatenate((A, C))
+
         rng_mutate = jax.random.split(rng_2, self.popsize)
         x = self.mutate_vmap(rng_mutate, x, state.mutations)
         return x.astype(jnp.float32), state
@@ -390,6 +407,27 @@ def test_mutation():
     print('x2=')
     print(x2)
 
+def single_mate(
+    rng: chex.PRNGKey, a: chex.Array, b: chex.Array,
+) -> chex.Array:
+    """Only cross-over dims for x% of all dims."""
+    n, d = a.shape
+    # n, d = sync_data_shape
+
+    X = a
+    Y = b
+
+    # rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    cross_over_rate = 0.1 * jax.random.uniform(rng1, shape=(1,))
+
+    idx = (jax.random.uniform(rng2, (n, )) > cross_over_rate).reshape((n, 1))
+    X = jax.random.permutation(rng3, X, axis=0)
+    Y = jax.random.permutation(rng4, Y, axis=0)
+
+    XY = X * (1 - idx) + Y * idx
+    cross_over_candidate = XY
+    return cross_over_candidate
 
 if __name__ == "__main__":
     # test_crossover()

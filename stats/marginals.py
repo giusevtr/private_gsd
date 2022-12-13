@@ -1,4 +1,5 @@
 import itertools
+import jax
 import jax.numpy as jnp
 from utils import Dataset, Domain
 from stats import Statistic
@@ -44,6 +45,8 @@ class Marginals(Statistic):
     def get_stats_fn(self):
         I_split = jnp.array_split(self.I, 10)
         V_split = jnp.array_split(self.V, 10)
+
+        @jax.jit
         def stat_fn(X):
             # return jnp.array([jnp.prod(X[:, self.I] == self.V, axis=2).sum(0)] ) / X.shape[0]
             return jnp.concatenate(
@@ -54,6 +57,8 @@ class Marginals(Statistic):
     def get_differentiable_stats_fn(self):
 
         queries_split = jnp.array_split(self.queries, 10)
+
+        @jax.jit
         def stat_fn(X):
             return jnp.concatenate(
                         [jnp.prod(X[:, q], 2).sum(0) for q in queries_split]

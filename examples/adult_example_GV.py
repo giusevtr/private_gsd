@@ -1,6 +1,6 @@
 from examples.run_example import generate_private_SD, run_experiment
 from models import PrivGA, RelaxedProjection
-from stats import Marginals, TwoWayPrefix
+from stats import Marginals, Marginals2, TwoWayPrefix
 from utils.utils_data import get_data
 
 import pdb
@@ -12,12 +12,12 @@ if __name__ == "__main__":
 
     get_gen_list = [
         # RelaxedProjection.get_generator(learning_rate=0.01),
-        PrivGA.get_generator(popsize=10000,
+        PrivGA.get_generator(popsize=1000,
                              top_k=10,
                              num_generations=200,
                              stop_loss_time_window=50,
                              print_progress=True,
-                             start_mutations=2)
+                             start_mutations=32)
     ]
 
     stat_module_list = [

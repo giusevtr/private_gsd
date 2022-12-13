@@ -5,7 +5,7 @@ from stats import Statistic
 import jax
 
 
-class Marginals(Statistic):
+class Marginals2(Statistic):
     def __init__(self, domain, kway_combinations, name='Marginals'):
         super().__init__(domain, name)
         self.kway_combinations = kway_combinations
@@ -40,7 +40,7 @@ class Marginals(Statistic):
     def get_all_kway_combinations(domain, k):
         cat_columns = domain.get_categorical_cols()
         kway_combinations = list(itertools.combinations(cat_columns, k))
-        return Marginals(domain, kway_combinations, name=f'{k}-way Marginals')
+        return Marginals2(domain, kway_combinations, name=f'{k}-way Marginals')
 
     def get_stats_fn(self):
         cat_columns = self.domain.get_categorical_cols()
