@@ -89,7 +89,7 @@ def generate_private_SD(
 
     # Get statistics and noisy statistics
     stat_module = generator.stat_module
-    stats_fn = jax.jit(stat_module.get_stats_fn())
+    stats_fn = stat_module.get_stats_fn()
     true_stats = stats_fn(X)
 
     num_queries = true_stats.shape[0]

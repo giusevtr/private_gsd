@@ -5,7 +5,7 @@ sys.path.append("..")
 sys.path.append("../..")
 from examples.run_example import generate_private_SD, run_experiment
 from models import PrivGA, RelaxedProjection
-from stats import Marginals, TwoWayPrefix
+from stats import Marginals, Marginals2, TwoWayPrefix
 from utils.utils_data import get_data
 import pdb
 
