@@ -89,8 +89,6 @@ class Generator:
 
             # fit synthetic data to selected statistics
             sub_stat_module = stat_module.get_sub_stat_module(selected_indices)
-            sub_true_answers_jnp = sub_stat_module.get_true_stats()
-            # data_sync = self.fit(key_sub, sub_true_answers_jnp, sub_stat_module)
             data_sync = self.fit_zcdp(key_sub, sub_stat_module, rho_per_round, init_X=X_sync)
             X_sync = data_sync.to_numpy()
 

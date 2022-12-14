@@ -13,35 +13,6 @@ class Marginals(Statistic):
         super().__init__(domain, name)
         self.kway_combinations = kway_combinations
 
-        # For computing marginal queries
-        # stime = time.time()
-        # I = []
-        # V = []
-        # for kway_attributes in self.kway_combinations:
-        #     # indices = [domain.get_attribute_onehot_indices(att) for att in kway_attributes]
-        #     col_indices = self.domain.get_attribute_indices(kway_attributes)
-        #     values = [jnp.arange(0, self.domain.size(att)) for att in kway_attributes]
-        #
-        #     temp_I = []
-        #     temp_V = []
-        #     for tup in itertools.product(*values):
-        #         temp_V.append(tup)
-        #         temp_I.append(col_indices)
-        #         V.append(tup)
-        #         I.append(col_indices)
-        #
-        #     temp_I = jnp.array(temp_I)
-        #     temp_V = jnp.array(temp_V)
-        #     self.marginal_functions.append(self.get_marginal_stats_fn_helper(temp_I, temp_V))
-        #
-        # cat_columns = self.domain.get_categorical_cols()
-        # indices = self.domain.get_attribute_indices(cat_columns)
-        # sizes = [self.domain.size(col) for col in cat_columns]
-        # kway_combinations_idx = list(itertools.combinations(indices, 2))
-        # kway_combinations_sz = list(itertools.combinations(sizes, 2))
-        # col_indices = [list(idx) for idx in kway_combinations_idx]
-        # col_sizes = [list(sz) for sz in kway_combinations_sz]
-
         self.marginal_functions = []
         for cols in (kway_combinations):
             sizes = []
@@ -67,6 +38,7 @@ class Marginals(Statistic):
 
     def get_num_queries(self):
         return len(self.kway_combinations)
+
     def get_dataset_size(self):
         return self.N
 
@@ -101,10 +73,8 @@ class Marginals(Statistic):
             sub_marginal.N = self.N
         return sub_marginal
 
-
     def get_sensitivity(self):
         return jnp.sqrt(len(self.kway_combinations)) / self.N
-
 
     def get_marginal_stats_fn_helper(self, idx, sizes):
         # @jax.jit
@@ -116,8 +86,6 @@ class Marginals(Statistic):
         return stat_fn
 
     def get_stats_fn(self):
-        # I_split = jnp.array_split(self.I, 10)
-        # V_split = jnp.array_split(self.V, 10)
 
         # @jax.jit
         def stat_fn(X):
@@ -224,5 +192,5 @@ def test_runtime():
 
 
 if __name__ == "__main__":
-    # test_discrete_data()
-    test_runtime()
+    test_discrete_data()
+    # test_runtime()

@@ -26,11 +26,11 @@ class PrivGA(Generator):
     stop_loss_time_window: int
     print_progress: bool
     start_mutations: int = None
-    reg_prefix_queries: Statistic = None
+    regularization_statistics: Statistic = None
     # call_back_fn = None
 
     def __str__(self):
-        reg = self.reg_prefix_queries is not None
+        reg = self.regularization_statistics is not None
         return f'SimpleGA(popsize={self.popsize}, topk={self.top_k}, reg={reg})'
 
     def fit(self, key, true_stats, stat_module, init_X=None):
@@ -67,14 +67,14 @@ class PrivGA(Generator):
             return compute_error_vmap(X)
         compute_error_pmap = jax.pmap(distributed_error_fn, in_axes=(0, ))
 
-        if self.reg_prefix_queries is not None:
+        if self.regularization_statistics is not None:
             X_temp = Dataset.synthetic_jax_rng(domain=self.domain, N=1000, rng=key_sub)
-            reg_stat_fn = self.reg_prefix_queries.get_stats_fn()
+            reg_stat_fn = self.regularization_statistics.get_stats_fn()
             uniform_stats = reg_stat_fn(X_temp)
             compute_reg_fn = lambda X: (jnp.linalg.norm(uniform_stats - reg_stat_fn(X), ord=2)**2 ).squeeze()
             compute_reg_vmap = jax.vmap(compute_reg_fn, in_axes=(0, ))
         def fitness_reg_fn(x):
-            if self.reg_prefix_queries is None:
+            if self.regularization_statistics is None:
                 return jnp.zeros(x.shape[0])
             return compute_reg_vmap(x)
 
@@ -110,7 +110,7 @@ class PrivGA(Generator):
         MUT_UPT_CNT = 1
         counter = 0
 
-        reg_const = 30/self.reg_prefix_queries.get_num_queries() if self.reg_prefix_queries is not None else 0
+        reg_const = 1/self.regularization_statistics.get_num_queries() if self.regularization_statistics is not None else 0
 
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
@@ -122,13 +122,12 @@ class PrivGA(Generator):
             fitness = normal_fitness + reg_const * reg_fitness
 
             state = strategy.tell(x, fitness, state)
-            best_fitness = fitness.min()
-            best_id = fitness.argmin()
-            if normal_fitness[best_id] < reg_fitness[best_id]:
-                reg_const = 0.9 * reg_const
+            # if normal_fitness[best_id] < reg_fitness[best_id]:
+            reg_const = 0.96 * reg_const
 
             # print(f'{t:03}) fitness = {fitness[best_id]:.4f} = {normal_fitness[best_id]:.4f} + {reg_fitness[best_id]:.4f}')
 
+            best_fitness = normal_fitness.min()
             if best_fitness > best_fitness_avg:
                 counter = counter + 1
                 if counter >= MUT_UPT_CNT:

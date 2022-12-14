@@ -11,7 +11,7 @@ if __name__ == "__main__":
 
     # Get Data
     ROUNDS=4
-    data = get_data('adult', 'adult-mini', root_path='../data_files/')
+    data = get_data('adult', 'adult-small', root_path='../data_files/')
     # ROUNDS=15
     # data = get_data('adult', 'adult', root_path='../data_files/')
 
@@ -19,6 +19,7 @@ if __name__ == "__main__":
     marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
     marginal_module.fit(data)
 
+    reg_marginal_module = Marginals.get_all_kway_combinations(data.domain, k=1)
     # print(f'num queries = {marginal_module.get_num_queries()}')
     #
     # rap = RelaxedProjection(domain=data.domain,
@@ -43,13 +44,9 @@ if __name__ == "__main__":
                     stop_loss_time_window=50,
                     print_progress=False,
                     start_mutations=32,
-                     data_size=200
+                     data_size=200,
+                     regularization_statistics=reg_marginal_module
                      )
-
-    # Generate differentially private synthetic data with ONE-SHOT mechanism
-    # sync_data_1 = priv_ga.fit_privately(stat_module=marginal_module,
-    #                  seed=0, epsilon=1)
-
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     key = jax.random.PRNGKey(0)
     sync_data_2 = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module,
