@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from models_v2 import Generator
 import time
 from utils import Dataset, Domain
-from stats import Statistic
+from stats_v2 import Statistic
 
 from dataclasses import dataclass
 
@@ -26,64 +26,14 @@ class PrivGA(Generator):
     stop_loss_time_window: int
     print_progress: bool
     start_mutations: int = None
-    # def __init__(self,
-    #              domain: Domain,
-    #              # stat_module: Statistic,
-    #              data_size,
-    #              seed,
-    #              num_generations: int,
-    #              popsize: int,
-    #              top_k: int,
-    #              stop_loss_time_window:int,
-    #              print_progress: bool,
-    #              start_mutations:int = None,
-    #              ):
-    #
-    #     # Instantiate the search strategy
-    #     super().__init__(domain, stat_module, data_size, seed)
-    #     self.num_generations = num_generations
-    #     self.popsize = popsize
-    #     self.top_k = top_k
-    #     self.elite_ratio = top_k / popsize
-    #     self.print_progress = print_progress
-    #     self.stop_loss_time_window = stop_loss_time_window
-    #     self.start_mutations = start_mutations
-    #     num_devices = jax.device_count()
-    #
-    #     self.strategy = SimpleGAforSyncData(
-    #         domain=domain,
-    #         data_size=data_size,
-    #         generations=num_generations,
-    #         popsize=self.popsize,
-    #         elite_ratio=self.elite_ratio,
-    #         num_devices=num_devices)
-    #
-    #     # Initialize statistics
-    #     # self.stat_fn = jax.jit(stat_module.get_stats_fn())
-    #     self.stat_fn = stat_module.get_stats_fn()
-
-        # self.init_population_fn = jax.jit(get_initialize_population)
-
-    # @staticmethod
-    # def get_generator(num_generations=100, popsize=20, top_k=5,
-    #                    clip_max=1, stop_loss_time_window=10,  print_progress=False, start_mutations: int = None):
-    #     generator_init = lambda domain, stat_module, data_size, seed: PrivGA(domain,
-    #                                                                         stat_module,
-    #                                                                         data_size,
-    #                                                                         seed,
-    #                                                                         num_generations=num_generations,
-    #                                                                         popsize=popsize,
-    #                                                                         top_k=top_k,
-    #                                                                         stop_loss_time_window=stop_loss_time_window,
-    #                                                                         print_progress=print_progress,
-    #                                                                          start_mutations=start_mutations)
-    #     return generator_init
-
+    reg_prefix_queries: Statistic = None
+    # call_back_fn = None
 
     def __str__(self):
-        return f'SimpleGA(popsize={self.popsize}, topk={self.top_k})'
+        reg = self.reg_prefix_queries is not None
+        return f'SimpleGA(popsize={self.popsize}, topk={self.top_k}, reg={reg})'
 
-    def fit(self, key, true_stats, stat_module, regularization_stat_module, init_X=None):
+    def fit(self, key, true_stats, stat_module, init_X=None):
         """
         Minimize error between real_stats and sync_stats
         """
@@ -91,10 +41,7 @@ class PrivGA(Generator):
         # indices = jax.random.choice(key, jnp.arange(num_queries), shape=(100, ), )
         # sub_stat = stat_module.get_sub_stat_module(indices)
         stat_fn = stat_module.get_stats_fn()
-        reg_stat_fn = regularization_stat_module.get_stats_fn()
         key, key_sub = jax.random.split(key, 2)
-        X_temp = Dataset.synthetic_jax_rng(domain=self.domain, N=1000, rng=key_sub)
-        uniform_stats = reg_stat_fn(X_temp)
 
         # key = jax.random.PRNGKey(seed)
         self.data_dim = self.domain.get_dimension()
@@ -116,16 +63,21 @@ class PrivGA(Generator):
         # FITNESS
         compute_error_fn = lambda X: (jnp.linalg.norm(true_stats - stat_fn(X), ord=2)**2 ).squeeze()
         compute_error_vmap = jax.vmap(compute_error_fn, in_axes=(0, ))
-
-        compute_reg_fn = lambda X: (jnp.linalg.norm(uniform_stats - reg_stat_fn(X), ord=2)**2 ).squeeze()
-        compute_reg_vmap = jax.vmap(compute_reg_fn, in_axes=(0, ))
-
         def distributed_error_fn(X):
             return compute_error_vmap(X)
         compute_error_pmap = jax.pmap(distributed_error_fn, in_axes=(0, ))
 
+        if self.reg_prefix_queries is not None:
+            X_temp = Dataset.synthetic_jax_rng(domain=self.domain, N=1000, rng=key_sub)
+            reg_stat_fn = self.reg_prefix_queries.get_stats_fn()
+            uniform_stats = reg_stat_fn(X_temp)
+            compute_reg_fn = lambda X: (jnp.linalg.norm(uniform_stats - reg_stat_fn(X), ord=2)**2 ).squeeze()
+            compute_reg_vmap = jax.vmap(compute_reg_fn, in_axes=(0, ))
         def fitness_reg_fn(x):
+            if self.reg_prefix_queries is None:
+                return jnp.zeros(x.shape[0])
             return compute_reg_vmap(x)
+
 
         def fitness_fn(x):
             """
@@ -155,6 +107,9 @@ class PrivGA(Generator):
         # MUT_UPT_CNT = 10000 // self.popsize
         MUT_UPT_CNT = 1
         counter = 0
+
+        reg_const = 30/self.reg_prefix_queries.get_num_queries() if self.reg_prefix_queries is not None else 0
+
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             x, state = strategy.ask(ask_subkey, state)
@@ -162,10 +117,15 @@ class PrivGA(Generator):
             # FITNESS
             normal_fitness = fitness_fn(x)
             reg_fitness = fitness_reg_fn(x)
-            fitness = normal_fitness + reg_fitness/regularization_stat_module.get_num_queries()
+            fitness = normal_fitness + reg_const * reg_fitness
 
             state = strategy.tell(x, fitness, state)
             best_fitness = fitness.min()
+            best_id = fitness.argmin()
+            if normal_fitness[best_id] < reg_fitness[best_id]:
+                reg_const = 0.9 * reg_const
+
+            # print(f'{t:03}) fitness = {fitness[best_id]:.4f} = {normal_fitness[best_id]:.4f} + {reg_fitness[best_id]:.4f}')
 
             if best_fitness > best_fitness_avg:
                 counter = counter + 1

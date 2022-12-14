@@ -9,6 +9,9 @@ if __name__ == "__main__":
 
     # Get Data
     data = get_data('adult', 'adult', root_path='../data_files/')
+    stat_module_list = [
+        Marginals.get_all_kway_combinations(data.domain, k=2),
+    ]
 
     get_gen_list = [
         # RelaxedProjection.get_generator(learning_rate=0.01),
@@ -19,9 +22,6 @@ if __name__ == "__main__":
                              print_progress=False)
     ]
 
-    stat_module_list = [
-        Marginals.get_all_kway_combinations(data.domain, k=2),
-    ]
     run_experiment(data,
                    data_name='adult',
                    generators=get_gen_list,
