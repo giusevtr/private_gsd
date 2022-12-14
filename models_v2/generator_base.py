@@ -11,81 +11,49 @@ import pandas as pd
 class Generator:
 
     data_size: int
-    def fit(self, key, true_stats, stat_module, init_X=None) -> Dataset:
+    def fit(self, key: jax.random.PRNGKeyArray, true_stats: jnp.ndarray, stat_module: Statistic, init_X=None) -> Dataset:
         pass
 
-    def fit_privately(
-            self,
-            # data: Dataset,
-            stat_module: Statistic,
-            epsilon: float,
-            seed: int = 0,
-    ):
-        key = jax.random.PRNGKey(seed)
-        # X = data.to_numpy()
-        stime = time.time()
-        n, dim = X.shape
+    def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, epsilon, delta, init_X=None):
 
-        n = X.shape[0]
-        delta = 1 / (n ** 2)
         rho = cdp_rho(epsilon, delta)
-        # rng = np.random.default_rng(seed)
+        return self.fit_zcdp(key, stat_module, rho, init_X)
 
+    def fit_zcdp(
+            self,
+            key: jax.random.PRNGKeyArray,
+            stat_module: Statistic,
+            rho: float,
+            init_X=None
+    ):
         # Get statistics and noisy statistics
-        stat_module = stat_module
-        stats_fn = stat_module.get_stats_fn()
-        true_stats = stats_fn(X)
-
-        num_queries = true_stats.shape[0]
-        sensitivity = stat_module.get_sensitivity() / n
-        # print(f'Running {str(generator)}:')
-        # print(f'Stats is {str(stat_module)}')
-        # print(f'dimension = {dim}, num queries = {num_queries}, sensitivity={sensitivity:.4f}')
-
-        # sigma_gaussian = float(np.sqrt(num_queries / (2 * (n ** 2) * rho)))
+        true_stats = stat_module.get_true_stats()
+        sensitivity = stat_module.get_sensitivity()
         sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho)))
 
         key, key_gaussian = jax.random.split(key, 2)
-        jax.random.normal(key_gaussian, shape=true_stats.shape)
         true_stats_noise = true_stats + jax.random.normal(key_gaussian, shape=true_stats.shape) * sigma_gaussian
-        gaussian_error = jnp.abs(true_stats - true_stats_noise)
-        # print(f'epsilon={epsilon}, '
-        #       f'Gaussian error: L1 {jnp.linalg.norm(gaussian_error, ord=1):.5f},'
-        #       f'Gaussian error: L2 {jnp.linalg.norm(gaussian_error, ord=2):.5f},'
-        #       f' Max = {gaussian_error.max():.5f}')
-
         key, key_fit = jax.random.split(key, 2)
         dataset: Dataset
-        sync_dataset = self.fit(key_fit, true_stats_noise, stat_module)
-
-        # X_sync = sync_dataset.to_numpy()
-        # elapsed_time = time.time() - stime
-        # Use large statistic set to evaluate the final synthetic data.
-        # evaluate_stats_fn = stat_module.get_stats_fn(num_cols=dim, num_rand_queries=10000, seed=0)
-        # evaluate_true_stats = stats_fn(X)
-        # sync_stats = stats_fn(X_sync)
-        # errors = jnp.abs(evaluate_true_stats - sync_stats)
-        # error = jnp.linalg.norm(errors, ord=1)
-        # error_l2 = jnp.linalg.norm(errors, ord=2)
-        # max_error = errors.max()
-        # print(f'Final L1 error = {error:.5f}, L2 error = {error_l2:.5f},  max error ={max_error:.5f}\n')
-        # return X_sync, error, max_error, elapsed_time
+        sync_dataset = self.fit(key_fit, true_stats_noise, stat_module, init_X)
         return sync_dataset
 
-    def fit_privately_adaptive(self, stat_module: Statistic, rounds, seed, epsilon, delta=1e-5):
+    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, epsilon, delta, init_X=None):
+        rho = cdp_rho(epsilon, delta)
+        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, init_X)
+
+    def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, rho, init_X=None):
         """
         PRIVACY NOT YET IMPLEMENTED
         """
-        key = jax.random.PRNGKey(seed)
 
-        rho = cdp_rho(epsilon, delta)
+        # rho = cdp_rho(epsilon, delta)
         rho_per_round = rho / rounds
         # sigma = np.sqrt(0.5 / (alpha*rho_per_round))
         # exp_eps = np.sqrt(8*(1-alpha)*rho_per_round)
 
         domain = stat_module.domain
 
-        rng = np.random.default_rng(0)
         key, key_init = jax.random.split(key, 2)
         X_sync = Dataset.synthetic_jax_rng(domain, N=self.data_size, rng=key_init)
         data_sync = None
@@ -97,8 +65,11 @@ class Generator:
         # true_answers = prefix_fn(data.to_numpy())
         true_answers = stat_module.get_true_stats()
 
-        DATA = {'epoch': [], 'average error': [], 'max error': []}
-        key = jax.random.PRNGKey(seed)
+        ADA_DATA = {'epoch': [],
+                    'average error': [],
+                    'max error': [],
+                    'round init error': [],
+                    'round max error': []}
         for i in range(1, rounds + 1):
             key, key_sub = jax.random.split(key, 2)
 
@@ -108,6 +79,9 @@ class Generator:
             if len(selected_indices) > 0:
                 errors.at[selected_indices_jnp].set(-100000)
 
+            ####################################
+            ## REPLACE WITH EXPONENTIAL MECHANISM
+            ####################################
             worse_index = errors.argmax()
 
             selected_indices.append(worse_index)
@@ -116,7 +90,8 @@ class Generator:
             # fit synthetic data to selected statistics
             sub_stat_module = stat_module.get_sub_stat_module(selected_indices)
             sub_true_answers_jnp = sub_stat_module.get_true_stats()
-            data_sync = self.fit(key_sub, sub_true_answers_jnp, sub_stat_module)
+            # data_sync = self.fit(key_sub, sub_true_answers_jnp, sub_stat_module)
+            data_sync = self.fit_zcdp(key_sub, sub_stat_module, rho_per_round, init_X=X_sync)
             X_sync = data_sync.to_numpy()
 
             # Get errors for debugging
@@ -129,15 +104,21 @@ class Generator:
             print(f'epoch {i:03}. Total average error is {average_error:.6f}.\t Total max error is {total_max_error:.5f}.'
                 f'\tRound init max-error is {initial_max_error:.4f} and final max-error is {round_max_error:.4f}')
 
-            DATA['epoch'].append(i)
-            DATA['average error'].append(average_error)
-            DATA['max error'].append(total_max_error)
-
+            ADA_DATA['epoch'].append(i)
+            ADA_DATA['average error'].append(average_error)
+            ADA_DATA['max error'].append(total_max_error)
+            ADA_DATA['round init error'].append(initial_max_error)
+            ADA_DATA['round max error'].append(round_max_error)
+            # ADA_DATA = {'epoch': [],
+            #             'average error': [],
+            #             'max error': [],
+            #             'round init error': [],
+            #             'round max error': []}
             # est = engine.estimate(measurements, total)
 
-        df = pd.DataFrame(DATA)
+        df = pd.DataFrame(ADA_DATA)
         df['algo'] = str(self)
-        self.DATA = df
+        self.ADA_DATA = df
         return data_sync
 
 

@@ -78,7 +78,6 @@ class PrivGA(Generator):
                 return jnp.zeros(x.shape[0])
             return compute_reg_vmap(x)
 
-
         def fitness_fn(x):
             """
             Evaluate the error of the synthetic data
@@ -97,9 +96,12 @@ class PrivGA(Generator):
         if self.start_mutations is not None:
             state = state.replace(mutations=self.start_mutations)
 
-        # if init_X is not None:
-        #     temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
-        #     state.archive = jnp.concatenate([temp, state.archive[1:, :, :]])
+        if init_X is not None:
+            temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
+            new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
+            state.replace(archive=new_archive)
+
+
         last_fitness = None
         best_fitness_avg = 100000
         last_best_fitness_avg = None

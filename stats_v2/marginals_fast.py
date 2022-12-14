@@ -6,7 +6,8 @@ from stats_v2 import Statistic
 
 
 class Marginals(Statistic):
-    true_stats: list
+    true_stats: list = None
+    N: int = None  # Dataset size
 
     def __init__(self, domain, kway_combinations, name='Marginals'):
         super().__init__(domain, name)
@@ -58,6 +59,7 @@ class Marginals(Statistic):
 
     def fit(self, data: Dataset):
         X = data.to_numpy()
+        self.N = X.shape[0]
         self.true_stats = [fn(X) for fn in self.marginal_functions]
 
         # Jit marginals after fitting
@@ -65,6 +67,8 @@ class Marginals(Statistic):
 
     def get_num_queries(self):
         return len(self.kway_combinations)
+    def get_dataset_size(self):
+        return self.N
 
     def get_sub_true_stats(self, index: list):
         assert self.true_stats is not None, "Error: must call the fit function"
@@ -94,11 +98,12 @@ class Marginals(Statistic):
             sub_marginal.true_stats = [self.true_stats[i].reshape(-1) for i in indices]
             # Copy jitted functions
             sub_marginal.marginal_functions = [self.marginal_functions[i] for i in indices]
+            sub_marginal.N = self.N
         return sub_marginal
 
 
     def get_sensitivity(self):
-        return jnp.sqrt(len(self.kway_combinations))
+        return jnp.sqrt(len(self.kway_combinations)) / self.N
 
 
     def get_marginal_stats_fn_helper(self, idx, sizes):

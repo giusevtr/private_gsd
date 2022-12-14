@@ -42,3 +42,6 @@ class Statistic:
 
     def get_sync_data_errors(self, X):
         pass
+
+    def get_dataset_size(self):
+        return -1
