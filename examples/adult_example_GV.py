@@ -1,6 +1,8 @@
+import jax.random
+
 from examples.run_example import generate_private_SD, run_experiment
-from models import PrivGA, RelaxedProjection
-from stats import Marginals, Marginals2, TwoWayPrefix
+from models_v2 import PrivGA, RelaxedProjection
+from stats_v2 import Marginals, TwoWayPrefix
 from utils.utils_data import get_data
 
 import pdb
@@ -8,29 +10,47 @@ import pdb
 if __name__ == "__main__":
 
     # Get Data
-    data = get_data('adult', 'adult-mini', root_path='../data_files/')
+    ROUNDS=4
+    data = get_data('adult', 'adult-small', root_path='../data_files/')
+    # ROUNDS=15
+    # data = get_data('adult', 'adult', root_path='../data_files/')
 
-    get_gen_list = [
-        # RelaxedProjection.get_generator(learning_rate=0.01),
-        PrivGA.get_generator(popsize=1000,
-                             top_k=10,
-                             num_generations=200,
-                             stop_loss_time_window=50,
-                             print_progress=True,
-                             start_mutations=32)
-    ]
+    # Create statistics and evaluate
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
+    marginal_module.fit(data)
 
-    stat_module_list = [
-        Marginals.get_all_kway_combinations(data.domain, k=2),
-    ]
-    run_experiment(data,
-                   data_name='adult',
-                   generators=get_gen_list,
-                   stat_modules=stat_module_list,
-                   epsilon_list=[1.0],
-                   # epsilon_list=[0.07, 0.15, 0.23, 0.41, 0.52, 0.62, 0.74, 0.87, 1.0],
-                   seed_list=[0],
-                   plot_results=True,
-                   data_size=100)
+    reg_marginal_module = Marginals.get_all_kway_combinations(data.domain, k=1)
+    # print(f'num queries = {marginal_module.get_num_queries()}')
+    #
+    # rap = RelaxedProjection(domain=data.domain,
+    #                         data_size=200,
+    #                         iterations=5000,
+    #                         learning_rate=0.005,
+    #                         print_progress=False,
+    #                         )
+    #
+    # key = jax.random.PRNGKey(0)
+    # sync_data_2 = rap.fit_dp_adaptive(key, stat_module=marginal_module,
+    #                  rounds=ROUNDS, epsilon=1, delta=1e-6)
+    # errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
+    # print(f'RAP: max error = {errros.max():.5f}')
 
+
+    # Choose algorithm parameters
+    priv_ga = PrivGA(domain=data.domain,
+                     popsize=600,
+                    top_k=20,
+                    num_generations=350,
+                    stop_loss_time_window=50,
+                    print_progress=True,
+                    start_mutations=32,
+                     data_size=200,
+                     regularization_statistics=reg_marginal_module
+                     )
+    # Generate differentially private synthetic data with ADAPTIVE mechanism
+    key = jax.random.PRNGKey(0)
+    sync_data_2 = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module,
+                     rounds=ROUNDS, epsilon=1, delta=1e-6)
+    errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
+    print(f'PrivGA: max error = {errros.max():.5f}')
 

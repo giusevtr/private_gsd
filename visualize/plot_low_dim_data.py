@@ -7,10 +7,10 @@ def plot_1d_data(array, title=''):
     plt.xlim(0, 1)
     plt.show()
 
-def plot_2d_data(data_array, i=0, j=1, alpha=0.9, title='', save_path=None):
+def plot_2d_data(data_array, i=0, j=1, alpha=1.0, title='', save_path=None):
     plt.figure(figsize=(5, 5))
     plt.title(title)
-    plt.scatter(data_array[:, i], data_array[:, j], alpha=alpha, s=0.5)
+    plt.scatter(data_array[:, i], data_array[:, j], alpha=alpha, s=0.7)
     plt.xlim(0, 1)
     plt.ylim(0, 1)
     if save_path is None:

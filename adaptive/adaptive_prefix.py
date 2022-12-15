@@ -1,6 +1,11 @@
 import jax.random
+import matplotlib.pyplot as plt
 import numpy as np
+import sys, os
 import itertools
+
+import pandas as pd
+
 # from mbi import Dataset, GraphicalModel, FactoredInference
 from utils import Dataset, Domain
 from scipy.special import softmax
@@ -12,7 +17,7 @@ from utils.utils_data import get_data
 from stats_v2 import TwoWayPrefix
 from models import Generator
 import jax.numpy as jnp
-from models_v2 import PrivGA
+from models_v2 import PrivGA, RelaxedProjectionPP
 from visualize.plot_low_dim_data import plot_2d_data
 
 
@@ -77,8 +82,8 @@ def adaptive(generator, prefix_queries: TwoWayPrefix, data, epsilon, rounds, see
 
     true_answers = prefix_fn(data.to_numpy())
     sub_true_answers = []
-    reg_prefix_queries = TwoWayPrefix.get_stat_module(domain=data.domain, num_rand_queries=100, seed=0)
 
+    DATA = {'epoch': [], 'l1': [], 'max': []}
     key = jax.random.PRNGKey(seed)
     for i in range(1, rounds+1):
         key, key_sub = jax.random.split(key, 2)
@@ -100,17 +105,30 @@ def adaptive(generator, prefix_queries: TwoWayPrefix, data, epsilon, rounds, see
 
         # generator = get_generator(data.domain, marginal_queries, data_size=data_size, seed=seed)
         sub_true_answers_jnp = jnp.array(sub_true_answers)
-        data_sync = generator.fit(key_sub, sub_true_answers_jnp, sub_prefix_module, reg_prefix_queries, init_X=data_sync.to_numpy())
+        data_sync = generator.fit(key_sub, sub_true_answers_jnp, sub_prefix_module, init_X=data_sync.to_numpy())
 
-        plot_2d_data(data_array=data_sync.to_numpy(), title=f'epoch = {i}')
+        os.makedirs('progress', exist_ok=True)
+        save_dir = f'progress/{str(generator)}'
+        os.makedirs(save_dir, exist_ok=True)
+        plot_2d_data(data_array=data_sync.to_numpy(), title=f'epoch = {i}', save_path=f'{save_dir}/{i:004}.png')
 
         sync_ans = prefix_fn(data_sync.to_numpy())
+        m = true_answers.shape[0]
         errors = jnp.abs(true_answers - sync_ans)
-        print(f'final round l1-error = {np.linalg.norm(errors, ord=1):.3f}, max-error ={np.max(np.abs(errors)):.3f}')
+        m_r = selected_indices_jnp.shape[0]
+        round_errors = errors[selected_indices_jnp]
+        print(f'epoch {i:03}. Total round l1/max error = {np.linalg.norm(errors, ord=1)/m:.3f}/{np.max(np.abs(errors)):.3f}.'
+              f'\t\tRound l1/max error = {jnp.linalg.norm(round_errors, ord=11)/m_r:.3f}/{round_errors.max():.3f}')
+
+        DATA['epoch'].append(i)
+        DATA['l1'].append(np.linalg.norm(errors, ord=1)/m)
+        DATA['max'].append(errors.max())
 
         # est = engine.estimate(measurements, total)
 
-    return data_sync
+    df = pd.DataFrame(DATA)
+    df['algo'] = str(generator)
+    return data_sync,  df
 
 
 from toy_datasets.sparse import get_sparse_1d_dataset, get_sparse_dataset
@@ -119,29 +137,38 @@ if __name__ == "__main__":
     # data = get_data('adult', 'adult-mini', root_path='../data_files/')
     data = get_sparse_dataset(DATA_SIZE=1000)
 
-    plot_2d_data(data.to_numpy(), title='original')
+    # plot_2d_data(data.to_numpy(), title='original')
+    POPSIZE = 100
+    DATA_SIZE = 200
+    num_generations=300
     get_gen_list = [
-        # ('RP(0.005)', RelaxedProjection.get_generator(learning_rate=0.005)),
-        # ('RP(0.05)', RelaxedProjection.get_generator(learning_rate=0.05)),
-        ('PrivGA', PrivGA(
-            domain=data.domain,
-            data_size=200,
-            num_generations=300,
-            popsize=300,
-                             top_k=30,
-                             stop_loss_time_window=50,
-                             print_progress=False,
-                             start_mutations=32))
+        # ('RP++', RelaxedProjectionPP(domain=data.domain,  data_size=DATA_SIZE,
+        #         iterations=1000, learning_rate=(0.0005, 0.001, 0.005, 0.01, 0.05))),
+        ('PrivGA', PrivGA(domain=data.domain, data_size=200, num_generations=num_generations,
+            popsize=POPSIZE, top_k=30, stop_loss_time_window=50, print_progress=False, start_mutations=32,
+            )),
+        ('PrivGA(reg)', PrivGA(domain=data.domain, data_size=200, num_generations=num_generations,
+            popsize=POPSIZE, top_k=30, stop_loss_time_window=50, print_progress=False, start_mutations=32,
+            reg_prefix_queries=TwoWayPrefix.get_stat_module(domain=data.domain, num_rand_queries=100, seed=0)
+            ))
     ]
 
     # prefix_queries = TwoWayPrefix(domain=data.domain, num_rand_queries=1000, seed=0)
     prefix_queries = TwoWayPrefix.get_stat_module(domain=data.domain, num_rand_queries=1000, seed=0)
     stat_fn = prefix_queries.get_stats_fn()
     true_stats = stat_fn(data.to_numpy())
+
+    results = []
     for name, gen in get_gen_list:
-        print(f'Running {name}')
-        data_sync = adaptive(gen, prefix_queries, data, epsilon=1, rounds=30, seed=0, data_size=1000)
-        sync_stats = stat_fn(data_sync.to_numpy())
-        errors = jnp.abs(true_stats - sync_stats)
-        print(f'l1 error = {jnp.linalg.norm(errors, ord=1):.4f}, max={jnp.max(errors):.4f}')
-        print()
+        for seed in [0]:
+            print(f'Running {name}', str(gen))
+            data_sync, info_df = adaptive(gen, prefix_queries, data, epsilon=1, rounds=40, seed=seed, data_size=200)
+            info_df.to_csv(f'results/{str(gen)}.csv', index=False)
+            results.append(info_df)
+            sync_stats = stat_fn(data_sync.to_numpy())
+            errors = jnp.abs(true_stats - sync_stats)
+            print(f'l1 error = {jnp.linalg.norm(errors, ord=1)/errors.shape[0]:.4f}, max={jnp.max(errors):.4f}')
+            print()
+
+    df_all = pd.concat(results)
+    df_all.to_csv('results/results.csv', index=False)
