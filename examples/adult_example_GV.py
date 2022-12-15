@@ -10,31 +10,16 @@ import pdb
 if __name__ == "__main__":
 
     # Get Data
-    # ROUNDS=4
-    # data = get_data('adult', 'adult-small', root_path='../data_files/')
-    ROUNDS=15
-    data = get_data('adult', 'adult', root_path='../data_files/')
+    ROUNDS=7
+    data = get_data('adult', 'adult-small', root_path='../data_files/')
+    # ROUNDS=15
+    # data = get_data('adult', 'adult', root_path='../data_files/')
 
     # Create statistics and evaluate
-    # marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
-    marginal_module = Marginals(data.domain, [('capital-gain', 'capital-loss'), ])
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
+    # marginal_module = Marginals(data.domain, [('capital-gain', 'capital-loss'), ('sex', 'capital-loss')])
     marginal_module.fit(data)
     reg_marginal_module = Marginals.get_all_kway_combinations(data.domain, k=1)
-    # print(f'num queries = {marginal_module.get_num_queries()}')
-    #
-    # rap = RelaxedProjection(domain=data.domain,
-    #                         data_size=200,
-    #                         iterations=5000,
-    #                         learning_rate=0.005,
-    #                         print_progress=False,
-    #                         )
-    #
-    # key = jax.random.PRNGKey(0)
-    # sync_data_2 = rap.fit_dp_adaptive(key, stat_module=marginal_module,
-    #                  rounds=ROUNDS, epsilon=1, delta=1e-6)
-    # errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
-    # print(f'RAP: max error = {errros.max():.5f}')
-
 
     # Choose algorithm parameters
     priv_ga = PrivGA(domain=data.domain,
@@ -49,8 +34,8 @@ if __name__ == "__main__":
                      )
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     key = jax.random.PRNGKey(0)
-    sync_data_2 = priv_ga.fit_dp(key, stat_module=marginal_module,
-                     # rounds=ROUNDS,
+    sync_data_2 = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module,
+                     rounds=ROUNDS,
                                  epsilon=1, delta=1e-6)
     errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
     print(f'PrivGA: max error = {errros.max():.5f}')

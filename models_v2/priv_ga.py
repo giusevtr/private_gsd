@@ -123,7 +123,7 @@ class PrivGA(Generator):
 
             state = strategy.tell(x, fitness, state)
             # if normal_fitness[best_id] < reg_fitness[best_id]:
-            reg_const = 0.96 * reg_const
+            # reg_const = 0.96 * reg_const
 
             # print(f'{t:03}) fitness = {fitness[best_id]:.4f} = {normal_fitness[best_id]:.4f} + {reg_fitness[best_id]:.4f}')
 
