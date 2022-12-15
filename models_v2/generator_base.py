@@ -38,7 +38,7 @@ class Generator:
         sync_dataset = self.fit(key_fit, true_stats_noise, stat_module, init_X)
         return sync_dataset
 
-    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, epsilon, delta):
+    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, epsilon, delta, print_progress=False):
         rho = cdp_rho(epsilon, delta)
         return self.fit_zcdp_adaptive(key, stat_module, rounds, rho)
 
