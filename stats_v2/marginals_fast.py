@@ -80,7 +80,7 @@ class Marginals(Statistic):
 
         sizes_jnp = [jnp.arange(s + 1) for s in sizes]
 
-        # @jax.jit
+        @jax.jit
         def stat_fn(X):
             X_proj = (X[:, idx]+0.0001).astype(int)
             stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
