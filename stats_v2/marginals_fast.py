@@ -77,10 +77,13 @@ class Marginals(Statistic):
         return jnp.sqrt(len(self.kway_combinations)) / self.N
 
     def get_marginal_stats_fn_helper(self, idx, sizes):
-        # @jax.jit
+
+        sizes_jnp = [jnp.arange(s + 1) for s in sizes]
+
+        @jax.jit
         def stat_fn(X):
-            X_proj = X[:, idx].astype(int)
-            stat = jnp.histogramdd(X_proj, sizes)[0].flatten() / X.shape[0]
+            X_proj = (X[:, idx]+0.0001).astype(int)
+            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
             return stat
 
         return stat_fn
