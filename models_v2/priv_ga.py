@@ -99,7 +99,7 @@ class PrivGA(Generator):
         if init_X is not None:
             temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
-            state.replace(archive=new_archive)
+            state = state.replace(archive=new_archive)
 
 
         last_fitness = None
@@ -110,7 +110,7 @@ class PrivGA(Generator):
         MUT_UPT_CNT = 1
         counter = 0
 
-        reg_const = 1/(self.regularization_statistics.get_num_queries() * self.data_size )if self.regularization_statistics is not None else 0
+        reg_const = 1/(self.regularization_statistics.get_num_queries() * self.data_size)if self.regularization_statistics is not None else 0
 
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
