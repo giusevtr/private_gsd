@@ -83,6 +83,7 @@ class Generator:
             ## REPLACE WITH EXPONENTIAL MECHANISM
             ####################################
             worse_index = errors.argmax()
+            print(f'debug: {i}) selected marginal is ', stat_module.kway_combinations[worse_index])
 
             selected_indices.append(worse_index)
             selected_indices_jnp = jnp.array(selected_indices)
