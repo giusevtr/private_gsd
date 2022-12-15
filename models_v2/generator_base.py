@@ -83,6 +83,7 @@ class Generator:
             ## REPLACE WITH EXPONENTIAL MECHANISM
             ####################################
             worse_index = errors.argmax()
+            print(f'\t\tdebug: {i}) selected marginal is ', stat_module.kway_combinations[worse_index])
 
             selected_indices.append(worse_index)
             selected_indices_jnp = jnp.array(selected_indices)
@@ -101,7 +102,6 @@ class Generator:
             average_error = jnp.sum(jnp.abs(true_answers - stat_fn(X_sync))) / true_answers.shape[0]
             print(f'epoch {i:03}. Total average error is {average_error:.6f}.\t Total max error is {total_max_error:.5f}.'
                 f'\tRound init max-error is {initial_max_error:.4f} and final max-error is {round_max_error:.4f}')
-            print(f'\t\tdebug: {i}) selected marginal is ', stat_module.kway_combinations[worse_index])
             ADA_DATA['epoch'].append(i)
             ADA_DATA['average error'].append(average_error)
             ADA_DATA['max error'].append(total_max_error)
