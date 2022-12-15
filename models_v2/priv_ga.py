@@ -110,7 +110,7 @@ class PrivGA(Generator):
         MUT_UPT_CNT = 1
         counter = 0
 
-        reg_const = 1/self.regularization_statistics.get_num_queries() if self.regularization_statistics is not None else 0
+        reg_const = 1/(self.regularization_statistics.get_num_queries() * self.data_size )if self.regularization_statistics is not None else 0
 
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
