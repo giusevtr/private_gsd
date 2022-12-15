@@ -79,7 +79,7 @@ class Marginals(Statistic):
     def get_marginal_stats_fn_helper(self, idx, sizes):
         # @jax.jit
         def stat_fn(X):
-            X_proj = X[:, idx].astype(int)
+            X_proj = (X[:, idx]+0.01).astype(int)
             stat = jnp.histogramdd(X_proj, sizes)[0].flatten() / X.shape[0]
             return stat
 
