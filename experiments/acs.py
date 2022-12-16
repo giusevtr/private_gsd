@@ -36,9 +36,9 @@ def run_experiments(epsilon=(0.07, 0.15, 0.23, 0.41, 0.52, 0.62, 0.74, 0.87, 1.0
     states = ['NY', 'CA',  'FL', 'TX', 'PA']
 
     for task, state in itertools.product(tasks, states):
-        data_name =f'folktables_{task}_2018_{state}'
-        data = get_data(f'folktables_datasets/{data_name}-mixed',
-                 domain_name=f'folktables_datasets/{data_name}-mixed')
+        data_name =f'folktables_2018_{task}_{state}'
+        data = get_data(f'folktables_datasets/{data_name}-mixed-train',
+                 domain_name=f'folktables_datasets/{data_name}-cat')
 
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)
         stats_module = Marginals.get_all_kway_combinations(data.domain, k=3)
