@@ -12,3 +12,7 @@ watchdog
 *.ipynb
 *.csv
 *.zip
+*.json
+*.png
+data_files/folktables_datasets/*
+*sync_data_*

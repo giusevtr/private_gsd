@@ -10,19 +10,19 @@ import pdb
 if __name__ == "__main__":
 
     # Get Data
-    ROUNDS=7
+    ROUNDS = 7
     data = get_data('adult', 'adult-small', root_path='../data_files/')
     # ROUNDS=15
     # data = get_data('adult', 'adult', root_path='../data_files/')
 
     # Create statistics and evaluate
-    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3)
     # marginal_module = Marginals(data.domain, [('capital-gain', 'capital-loss'), ('sex', 'capital-loss')])
     marginal_module.fit(data)
     reg_marginal_module = Marginals.get_all_kway_combinations(data.domain, k=1)
 
     # Choose algorithm parameters
-    priv_ga = PrivGA(domain=data.domain,
+    priv_ga = PrivGA(
                      popsize=600,
                     top_k=20,
                     num_generations=350,

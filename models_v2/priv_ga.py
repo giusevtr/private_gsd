@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 @dataclass
 class PrivGA(Generator):
-    domain: Domain
+    # domain: Domain
     # stat_module: Statistic
     data_size: int
     # seed: int
@@ -44,7 +44,7 @@ class PrivGA(Generator):
         key, key_sub = jax.random.split(key, 2)
 
         # key = jax.random.PRNGKey(seed)
-        self.data_dim = self.domain.get_dimension()
+        self.data_dim = stat_module.domain.get_dimension()
         init_time = time.time()
         num_devices = jax.device_count()
         if num_devices > 1:
@@ -52,7 +52,7 @@ class PrivGA(Generator):
 
         self.elite_ratio = self.top_k / self.popsize
         strategy = SimpleGAforSyncData(
-                    domain=self.domain,
+                    domain=stat_module.domain,
                     data_size=self.data_size,
                     generations=self.num_generations,
                     popsize=self.popsize,
@@ -68,7 +68,7 @@ class PrivGA(Generator):
         compute_error_pmap = jax.pmap(distributed_error_fn, in_axes=(0, ))
 
         if self.regularization_statistics is not None:
-            X_temp = Dataset.synthetic_jax_rng(domain=self.domain, N=1000, rng=key_sub)
+            X_temp = Dataset.synthetic_jax_rng(domain=stat_module.domain, N=1000, rng=key_sub)
             reg_stat_fn = self.regularization_statistics.get_stats_fn()
             uniform_stats = reg_stat_fn(X_temp)
             compute_reg_fn = lambda X: (jnp.linalg.norm(uniform_stats - reg_stat_fn(X), ord=2)**2 ).squeeze()
@@ -162,7 +162,7 @@ class PrivGA(Generator):
                 last_fitness = best_fitness
 
         X_sync = state.best_member
-        sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
+        sync_dataset = Dataset.from_numpy_to_dataset(stat_module.domain, X_sync)
         return sync_dataset
 
 
