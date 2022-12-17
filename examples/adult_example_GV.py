@@ -14,38 +14,22 @@ if __name__ == "__main__":
     # ROUNDS=4
     # data = get_data('adult', 'adult-small', root_path='../data_files/')
     ROUNDS=15
-    data_name = 'folktables_income_2018_NY-cat'
-    data = get_data('folktables_income_2018_NY-mixed', data_name, root_path='../data_files/')
+    data_name = 'adult'
+    data = get_data('adult', data_name, root_path='../data_files/')
     # data = get_data('adult', 'adult', root_path='../data_files/')
 
     # Create statistics and evaluate
-    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3)
-    # marginal_module = Marginals(data.domain, [('capital-gain', 'capital-loss'), ])
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
+    # marginal_module = Marginals(data.domain, [('capital-gain', 'capital-loss'), ('sex', 'capital-loss')])
     marginal_module.fit(data)
-    # reg_marginal_module = Marginals.get_all_kway_combinations(data.domain, k=1)
-    # print(f'num queries = {marginal_module.get_num_queries()}')
-    #
-    print(marginal_module.get_num_queries())
-    # rap = RelaxedProjection(domain=data.domain,
-    #                         data_size=1000,
-    #                         iterations=5000,
-    #                         learning_rate=0.005,
-    #                         print_progress=False,
-    #                         )
-    #
-    # key = jax.random.PRNGKey(0)
-    # sync_data_2 = rap.fit_dp_adaptive(key, stat_module=marginal_module,
-    #                  rounds=ROUNDS, epsilon=1, delta=1e-6)
-    # errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
-    # print(f'RAP: max error = {errros.max():.5f}')
-
+    reg_marginal_module = Marginals.get_all_kway_combinations(data.domain, k=1)
 
     # Choose algorithm parameters
     priv_ga = PrivGA(domain=data.domain,
-                     popsize=100,
-                    top_k=2,
+                     popsize=600,
+                    top_k=20,
                     num_generations=15000,
-                    stop_loss_time_window=500,
+                    stop_loss_time_window=50,
                     print_progress=True,
                     start_mutations=32,
                      data_size=1000,

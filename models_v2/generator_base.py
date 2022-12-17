@@ -38,20 +38,15 @@ class Generator:
         sync_dataset = self.fit(key_fit, true_stats_noise, stat_module, init_X)
         return sync_dataset
 
-    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, epsilon, delta, init_X=None):
+    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, epsilon, delta):
         rho = cdp_rho(epsilon, delta)
-        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, init_X)
+        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho)
 
-    def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, rho, init_X=None):
+    def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, rho, print_progress=False):
         """
         PRIVACY NOT YET IMPLEMENTED
         """
-
-        # rho = cdp_rho(epsilon, delta)
         rho_per_round = rho / rounds
-        # sigma = np.sqrt(0.5 / (alpha*rho_per_round))
-        # exp_eps = np.sqrt(8*(1-alpha)*rho_per_round)
-
         domain = stat_module.domain
 
         key, key_init = jax.random.split(key, 2)
@@ -82,15 +77,17 @@ class Generator:
             ####################################
             ## REPLACE WITH EXPONENTIAL MECHANISM
             ####################################
-            worse_index = errors.argmax()
-            print(f'\t\tdebug: {i}) selected marginal is ', stat_module.kway_combinations[worse_index])
+            key, key_em = jax.random.split(key, 2)
+            worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(rho_per_round),stat_module.get_sensitivity())
+            # worse_index = errors.argmax()
+            # print(f'Debug: {i}) selected marginal is ', stat_module.kway_combinations[worse_index], end=' ')
 
             selected_indices.append(worse_index)
             selected_indices_jnp = jnp.array(selected_indices)
 
             # fit synthetic data to selected statistics
             sub_stat_module = stat_module.get_sub_stat_module(selected_indices)
-            data_sync = self.fit_zcdp(key_sub, sub_stat_module, rho_per_round, init_X=X_sync)
+            data_sync = self.fit_zcdp(key_sub, sub_stat_module, rho_per_round/2, init_X=X_sync)
             X_sync = data_sync.to_numpy()
 
             # Get errors for debugging
@@ -100,19 +97,14 @@ class Generator:
 
             # Get average error for debugging
             average_error = jnp.sum(jnp.abs(true_answers - stat_fn(X_sync))) / true_answers.shape[0]
-            print(f'epoch {i:03}. Total average error is {average_error:.6f}.\t Total max error is {total_max_error:.5f}.'
-                f'\tRound init max-error is {initial_max_error:.4f} and final max-error is {round_max_error:.4f}')
+            if print_progress:
+                print(f'epoch {i:03}. Total average error is {average_error:.6f}.\t Total max error is {total_max_error:.5f}.'
+                    f'\tRound init max-error is {initial_max_error:.4f} and final max-error is {round_max_error:.4f}')
             ADA_DATA['epoch'].append(i)
             ADA_DATA['average error'].append(average_error)
             ADA_DATA['max error'].append(total_max_error)
             ADA_DATA['round init error'].append(initial_max_error)
             ADA_DATA['round max error'].append(round_max_error)
-            # ADA_DATA = {'epoch': [],
-            #             'average error': [],
-            #             'max error': [],
-            #             'round init error': [],
-            #             'round max error': []}
-            # est = engine.estimate(measurements, total)
 
         df = pd.DataFrame(ADA_DATA)
         df['algo'] = str(self)
@@ -120,5 +112,9 @@ class Generator:
         return data_sync
 
 
-
+def exponential_mechanism(key:jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
+    dist = jax.nn.softmax(2 * eps0 * scores / (2 * sensitivity))
+    cumulative_dist = jnp.cumsum(dist)
+    max_query_idx = jnp.searchsorted(cumulative_dist, jax.random.uniform(key, shape=(1,)))
+    return max_query_idx[0]
 
