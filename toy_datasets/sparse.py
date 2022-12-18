@@ -22,7 +22,7 @@ def get_sparse_dataset(DATA_SIZE = 100,  seed=0):
                       cluster_std=[0.01, 0.2, 0.1],
                       random_state=seed)
     x_max = X.max(axis=0) + 0.2
-    x_min = X.min(axis=0) -0.2
+    x_min = X.min(axis=0) - 0.2
     X = (X - x_min) / (x_max - x_min)
     return Dataset.from_onehot_to_dataset(Domain(['A', 'B'], [1, 1]), X)
     # return X

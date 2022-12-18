@@ -6,7 +6,7 @@ from utils.cdp2adp import cdp_rho
 import numpy as np
 import jax.numpy as jnp
 import pandas as pd
-
+from typing import Callable
 
 class Generator:
 
@@ -38,11 +38,13 @@ class Generator:
         sync_dataset = self.fit(key_fit, true_stats_noise, stat_module, init_X)
         return sync_dataset
 
-    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, epsilon, delta):
+    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, epsilon, delta, print_progress=False,
+                        debug_fn: Callable = None):
         rho = cdp_rho(epsilon, delta)
-        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho)
+        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, print_progress, debug_fn)
 
-    def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, rho, print_progress=False):
+    def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, rho, print_progress=False,
+                          debug_fn: Callable = None):
         """
         PRIVACY NOT YET IMPLEMENTED
         """
@@ -93,13 +95,15 @@ class Generator:
             # Get errors for debugging
             errors_post_epoch = stat_module.get_sync_data_errors(X_sync)
             total_max_error = errors_post_epoch.max()
-            round_max_error = errors_post_epoch[jnp.array(selected_indices)].max()
+            round_max_error = errors_post_epoch[selected_indices_jnp].max()
 
             # Get average error for debugging
             average_error = jnp.sum(jnp.abs(true_answers - stat_fn(X_sync))) / true_answers.shape[0]
             if print_progress:
                 print(f'epoch {i:03}. Total average error is {average_error:.6f}.\t Total max error is {total_max_error:.5f}.'
                     f'\tRound init max-error is {initial_max_error:.4f} and final max-error is {round_max_error:.4f}')
+            if debug_fn is not None:
+                debug_fn(X_sync)
             ADA_DATA['epoch'].append(i)
             ADA_DATA['average error'].append(average_error)
             ADA_DATA['max error'].append(total_max_error)
@@ -110,6 +114,9 @@ class Generator:
         df['algo'] = str(self)
         self.ADA_DATA = df
         return data_sync
+
+    # @staticmethod
+    # def default_debug_fn(X):
 
 
 def exponential_mechanism(key:jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):

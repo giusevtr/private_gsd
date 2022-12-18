@@ -22,6 +22,7 @@ class Domain:
         return sum(self.shape)
 
     def get_dimension_original(self):
+        """dimension for the original domain"""
         return len(self.shape)
 
     def project(self, attrs):

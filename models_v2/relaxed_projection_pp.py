@@ -8,7 +8,7 @@ from stats_v2 import Statistic
 
 @dataclass
 class RelaxedProjectionPP(Generator):
-    domain: Domain
+    # domain: Domain
     data_size: int
     iterations: int
     learning_rate: tuple = (0.001,)
@@ -30,17 +30,17 @@ class RelaxedProjectionPP(Generator):
         best_sync = None
         for lr in self.learning_rate:
             key, key2 = jax.random.split(key, 2)
-            sync = self.fit_help(key2, compute_loss_jit, update_fn_jit, lr)
+            sync = self.fit_help(key2, stat_module.domain, compute_loss_jit, update_fn_jit, lr)
             loss = jnp.linalg.norm(true_stats - stat_fn(sync, 10000))
             if best_sync is None or loss < min_loss:
                 best_sync = jnp.copy(sync)
                 min_loss = loss
 
         # Dataset.from_onehot_to_dataset(self.domain, best_sync)
-        return Dataset.from_onehot_to_dataset(self.domain, best_sync)
+        return Dataset.from_onehot_to_dataset(stat_module.domain, best_sync)
 
-    def fit_help(self, key, compute_loss_jit, update_fn_jit, lr):
-        data_dim = self.domain.get_dimension()
+    def fit_help(self, key, domain: Domain, compute_loss_jit, update_fn_jit, lr):
+        data_dim = domain.get_dimension()
         rng, subkey = jax.random.split(key, 2)
         synthetic_data = jax.random.uniform(subkey, shape=(self.data_size, data_dim), minval=0, maxval=1)
 

@@ -57,7 +57,7 @@ class TwoWayPrefix(Statistic):
         self.N = X.shape[0]
         self.stat_fn = self.get_stats_fn()
         self.stat_fn_jit = jax.jit(self.get_stats_fn())
-        self.true_stats = self.stat_fn (X)
+        self.true_stats = self.stat_fn(X)
 
     def get_num_queries(self):
         return self.columns.shape[0]
@@ -68,7 +68,7 @@ class TwoWayPrefix(Statistic):
         sub_module.stat_fn = sub_module.get_stats_fn()
         sub_module.stat_fn_jit = jax.jit(sub_module.get_stats_fn())
         sub_module.N = self.N
-        sub_module.true_stats = self.true_stats[indices, :]
+        sub_module.true_stats = self.true_stats[indices]
         return sub_module
 
     def get_dataset_size(self):
@@ -78,7 +78,7 @@ class TwoWayPrefix(Statistic):
         return 1 / self.N
 
     def get_sub_true_stats(self, index: list) -> jnp.ndarray:
-        return self.true_stats[jnp.array(index), :]
+        return self.true_stats[jnp.array(index)]
 
     def get_true_stats(self) -> jnp.ndarray:
         return self.true_stats
