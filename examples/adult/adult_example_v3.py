@@ -26,9 +26,10 @@ if __name__ == "__main__":
                     top_k=2,
                     num_generations=500,
                     stop_loss_time_window=50,
-                    print_progress=False,
+                    print_progress=True,
                     start_mutations=32,
                      data_size=100,
+                    cross_rate=0.5
                      )
     for i in range(2):
         stime = time.time()

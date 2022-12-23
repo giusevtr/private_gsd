@@ -22,7 +22,7 @@ class PrivGA(Generator):
     print_progress: bool
     start_mutations: int = None
 
-    def __init__(self, domain, data_size, num_generations, popsize, top_k, stop_loss_time_window, print_progress, start_mutations):
+    def __init__(self, domain, data_size, num_generations, popsize, top_k, stop_loss_time_window, print_progress, start_mutations, cross_rate):
         self.domain = domain
         elite_ratio = top_k / popsize
         num_devices = jax.device_count()
@@ -38,7 +38,8 @@ class PrivGA(Generator):
             generations=num_generations,
             popsize=popsize,
             elite_ratio=elite_ratio,
-            num_devices=num_devices)
+            num_devices=num_devices,
+        cross_rate=cross_rate)
 
     def __str__(self):
         return f'PrivGA'
@@ -83,28 +84,15 @@ class PrivGA(Generator):
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             # Produce new candidates
-            ask_start = time.time()
             x, state = self.strategy.ask(ask_subkey, state)
-            # if t <= 2:
-            #     print(f't={t}) ask time = {time.time() - ask_start:.3f}')
 
             # Fitness of each candidate
-            fit_start = time.time()
             fitness = fitness_fn(x)
-            # if t <= 2:
-            #     print(f't={t}) fit time = {time.time() - fit_start:.3f}')
-
 
             # Get next population
             state = self.strategy.tell(x, fitness, state)
 
-
             best_fitness = fitness.min()
-            if best_fitness > best_fitness_avg:
-                counter = counter + 1
-                if counter >= MUT_UPT_CNT:
-                    state = state.replace(mutations=(state.mutations + 1) // 2)
-                    counter = 0
 
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
@@ -120,9 +108,14 @@ class PrivGA(Generator):
                 if last_best_fitness_avg is not None:
                     percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
                     if percent_change < 0.001:
-                        if self.print_progress:
-                            print(f'Stop early (2) at epoch {t}:')
-                        break
+                        if state.mutations > 1:
+                            state = state.replace(mutations=(state.mutations + 1) // 2)
+                            if self.print_progress:
+                                print(f'\t\tUpdate mutation: mutations = {state.mutations}')
+                        else:
+                            if self.print_progress:
+                                print(f'Stop early (2) at epoch {t}:')
+                            break
 
                 last_best_fitness_avg = best_fitness_avg
                 best_fitness_avg = 100000
