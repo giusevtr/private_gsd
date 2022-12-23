@@ -84,9 +84,11 @@ class Generator:
             errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats(X_sync), ord=1)/true_stats.shape[0]
 
             if print_progress:
+                gaussian_error = jnp.abs(stat_state.get_priv_stats() - stat_state.get_true_stats()).max()
                 print(f'Epoch {i:03}: Total average error is {errors_post_avg:.6f}.\t Total max error is {errors_post_max:.5f}.'
                       f'\tRound max error = {stat_state.true_loss_inf(X_sync):.4f}.'
-                      f'\telapsed time = {time.time() - stime:.4f}s')
+                      f'\tRound Gaussian max error {gaussian_error:.4f}.'
+                      f'\tElapsed time = {time.time() - stime:.4f}s')
             if debug_fn is not None:
                 debug_fn(i, X_sync)
             ADA_DATA['epoch'].append(i)

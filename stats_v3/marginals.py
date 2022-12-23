@@ -16,6 +16,12 @@ class PrivateMarginalsState:
         self.priv_marginals_fn = []
         self.selected_marginals = []
 
+    def get_true_stats(self):
+        return jnp.concatenate(self.true_stats)
+
+    def get_priv_stats(self):
+        return jnp.concatenate(self.priv_stats)
+
     def get_stats(self, X):
         return jnp.concatenate([fn(X) for fn in self.priv_marginals_fn])
 

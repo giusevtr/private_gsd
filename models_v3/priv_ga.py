@@ -12,127 +12,6 @@ from stats_v3 import Marginals, PrivateMarginalsState
 from dataclasses import dataclass
 
 
-# @dataclass
-class PrivGA(Generator):
-    data_size: int
-    num_generations: int
-    popsize: int
-    top_k: int
-    stop_loss_time_window: int
-    print_progress: bool
-    start_mutations: int = None
-
-    def __init__(self, domain, data_size, num_generations, popsize, top_k, stop_loss_time_window, print_progress, start_mutations, cross_rate):
-        self.domain = domain
-        elite_ratio = top_k / popsize
-        num_devices = jax.device_count()
-        self.data_size = data_size
-        self.num_generations = num_generations
-        self.stop_loss_time_window = stop_loss_time_window
-        self.print_progress = print_progress
-        self.start_mutations = start_mutations
-
-        self.strategy = SimpleGAforSyncData(
-            domain=domain,
-            data_size=data_size,
-            generations=num_generations,
-            popsize=popsize,
-            elite_ratio=elite_ratio,
-            num_devices=num_devices,
-        cross_rate=cross_rate)
-
-    def __str__(self):
-        return f'PrivGA'
-
-    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
-        """
-        Minimize error between real_stats and sync_stats
-        """
-        # stat_fn = jax.jit(stat_module.get_sub_stats_fn())
-        key, key_sub = jax.random.split(key, 2)
-
-        # key = jax.random.PRNGKey(seed)
-        init_time = time.time()
-        num_devices = jax.device_count()
-        if num_devices > 1:
-            print(f'************ {num_devices}  devices found. Using parallelization. ************')
-
-        # FITNESS
-        compute_error_fn = lambda X: stat.priv_loss_l2(X)
-        compute_error_vmap = jax.vmap(compute_error_fn, in_axes=(0, ))
-        fitness_fn = lambda x: compute_error_vmap(x)
-        # fitness_fn = jax.jit(fitness_fn)
-
-        self.key, subkey = jax.random.split(key, 2)
-        state = self.strategy.initialize(subkey)
-        if self.start_mutations is not None:
-            state = state.replace(mutations=self.start_mutations)
-
-        if init_X is not None:
-            temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
-            new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
-            state = state.replace(archive=new_archive)
-
-        last_fitness = None
-        best_fitness_avg = 100000
-        last_best_fitness_avg = None
-
-        # MUT_UPT_CNT = 10000 // self.popsize
-        MUT_UPT_CNT = 1
-        counter = 0
-
-        for t in range(self.num_generations):
-            self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
-            # Produce new candidates
-            x, state = self.strategy.ask(ask_subkey, state)
-
-            # Fitness of each candidate
-            fitness = fitness_fn(x)
-
-            # Get next population
-            state = self.strategy.tell(x, fitness, state)
-
-            best_fitness = fitness.min()
-
-            # Early stop
-            best_fitness_avg = min(best_fitness_avg, best_fitness)
-            X_sync = state.best_member
-            max_error = stat.priv_loss_inf(X_sync)
-
-            # print(f'{t:03}) fitness = {fitness.min():.4f}, max_error={max_error:.4f}')
-            if max_error < tolerance:
-                if self.print_progress:
-                    print(f'Stop early (1) at epoch {t}: max_error= {max_error:.4f} < {tolerance}.')
-                break
-            if t % self.stop_loss_time_window == 0 and t > 0:
-                if last_best_fitness_avg is not None:
-                    percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
-                    if percent_change < 0.001:
-                        if state.mutations > 1:
-                            state = state.replace(mutations=(state.mutations + 1) // 2)
-                            if self.print_progress:
-                                print(f'\t\tUpdate mutation: mutations = {state.mutations}')
-                        else:
-                            if self.print_progress:
-                                print(f'Stop early (2) at epoch {t}:')
-                            break
-
-                last_best_fitness_avg = best_fitness_avg
-                best_fitness_avg = 100000
-
-            if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
-                if self.print_progress:
-                    print(f'\tGeneration {t}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
-                    print(f'\ttime={time.time() -init_time:.3f}(s):', end='')
-                    print(f'\t\tprivate max_error={max_error:.3f}', end='')
-                    print(f'\tmutations={state.mutations}', end='')
-                    print()
-                last_fitness = best_fitness
-
-        X_sync = state.best_member
-        sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
-        return sync_dataset
-
 
 ######################################################################
 ######################################################################
@@ -172,6 +51,7 @@ class EvoState:
     best_fitness: float = jnp.finfo(jnp.float32).max
     gen_counter: int = 0
     mutations: int = 1
+    cross_rate: float = 0.1
 
 """
 Implement crossover that is specific to synthetic data
@@ -180,36 +60,26 @@ class SimpleGAforSyncData:
     def __init__(self,
                  domain: Domain,
                  data_size: int,  # number of synthetic data rows
-                 generations: int,
                  popsize: int,
-                 elite_ratio: float = 0.5,
-                 cross_rate: float = 0.1,
-                 num_devices=1,
+                 elite_popsize: int=2,
                  ):
         """Simple Genetic Algorithm For Synthetic Data Search Adapted from (Such et al., 2017)
         Reference: https://arxiv.org/abs/1712.06567
         Inspired by: https://github.com/hardmaru/estool/blob/master/es.py"""
 
         d = len(domain.attrs)
-        num_dims = d * data_size
         self.data_size = data_size
         self.popsize = popsize
-        # super().__init__(num_dims, popsize)
         self.domain = domain
-        self.generations = generations
-        # self.sync_data_shape = sync_data_shape
-        self.elite_ratio = elite_ratio
-        self.elite_popsize = max(1, int(self.popsize * self.elite_ratio))
+        self.elite_popsize =elite_popsize
         self.strategy_name = "SimpleGA"
-        # self.crossover = crossover
-        # self.mutations = mutations
-        self.num_devices = num_devices
+        self.num_devices = jax.device_count()
         self.domain = domain
 
         mutate = get_mutation_fn(domain)
         self.mutate_vmap = jax.jit(jax.vmap(mutate, in_axes=(0, 0, None)))
 
-        self.cross_rate = cross_rate
+        # self.cross_rate = cross_rate
         self.mate_vmap = jax.jit(jax.vmap(single_mate, in_axes=(0, 0, 0, None)))
 
     # @partial(jax.jit, static_argnums=(0,))
@@ -259,7 +129,7 @@ class SimpleGAforSyncData:
         B = state.archive[idx_b]
 
         rng_mate_split = jax.random.split(rng_mate, self.popsize // 2)
-        C = self.mate_vmap(rng_mate_split, A, B, self.cross_rate)
+        C = self.mate_vmap(rng_mate_split, A, B, state.cross_rate)
 
 
         rng_mutate = jax.random.split(rng_2, self.popsize // 2)
@@ -344,6 +214,142 @@ def get_mutation_fn(domain: Domain):
         return X
 
     return mutate
+
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+
+
+# @dataclass
+class PrivGA(Generator):
+    data_size: int
+    num_generations: int
+    popsize: int
+    top_k: int
+    stop_loss_time_window: int
+    print_progress: bool
+    start_mutations: int = None
+
+    def __init__(self, domain,
+                 data_size: int,
+                 num_generations,
+                 stop_loss_time_window,
+                 print_progress,
+                 start_mutations,
+                 cross_rate,
+                 strategy: SimpleGAforSyncData):
+        self.domain = domain
+        self.data_size = data_size
+        self.num_generations = num_generations
+        self.stop_loss_time_window = stop_loss_time_window
+        self.print_progress = print_progress
+        self.start_mutations = start_mutations
+        self.cross_rate = cross_rate
+
+        self.strategy = strategy
+
+    def __str__(self):
+        return f'PrivGA'
+
+    def set_params(self, num_generations, stop_loss_time_window, start_mutations, cross_rate, print_progress):
+        self.num_generations = num_generations
+        self.stop_loss_time_window = stop_loss_time_window
+        self.start_mutations = start_mutations
+        self.print_progress = print_progress
+
+    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
+        """
+        Minimize error between real_stats and sync_stats
+        """
+        # stat_fn = jax.jit(stat_module.get_sub_stats_fn())
+        key, key_sub = jax.random.split(key, 2)
+
+        # key = jax.random.PRNGKey(seed)
+        init_time = time.time()
+        num_devices = jax.device_count()
+        if num_devices > 1:
+            print(f'************ {num_devices}  devices found. Using parallelization. ************')
+
+        # FITNESS
+        compute_error_fn = lambda X: stat.priv_loss_l2(X)
+        compute_error_vmap = jax.vmap(compute_error_fn, in_axes=(0, ))
+        fitness_fn = lambda x: compute_error_vmap(x)
+        # fitness_fn = jax.jit(fitness_fn)
+
+        self.key, subkey = jax.random.split(key, 2)
+        state = self.strategy.initialize(subkey)
+        if self.start_mutations is not None:
+            state = state.replace(mutations=self.start_mutations)
+        if self.cross_rate is not None:
+            state = state.replace(cross_rate=self.cross_rate)
+
+        if init_X is not None:
+            temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
+            new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
+            state = state.replace(archive=new_archive)
+
+        last_fitness = None
+        best_fitness_avg = 100000
+        last_best_fitness_avg = None
+
+        # MUT_UPT_CNT = 10000 // self.popsize
+        MUT_UPT_CNT = 1
+        counter = 0
+
+        for t in range(self.num_generations):
+            self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
+            # Produce new candidates
+            x, state = self.strategy.ask(ask_subkey, state)
+
+            # Fitness of each candidate
+            fitness = fitness_fn(x)
+
+            # Get next population
+            state = self.strategy.tell(x, fitness, state)
+
+            best_fitness = fitness.min()
+
+            # Early stop
+            best_fitness_avg = min(best_fitness_avg, best_fitness)
+            X_sync = state.best_member
+            max_error = stat.priv_loss_inf(X_sync)
+
+            # print(f'{t:03}) fitness = {fitness.min():.4f}, max_error={max_error:.4f}')
+            if max_error < tolerance:
+                if self.print_progress:
+                    print(f'Stop early (1) at epoch {t}: max_error= {max_error:.4f} < {tolerance}.')
+                break
+            if t % self.stop_loss_time_window == 0 and t > 0:
+                if last_best_fitness_avg is not None:
+                    percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
+                    if percent_change < 0.001:
+                        if state.mutations > 1:
+                            state = state.replace(mutations=(state.mutations + 1) // 2)
+                            if self.print_progress:
+                                print(f'\t\tUpdate mutation: mutations = {state.mutations}')
+                        else:
+                            if self.print_progress:
+                                print(f'Stop early (2) at epoch {t}:')
+                            break
+
+                last_best_fitness_avg = best_fitness_avg
+                best_fitness_avg = 100000
+
+            if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
+                if self.print_progress:
+                    print(f'\tGeneration {t}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
+                    print(f'\ttime={time.time() -init_time:.3f}(s):', end='')
+                    print(f'\t\tprivate max_error={max_error:.3f}', end='')
+                    print(f'\tmutations={state.mutations}', end='')
+                    print()
+                last_fitness = best_fitness
+
+        X_sync = state.best_member
+        sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
+        return sync_dataset
+
 
 ######################################################################
 ######################################################################
