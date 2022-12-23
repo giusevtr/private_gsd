@@ -43,7 +43,7 @@ class PrivGA(Generator):
         key, key_sub = jax.random.split(key, 2)
 
         # key = jax.random.PRNGKey(seed)
-        self.data_dim = stat_module.domain.get_dimension()
+        self.data_dim = stat_module.domain.get_dimension_original()
         init_time = time.time()
         num_devices = jax.device_count()
         if num_devices > 1:

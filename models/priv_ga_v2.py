@@ -77,7 +77,7 @@ class PrivGA(Generator):
         return generator_init
 
     def __str__(self):
-        return f'SimpleGA(popsize={self.popsize}, topk={self.top_k})'
+        return f'PrivGA(popsize={self.popsize}, topk={self.top_k})'
 
     def fit(self, true_stats, init_X=None):
         """
@@ -104,7 +104,7 @@ class PrivGA(Generator):
             if num_devices == 1:
                 return compute_error_vmap(x)
 
-            X_distributed = x.reshape((num_devices, -1, self.data_size, self.data_dim))
+            X_distributed = x.reshape((num_devices, -1, self.data_size, self.data_dim_original))
             fitness = compute_error_pmap(X_distributed)
             fitness = jnp.concatenate(fitness)
             return fitness.squeeze()

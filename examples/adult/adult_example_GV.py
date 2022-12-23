@@ -39,4 +39,3 @@ if __name__ == "__main__":
                                  epsilon=1, delta=1e-6)
     errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
     print(f'PrivGA: max error = {errros.max():.5f}')
-
