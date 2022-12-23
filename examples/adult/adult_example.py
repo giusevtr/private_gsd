@@ -8,7 +8,7 @@ import pdb
 if __name__ == "__main__":
 
     # Get Data
-    data = get_data('adult', 'adult', root_path='../data_files/')
+    data = get_data('adult', 'adult', root_path='../../data_files/')
     stat_module_list = [
         Marginals.get_all_kway_combinations(data.domain, k=2),
     ]

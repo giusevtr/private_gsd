@@ -11,7 +11,7 @@ if __name__ == "__main__":
 
     # Get Data
     ROUNDS = 7
-    data = get_data('adult', 'adult-small', root_path='../data_files/')
+    data = get_data('adult', 'adult-small', root_path='../../data_files/')
     # ROUNDS=15
     # data = get_data('adult', 'adult', root_path='../data_files/')
 
