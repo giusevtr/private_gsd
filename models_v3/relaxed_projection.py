@@ -30,7 +30,6 @@ class RelaxedProjection(Generator):
         return f'RP(lr={self.learning_rate:.4f})'
     def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
 
-    # def fit(self, key, true_stats: jnp.ndarray, stat_module: Statistic,  init_X=None):
         data_dim = self.domain.get_dimension()
 
         # stat_fn = jax.jit(stat_module.get_differentiable_stats_fn())
@@ -40,13 +39,9 @@ class RelaxedProjection(Generator):
         # compute_loss = lambda params, sigmoid: optax.l2_loss(stat_fn(params['w'], sigmoid), true_stats)
         softmax_fn = lambda X: Dataset.apply_softmax(self.domain, X)
         compute_loss = lambda params: jnp.linalg.norm(stat.get_diff_stats(softmax_fn(params['w'])) - stat.get_priv_stats())**2
-        # compute_loss = lambda params: stat.priv_diff_loss_l2(params['w'])
-        # compute_loss = lambda params: stat.priv_diff_loss_l2(params['w'])
-        # compute_loss_jit = jax.jit(compute_loss)
 
         self.key, subkey = jax.random.split(key, 2)
         self.synthetic_data = softmax_fn(jax.random.uniform(subkey, shape=(self.data_size, data_dim), minval=0, maxval=1))
-
 
         self.optimizer = optax.adam(self.learning_rate)
         # Obtain the `opt_state` that contains statistics for the optimizer.
@@ -54,7 +49,7 @@ class RelaxedProjection(Generator):
         self.opt_state = self.optimizer.init(params)
 
         update_fn = lambda params,  state: self.optimizer.update(jax.grad(compute_loss)(params), state)
-        update_fn_jit = jax.jit(update_fn)
+        update_fn = jax.jit(update_fn)
 
         last_loss = None
         smooth_loss_sum = 0
@@ -62,7 +57,7 @@ class RelaxedProjection(Generator):
         for t in range(self.iterations):
             # params['w'] = softmax_fn(params['w'])
             loss = compute_loss(params)
-            updates, self.opt_state = update_fn_jit(params, self.opt_state)
+            updates, self.opt_state = update_fn(params, self.opt_state)
             params = optax.apply_updates(params, updates)
             # self.opt_state[0].mu['w'] = params['w']
             smooth_loss_sum += loss

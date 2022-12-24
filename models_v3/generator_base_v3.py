@@ -38,12 +38,15 @@ class Generator:
 
     # @staticmethod
     # def default_debug_fn(X):
-    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds, epsilon, delta, tolerance=0, print_progress=False,
+    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds, epsilon, delta, tolerance=0,
+                        start_X=False,
+                        print_progress=False,
                         debug_fn: Callable = None):
         rho = cdp_rho(epsilon, delta)
-        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, tolerance, print_progress, debug_fn)
+        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, tolerance, start_X, print_progress, debug_fn)
 
     def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds, rho, tolerance=0,
+                          start_X=False,
                              print_progress=False,
                           debug_fn: Callable = None):
         rho_per_round = rho / rounds
@@ -75,7 +78,11 @@ class Generator:
 
             key, key_fit = jax.random.split(key, 2)
             dataset: Dataset
-            sync_dataset = self.fit(key_fit, stat_state, X_sync, tolerance=tolerance)
+            if start_X:
+                sync_dataset = self.fit(key_fit, stat_state, X_sync, tolerance=tolerance)
+            else:
+                sync_dataset = self.fit(key_fit, stat_state, tolerance=tolerance)
+
             ##### PROJECT STEP
             X_sync = sync_dataset.to_numpy()
 
