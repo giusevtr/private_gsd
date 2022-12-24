@@ -2,9 +2,6 @@ import itertools
 import jax
 import jax.numpy as jnp
 from utils import Dataset, Domain
-from stats_v3 import PrivateStatistic
-from flax import struct
-from typing import Callable
 from utils.utils_data import Domain
 import numpy as np
 
@@ -14,6 +11,7 @@ class PrivateMarginalsState:
         self.true_stats = []
         self.priv_stats = []
         self.priv_marginals_fn = []
+        self.priv_diff_marginals_fn = []
         self.selected_marginals = []
 
     def get_true_stats(self):
@@ -24,6 +22,9 @@ class PrivateMarginalsState:
 
     def get_stats(self, X):
         return jnp.concatenate([fn(X) for fn in self.priv_marginals_fn])
+
+    def get_diff_stats(self, X):
+        return jnp.concatenate([diff_fn(X) for diff_fn in self.priv_diff_marginals_fn])
 
     def true_loss_inf(self, X):
         true_stats_concat = jnp.concatenate(self.true_stats)
@@ -45,6 +46,16 @@ class PrivateMarginalsState:
         sync_stats_concat = self.get_stats(X)
         return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) ** 2
 
+
+    def priv_diff_loss_inf(self, X_oh):
+        priv_stats_concat = jnp.concatenate(self.priv_stats)
+        sync_stats_concat = self.get_diff_stats(X_oh)
+        return jnp.abs(priv_stats_concat - sync_stats_concat).max()
+    def priv_diff_loss_l2(self, X_oh):
+        priv_stats_concat = jnp.concatenate(self.priv_stats)
+        sync_stats_concat = self.get_diff_stats(X_oh)
+        return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) ** 2
+
 class Marginals:
     true_stats: list = None
     marginals_fn: list
@@ -64,6 +75,7 @@ class Marginals:
     def fit(self, data: Dataset):
         self.true_stats = []
         self.marginals_fn = []
+        self.diff_marginals_fn = []
 
         X = data.to_numpy()
         self.N = X.shape[0]
@@ -77,6 +89,8 @@ class Marginals:
             fn = self.get_marginal_stats_fn_helper(indices, sizes)
             self.true_stats.append(fn(X))
             self.marginals_fn.append(jax.jit(fn))
+            diff_fn = self.get_differentiable_stats_fn_helper(cols)
+            self.diff_marginals_fn.append(jax.jit(diff_fn))
 
     def get_num_queries(self):
         return len(self.kway_combinations)
@@ -88,13 +102,25 @@ class Marginals:
         assert self.true_stats is not None, "Error: must call the fit function"
         return jnp.concatenate(self.true_stats)
 
-    def get_stats(self, X, indices: list = None):
+
+    def get_stats(self, data:Dataset, indices: list = None):
+        X = data.to_numpy()
         stats = []
         I = indices if indices is not None else list(range(self.get_num_queries()))
         for i in I:
             fn = self.marginals_fn[i]
             stats.append(fn(X))
         return jnp.concatenate(stats)
+
+    def get_diff_stats(self, data:Dataset, indices: list = None):
+        X = data.to_onehot()
+        stats = []
+        I = indices if indices is not None else list(range(self.get_num_queries()))
+        for i in I:
+            fn = self.diff_marginals_fn[i]
+            stats.append(fn(X))
+        return jnp.concatenate(stats)
+
 
     def get_sync_data_errors(self, X):
         assert self.true_stats is not None, "Error: must call the fit function"
@@ -120,20 +146,23 @@ class Marginals:
             return stat
         return stat_fn
 
+    def get_differentiable_stats_fn_helper(self, kway_attributes):
+        # For computing differentiable marginal queries
+        queries = []
+        indices = [self.domain.get_attribute_onehot_indices(att) for att in kway_attributes]
+        for tup in itertools.product(*indices):
+            queries.append(tup)
+        queries = jnp.array(queries)
+        # queries_split = jnp.array_split(self.queries, 10)
+
+        # @jax.jit
+        def stat_fn(X):
+            return jnp.prod(X[:, queries], 2).sum(0) / X.shape[0]
+
+        return stat_fn
     ##################################################
     ## Adaptive statistics
     ##################################################
-    # def private_inf_loss(self, X, state: PrivateMarginalsState):
-    #     priv_stats_concat = jnp.concatenate(self.priv_stats)
-    #     sync_stats_concat = self.get_stats(X, state.selected_marginals)
-    #     return jnp.abs(priv_stats_concat - sync_stats_concat).max()
-    #
-    # def private_l2_loss(self, X, state: PrivateMarginalsState):
-    #     priv_stats_concat = jnp.concatenate(self.priv_stats)
-    #     sync_stats_concat = self.get_stats(X, state.selected_marginals)
-    #     return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) ** 2
-
-
     def private_select_measure_statistic(self, key, rho_per_round, X_sync, state: PrivateMarginalsState):
         rho_per_round = rho_per_round / 2
 
@@ -157,6 +186,7 @@ class Marginals:
         state.true_stats.append(selected_true_stat)
         state.priv_stats.append(selected_true_stat + gau_noise)
         state.priv_marginals_fn.append(self.marginals_fn[worse_index])
+        state.priv_diff_marginals_fn.append(self.diff_marginals_fn[worse_index])
         # state.selected_marginals.append(worse_index)
 
         return state
@@ -198,6 +228,31 @@ def test_mixed():
     print(stats1.shape)
     print(stats1)
 
+
+def test_cat_and_diff():
+
+    import numpy as np
+    import pandas as pd
+    print('debug')
+    cols = ['A', 'B', 'C']
+    domain = Domain(cols, [2, 3, 2])
+
+    A = pd.DataFrame(np.array([
+        [0, 0, 1],
+        [0, 2, 0],
+        [0, 0, 0],
+        [0, 1, 0],
+    ]), columns=cols)
+    data = Dataset(A, domain=domain)
+    X = data.to_numpy()
+
+    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=3)
+    stat_mod.fit(data)
+
+    stats_true = stat_mod.get_true_stats()
+    stats_diff = stat_mod.get_diff_stats(data)
+
+    print(jnp.linalg.norm(stats_true - stats_diff, ord=1))
 
 def test_runtime():
     import time
@@ -250,4 +305,5 @@ def test_runtime():
 
 if __name__ == "__main__":
     # test_mixed()
-    test_runtime()
+    # test_runtime()
+    test_cat_and_diff()
