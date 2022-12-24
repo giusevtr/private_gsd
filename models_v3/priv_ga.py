@@ -59,19 +59,19 @@ Implement crossover that is specific to synthetic data
 class SimpleGAforSyncData:
     def __init__(self,
                  domain: Domain,
-                 data_size: int,  # number of synthetic data rows
-                 popsize: int,
-                 elite_popsize: int=2,
+                 # data_size: int,  # number of synthetic data rows
+                 # popsize: int,
+                 # elite_popsize: int=2,
                  ):
         """Simple Genetic Algorithm For Synthetic Data Search Adapted from (Such et al., 2017)
         Reference: https://arxiv.org/abs/1712.06567
         Inspired by: https://github.com/hardmaru/estool/blob/master/es.py"""
 
         d = len(domain.attrs)
-        self.data_size = data_size
-        self.popsize = popsize
+        # self.data_size = data_size
+        # self.popsize = popsize
         self.domain = domain
-        self.elite_popsize =elite_popsize
+        # self.elite_popsize = elite_popsize
         self.strategy_name = "SimpleGA"
         self.num_devices = jax.device_count()
         self.domain = domain
@@ -84,71 +84,74 @@ class SimpleGAforSyncData:
 
     # @partial(jax.jit, static_argnums=(0,))
     def initialize(
-        self, rng: chex.PRNGKey
+        self, rng: chex.PRNGKey,
+            elite_popsize,
+            data_size: int
     ) -> EvoState:
         """`initialize` the evolution strategy."""
         # Initialize strategy based on strategy-specific initialize method
-        state = self.initialize_strategy(rng)
+        state = self.initialize_strategy(rng, elite_popsize, data_size)
         return state
 
-    def initialize_strategy(self, rng: chex.PRNGKey) -> EvoState:
+    def initialize_strategy(self, rng: chex.PRNGKey, elite_popsize, data_size) -> EvoState:
         """`initialize` the differential evolution strategy."""
-        initialization = initialize_population(rng, self.elite_popsize, self.domain, self.data_size).astype(jnp.float32)
+        initialization = initialize_population(rng, elite_popsize, self.domain, data_size).astype(jnp.float32)
 
         state = EvoState(
             mean=initialization.mean(axis=0),
             archive=initialization,
-            fitness=jnp.zeros(self.elite_popsize) + jnp.finfo(jnp.float32).max,
+            fitness=jnp.zeros(elite_popsize) + jnp.finfo(jnp.float32).max,
             best_member=initialization[0],
-            mutations=self.data_size
+            mutations=data_size
         )
         return state
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def ask(
         self,
         rng: chex.PRNGKey,
         state: EvoState,
+            popsize: int,
+            elite_popsize: int,
     ) -> Tuple[chex.Array, EvoState]:
         """`ask` for new parameter candidates to evaluate next."""
-        x, state = self.ask_strategy(rng, state)
-        print(f'Debug strategy.ask(): This print should appear only once.')
+        x, state = self.ask_strategy(rng, state, popsize, elite_popsize)
+        # print(f'Debug strategy.ask(): This print should appear only once.')
         return x, state
 
     def ask_strategy(
-        self, rng: chex.PRNGKey, state: EvoState
+        self, rng: chex.PRNGKey, state: EvoState, popsize, elite_popsize
     ) -> Tuple[chex.Array, EvoState]:
         rng, rng_a, rng_b, rng_mate, rng_2 = jax.random.split(rng, 5)
-        elite_ids = jnp.arange(self.elite_popsize)
+        elite_ids = jnp.arange(elite_popsize)
 
-
-
-        idx_a = jax.random.choice(rng_a, elite_ids, (self.popsize // 2,))
-        idx_b = jax.random.choice(rng_b, elite_ids, (self.popsize // 2,))
+        idx_a = jax.random.choice(rng_a, elite_ids, (popsize // 2,))
+        idx_b = jax.random.choice(rng_b, elite_ids, (popsize // 2,))
         A = state.archive[idx_a]
         B = state.archive[idx_b]
 
-        rng_mate_split = jax.random.split(rng_mate, self.popsize // 2)
+        rng_mate_split = jax.random.split(rng_mate, popsize // 2)
         C = self.mate_vmap(rng_mate_split, A, B, state.cross_rate)
 
 
-        rng_mutate = jax.random.split(rng_2, self.popsize // 2)
+        rng_mutate = jax.random.split(rng_2, popsize // 2)
         A_mut = self.mutate_vmap(rng_mutate, A, state.mutations)
         x = jnp.concatenate((A_mut, C))
         return x, state
 
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def tell(
         self,
         x: chex.Array,
         fitness: chex.Array,
         state: EvoState,
+            elite_popsize
     ) -> EvoState:
         """`tell` performance data for strategy state update."""
 
         # Update the search state based on strategy-specific update
-        state = self.tell_strategy(x, fitness, state)
+        state = self.tell_strategy(x, fitness, state, elite_popsize)
 
         # Check if there is a new best member & update trackers
         best_member, best_fitness = get_best_fitness_member(x, fitness, state)
@@ -163,6 +166,7 @@ class SimpleGAforSyncData:
         x: chex.Array,
         fitness: chex.Array,
         state: EvoState,
+            elite_popsize: int
     ) -> EvoState:
         """
         `tell` update to ES state.
@@ -172,7 +176,7 @@ class SimpleGAforSyncData:
         fitness = jnp.concatenate([fitness, state.fitness])
         solution = jnp.concatenate([x, state.archive])
         # Select top elite from total archive info
-        idx = jnp.argsort(fitness)[0: self.elite_popsize]
+        idx = jnp.argsort(fitness)[0: elite_popsize]
 
         ## MODIFICATION: Select random survivors
         fitness = fitness[idx]
@@ -224,17 +228,12 @@ def get_mutation_fn(domain: Domain):
 
 # @dataclass
 class PrivGA(Generator):
-    data_size: int
-    num_generations: int
-    popsize: int
-    top_k: int
-    stop_loss_time_window: int
-    print_progress: bool
-    start_mutations: int = None
 
     def __init__(self, domain,
                  data_size: int,
                  num_generations,
+                 popsize,
+                 elite_popsize,
                  stop_loss_time_window,
                  print_progress,
                  start_mutations,
@@ -243,6 +242,8 @@ class PrivGA(Generator):
         self.domain = domain
         self.data_size = data_size
         self.num_generations = num_generations
+        self.popsize = popsize
+        self.elite_popsize = elite_popsize
         self.stop_loss_time_window = stop_loss_time_window
         self.print_progress = print_progress
         self.start_mutations = start_mutations
@@ -253,11 +254,11 @@ class PrivGA(Generator):
     def __str__(self):
         return f'PrivGA'
 
-    def set_params(self, num_generations, stop_loss_time_window, start_mutations, cross_rate, print_progress):
-        self.num_generations = num_generations
-        self.stop_loss_time_window = stop_loss_time_window
-        self.start_mutations = start_mutations
-        self.print_progress = print_progress
+    # def set_params(self, num_generations, stop_loss_time_window, start_mutations, cross_rate, print_progress):
+    #     self.num_generations = num_generations
+    #     self.stop_loss_time_window = stop_loss_time_window
+    #     self.start_mutations = start_mutations
+    #     self.print_progress = print_progress
 
     def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
         """
@@ -279,7 +280,7 @@ class PrivGA(Generator):
         # fitness_fn = jax.jit(fitness_fn)
 
         self.key, subkey = jax.random.split(key, 2)
-        state = self.strategy.initialize(subkey)
+        state = self.strategy.initialize(subkey, self.elite_popsize, self.data_size)
         if self.start_mutations is not None:
             state = state.replace(mutations=self.start_mutations)
         if self.cross_rate is not None:
@@ -301,13 +302,13 @@ class PrivGA(Generator):
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             # Produce new candidates
-            x, state = self.strategy.ask(ask_subkey, state)
+            x, state = self.strategy.ask(ask_subkey, state, self.popsize, self.elite_popsize)
 
             # Fitness of each candidate
             fitness = fitness_fn(x)
 
             # Get next population
-            state = self.strategy.tell(x, fitness, state)
+            state = self.strategy.tell(x, fitness, state, self.elite_popsize)
 
             best_fitness = fitness.min()
 
@@ -339,7 +340,7 @@ class PrivGA(Generator):
 
             if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
                 if self.print_progress:
-                    print(f'\tGeneration {t}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
+                    print(f'\tGeneration {t:03}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
                     print(f'\ttime={time.time() -init_time:.3f}(s):', end='')
                     print(f'\t\tprivate max_error={max_error:.3f}', end='')
                     print(f'\tmutations={state.mutations}', end='')

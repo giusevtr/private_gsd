@@ -20,18 +20,20 @@ if __name__ == "__main__":
     marginal_module.fit(data)
     strategy = SimpleGAforSyncData(
         domain=data.domain,
-        data_size=100,
-        popsize=1000,
-        elite_popsize=2,
+        # data_size=500,
+        # popsize=1000,
+        # elite_popsize=2,
     )
 
     # Choose algorithm parameters
     priv_ga = PrivGA(
                     domain=data.domain,
-                    data_size=strategy.data_size,
+                    data_size=500,
                     num_generations=1000,
+                    popsize=1000,
+                    elite_popsize=30,
                     stop_loss_time_window=20,
-                    print_progress=False,
+                    print_progress=True,
                     start_mutations=32,
                     cross_rate=0.1,
                     strategy=strategy
