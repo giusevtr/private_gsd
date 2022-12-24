@@ -81,7 +81,7 @@ class Generator:
 
             # Get errors for debugging
             errors_post_max = stat_module.get_sync_data_errors(X_sync).max()
-            errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats(X_sync), ord=1)/true_stats.shape[0]
+            errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats(sync_dataset), ord=1)/true_stats.shape[0]
 
             if print_progress:
                 gaussian_error = jnp.abs(stat_state.get_priv_stats() - stat_state.get_true_stats()).max()
