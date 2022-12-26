@@ -53,13 +53,13 @@ class EvoState:
     best_fitness: float = jnp.finfo(jnp.float32).max
     gen_counter: int = 0
     mutations: int = 1
-    cross_rate: float = 0.1
+    cross_rate: int = 1
 
 """
 Implement crossover that is specific to synthetic data
 """
 class SimpleGAforSyncData:
-    def __init__(self, domain: Domain, population_size, elite_size, data_size):
+    def __init__(self, domain: Domain, population_size: int, elite_size: int, data_size: int, mute_rate: int, mate_rate: int):
         """Simple Genetic Algorithm For Synthetic Data Search Adapted from (Such et al., 2017)
         Reference: https://arxiv.org/abs/1712.06567
         Inspired by: https://github.com/hardmaru/estool/blob/master/es.py"""
@@ -73,16 +73,15 @@ class SimpleGAforSyncData:
         self.num_devices = jax.device_count()
         self.domain = domain
 
-        mutate = get_mutation_fn(domain)
+        mutate = get_mutation_fn(domain, mute_rate=mute_rate)
+        mate_fn = get_mating_fn(mate_rate=mate_rate)
 
-        self.mutate_vmap = jax.vmap(mutate, in_axes=(0, 0, None))
-        self.mate_vmap = jax.vmap(single_mate, in_axes=(0, 0, 0, None))
+        self.mutate_vmap = jax.vmap(mutate, in_axes=(0, 0))
+        self.mate_vmap = jax.vmap(mate_fn, in_axes=(0, 0, 0))
 
-    # @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def initialize(
         self, rng: chex.PRNGKey,
-            # elite_popsize,
-            # data_size: int
     ) -> EvoState:
         """`initialize` the evolution strategy."""
         # Initialize strategy based on strategy-specific initialize method
@@ -112,7 +111,6 @@ class SimpleGAforSyncData:
     ) -> Tuple[chex.Array, EvoState]:
         """`ask` for new parameter candidates to evaluate next."""
         x, state = self.ask_strategy(rng, state)
-        # print(f'Debug strategy.ask(): This print should appear only once.')
         return x, state
 
     def ask_strategy(
@@ -127,16 +125,16 @@ class SimpleGAforSyncData:
         B = state.archive[idx_b]
 
         rng_mate_split = jax.random.split(rng_mate, self.elite_size // 2)
-        C = self.mate_vmap(rng_mate_split, A, B, state.cross_rate)
+        C = self.mate_vmap(rng_mate_split, A, B)
 
 
         rng_mutate = jax.random.split(rng_2, self.elite_size // 2)
-        A_mut = self.mutate_vmap(rng_mutate, A, state.mutations)
+        A_mut = self.mutate_vmap(rng_mutate, A)
         x = jnp.concatenate((A_mut, C))
         return x, state
 
 
-    # @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def tell(
         self,
         x: chex.Array,
@@ -188,32 +186,20 @@ class SimpleGAforSyncData:
 
 def initialize_population(rng: chex.PRNGKey, pop_size, domain: Domain, data_size):
     temp = []
-    for s in range(pop_size):
-        rng, rng_sub = jax.random.split(rng)
-        X = Dataset.synthetic_jax_rng(domain, data_size, rng_sub)
-        temp.append(X)
+    d = len(domain.attrs)
+    pop = Dataset.synthetic_jax_rng(domain, pop_size * data_size, rng)
+    initialization = pop.reshape((pop_size, data_size, d))
 
-    initialization = jnp.array(temp)
+    # for s in range(pop_size):
+    #     rng, rng_sub = jax.random.split(rng)
+    #     X = Dataset.synthetic_jax_rng(domain, data_size, rng_sub)
+    #     temp.append(X)
+    #
+    # initialization = jnp.array(temp)
     return initialization
 
 
-def get_mutation_fn(domain: Domain):
 
-    def mutate(rng: chex.PRNGKey, X, mutations):
-        n, d = X.shape
-        rng1, rng2 = jax.random.split(rng, 2)
-        total_params = n * d
-
-        # mut_coordinates = jnp.array([i < mutations for i in range(total_params)])
-        mut_coordinates = jnp.arange(total_params) < mutations
-        # idx = jnp.concatenate((jnp.ones(mutations), jnp.zeros(total_params-mutations)))
-        mut_coordinates = jax.random.permutation(rng1, mut_coordinates)
-        mut_coordinates = mut_coordinates.reshape((n, d))
-        initialization = Dataset.synthetic_jax_rng(domain, n, rng2)
-        X = X * (1-mut_coordinates) + initialization * mut_coordinates
-        return X
-
-    return mutate
 
 ######################################################################
 ######################################################################
@@ -232,8 +218,8 @@ class PrivGA(Generator):
                  # elite_popsize,
                  stop_loss_time_window,
                  print_progress,
-                 start_mutations,
-                 cross_rate,
+                 # start_mutations,
+                 # cross_rate,
                  strategy: SimpleGAforSyncData):
         self.domain = domain
         self.data_size = data_size
@@ -242,19 +228,13 @@ class PrivGA(Generator):
         # self.elite_popsize = elite_popsize
         self.stop_loss_time_window = stop_loss_time_window
         self.print_progress = print_progress
-        self.start_mutations = start_mutations
-        self.cross_rate = cross_rate
+        # self.start_mutations = start_mutations
+        # self.cross_rate = cross_rate
 
         self.strategy = strategy
 
     def __str__(self):
         return f'PrivGA'
-
-    # def set_params(self, num_generations, stop_loss_time_window, start_mutations, cross_rate, print_progress):
-    #     self.num_generations = num_generations
-    #     self.stop_loss_time_window = stop_loss_time_window
-    #     self.start_mutations = start_mutations
-    #     self.print_progress = print_progress
 
     def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
         """
@@ -277,10 +257,10 @@ class PrivGA(Generator):
 
         self.key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
-        if self.start_mutations is not None:
-            state = state.replace(mutations=self.start_mutations)
-        if self.cross_rate is not None:
-            state = state.replace(cross_rate=self.cross_rate)
+        # if self.start_mutations is not None:
+        #     state = state.replace(mutations=self.start_mutations)
+        # if self.cross_rate is not None:
+        #     state = state.replace(cross_rate=self.cross_rate)
 
         if init_X is not None:
             temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
@@ -292,8 +272,8 @@ class PrivGA(Generator):
         last_best_fitness_avg = None
 
         # MUT_UPT_CNT = 10000 // self.popsize
-        MUT_UPT_CNT = 1
-        counter = 0
+        # MUT_UPT_CNT = 1
+        # counter = 0
 
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
@@ -322,14 +302,17 @@ class PrivGA(Generator):
                 if last_best_fitness_avg is not None:
                     percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
                     if percent_change < 0.001:
-                        if state.mutations > 1:
-                            state = state.replace(mutations=(state.mutations + 1) // 2)
-                            if self.print_progress:
-                                print(f'\t\tUpdate mutation: mutations = {state.mutations}')
-                        else:
-                            if self.print_progress:
-                                print(f'Stop early (2) at epoch {t}:')
-                            break
+                        if self.print_progress:
+                            print(f'Stop early (2) at epoch {t}:')
+                        break
+                        # if state.mutations > 1:
+                        #     state = state.replace(mutations=(state.mutations + 1) // 2)
+                        #     if self.print_progress:
+                        #         print(f'\t\tUpdate mutation: mutations = {state.mutations}. best_fitness={best_fitness:.4f}')
+                        # else:
+                        #     if self.print_progress:
+                        #         print(f'Stop early (2) at epoch {t}:')
+                        #     break
 
                 last_best_fitness_avg = best_fitness_avg
                 best_fitness_avg = 100000
@@ -348,6 +331,38 @@ class PrivGA(Generator):
         return sync_dataset
 
 
+
+def get_mutation_fn(domain: Domain, mute_rate: int):
+
+    def mutate(rng: chex.PRNGKey, X: chex.Array) -> chex.Array:
+        n, d = X.shape
+        rng1, rng2, rng3 = jax.random.split(rng, 3)
+        initialization = Dataset.synthetic_jax_rng(domain, mute_rate, rng1)
+        mut_rows = jax.random.randint(rng2, minval=0, maxval=n, shape=(mute_rate, ))
+        # mut_rows = jax.random.choice(rng2, n, shape=(mutations, ), replace=False)  # THIS IS SLOWER THAN randint
+        mut_col = jax.random.randint(rng3, minval=0, maxval=d, shape=(mute_rate, ))
+        values = initialization[jnp.arange(mute_rate), mut_col]
+        X = X.at[mut_rows, mut_col].set(values)
+        return X
+
+    return mutate
+
+
+def get_mating_fn(mate_rate: int):
+    def single_mate(rng: chex.PRNGKey, X: chex.Array, Y: chex.Array) -> chex.Array:
+        n_X, d = X.shape
+        n_Y, d = X.shape
+        rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+
+        rows_X = jax.random.randint(rng1, minval=0,  maxval=n_X, shape=(mate_rate, ))
+        rows_Y = jax.random.randint(rng2, minval=0,  maxval=n_Y, shape=(mate_rate, ))
+        # rows_X = jax.random.choice(rng1, n_X, shape=(mate_rows, ), replace=False)  # This is 7x slower thab randint
+        # rows_Y = jax.random.choice(rng2, n_Y, shape=(mate_rows, ), replace=False)
+        XY = X.at[rows_X].set(Y[rows_Y, :])
+        return XY
+    return single_mate
+
+
 ######################################################################
 ######################################################################
 ######################################################################
@@ -358,88 +373,96 @@ class PrivGA(Generator):
 def test_mutation():
 
     domain = Domain(['A', 'B', 'C'], [10, 10, 1])
-
-    mutate = jax.jit(get_mutation_fn(domain))
+    mutate = get_mutation_fn(domain, mute_rate=3)
     rng = jax.random.PRNGKey(2)
-    # x = initialize_population(rng, pop_size=3, domain=domain, data_size=4)
-
     x = Dataset.synthetic_jax_rng(domain, 4, rng)
-
     rng, rng_sub = jax.random.split(rng)
-    x2 = mutate(rng_sub, x, 2)
+    x2 = mutate(rng_sub, x)
 
     print('x =')
     print(x)
     print('x2=')
     print(x2)
 
-def single_mate(
-    rng: chex.PRNGKey, a: chex.Array, b: chex.Array, r: float
-) -> chex.Array:
-    """Only cross-over dims for x% of all dims."""
-    n, d = a.shape
-    # n, d = sync_data_shape
 
-    X = a
-    Y = b
+    print(f'Runtime test:')
+    SYNC_SIZE = 5000
 
-    # rng1, rng2 = jax.random.split(rng, 2)
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    cross_over_rate = r * jax.random.uniform(rng1, shape=(1,))
+    domain_large = Domain([f'f{i}' for i in range(30)], [2 for _ in range(15)] + [1 for _ in range(15)])
+    mutate2 = get_mutation_fn(domain_large, mute_rate=100)
+    mutate2_jit = jax.jit(mutate2)
+    x = Dataset.synthetic_jax_rng(domain_large, SYNC_SIZE, rng)
+    rng = jax.random.PRNGKey(5)
+    for t in range(4):
+        rng, rng_sub = jax.random.split(rng)
+        stime = time.time()
+        x_mutated = mutate2_jit(rng_sub, x)
+        x_mutated.block_until_ready()
+        print(f'{t}) Elapsed time: {time.time() - stime:.4f}')
 
-    idx = (jax.random.uniform(rng2, (n, )) > cross_over_rate).reshape((n, 1))
-    X = jax.random.permutation(rng3, X, axis=0)
-    Y = jax.random.permutation(rng4, Y, axis=0)
 
-    XY = X * (1 - idx) + Y * idx
-    cross_over_candidate = XY
-    return cross_over_candidate
+def test_mating():
+
+    domain = Domain(['A', 'B', 'C'], [10, 10, 1])
+    rng = jax.random.PRNGKey(3)
+    rng, rng1, rng2, rng_mate = jax.random.split(rng, 4)
+    X = Dataset.synthetic_jax_rng(domain, 5, rng1)
+    Y = Dataset.synthetic_jax_rng(domain, 5, rng2)
+    single_mate_small = get_mating_fn(mate_rate=2)
+
+    x_mate = single_mate_small(rng_mate, X, Y)
+
+    print('X =')
+    print(X)
+    print('Y =')
+    print(Y)
+
+    print(f'x_mate:')
+    print(x_mate)
+
+
+
+    print(f'Runtime test:')
+
+    SYNC_SIZE = 5000
+    mate_rate = 500
+
+    #
+    domain_large = Domain([f'f{i}' for i in range(30)], [2 for _ in range(15)] + [1 for _ in range(15)])
+    single_mate = get_mating_fn(mate_rate=mate_rate)
+    mate_jit = jax.jit(single_mate)
+
+    rng = jax.random.PRNGKey(5)
+    rng, rng1, rng2 = jax.random.split(rng, 3)
+    X = Dataset.synthetic_jax_rng(domain_large, SYNC_SIZE, rng1)
+    Y = Dataset.synthetic_jax_rng(domain_large, SYNC_SIZE, rng2)
+    for t in range(4):
+        rng, rng_sub = jax.random.split(rng)
+        stime = time.time()
+        XY = mate_jit(rng_sub, X, Y)
+        XY.block_until_ready()
+        print(f'{t}) Elapsed time: {time.time() - stime:.4f}')
 
 
 # @timeit
 def test_jit_ask(domain, rounds):
     print(f'Test jit(ask) with {rounds} rounds.')
 
-    strategy = SimpleGAforSyncData(domain, 5000, 11, 1000, use_jit=False)
-    strategy_jitted = SimpleGAforSyncData(domain, 5000, 11, 1000, use_jit=True)
-
+    strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=30, data_size=5000,
+                                   mute_rate=100,
+                                   mate_rate=500)
+    stime = time.time()
     key = jax.random.PRNGKey(0)
     state = strategy.initialize(rng=key)
-
-    # stime = time.time()
-    # for r in range(rounds):
-    #     x, state = strategy.ask_strategy(key, state)
-    #     x.block_until_ready()
-    #     if r <= 3 or r == rounds-1:
-    #         print(f'{r:<3}) Unjitted elapsed time {time.time() - stime:.3f}')
-    #
-    # print()
-    # state = strategy.initialize(rng=key)
-    # stime = time.time()
-    # for r in range(rounds):
-    #     x, state = strategy.ask(key, state)
-    #     x.block_until_ready()
-    #     if r <= 3 or r == rounds-1:
-    #         print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.3f}')
-    #
-    #
-    # print()
-    # state = strategy_jitted.initialize(rng=key)
-    # stime = time.time()
-    # for r in range(rounds):
-    #     x, state = strategy_jitted.ask(key, state)
-    #     x.block_until_ready()
-    #     if r <= 3 or r == rounds-1:
-    #         print(f'{r:>3}) Double Jitted elapsed time {time.time() - stime:.3f}')
+    print(f'Initialize elapsed time {time.time() - stime:.3f}s')
 
     print()
-    state = strategy_jitted.initialize(rng=key)
-    stime = time.time()
     for r in range(rounds):
-        x, state = strategy_jitted.ask_strategy(key, state)
+        stime = time.time()
+        x, state = strategy.ask(key, state)
         x.block_until_ready()
         if r <= 3 or r == rounds - 1:
-            print(f'{r:>3}) Inner Jitted elapsed time {time.time() - stime:.3f}')
+            print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.3f}')
 
 
 if __name__ == "__main__":
@@ -449,4 +472,5 @@ if __name__ == "__main__":
     # test_crossover()
 
     # test_mutation()
-    test_jit_ask(domain, rounds=1000)
+    # test_mating()
+    test_jit_ask(domain, rounds=100)

@@ -34,7 +34,7 @@ class PrivateMarginalsState:
     def true_loss_l2(self, X):
         true_stats_concat = jnp.concatenate(self.true_stats)
         sync_stats_concat = self.get_stats(X)
-        return jnp.linalg.norm(true_stats_concat - sync_stats_concat, ord=2) ** 2
+        return jnp.linalg.norm(true_stats_concat - sync_stats_concat, ord=2)
 
     def priv_loss_inf(self, X):
         priv_stats_concat = jnp.concatenate(self.priv_stats)
@@ -44,7 +44,7 @@ class PrivateMarginalsState:
     def priv_loss_l2(self, X):
         priv_stats_concat = jnp.concatenate(self.priv_stats)
         sync_stats_concat = self.get_stats(X)
-        return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) ** 2
+        return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2)
 
 
     def priv_diff_loss_inf(self, X_oh):

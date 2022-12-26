@@ -92,9 +92,12 @@ class Generator:
 
             if print_progress:
                 gaussian_error = jnp.abs(stat_state.get_priv_stats() - stat_state.get_true_stats()).max()
-                print(f'Epoch {i:03}: Total average error is {errors_post_avg:.6f}.\t Total max error is {errors_post_max:.5f}.'
-                      f'\tRound max error = {stat_state.true_loss_inf(X_sync):.4f}.'
-                      f'\tRound Gaussian max error {gaussian_error:.4f}.'
+                print(f'Epoch {i:03}: Total error(max/avg) is {errors_post_max:.4f}/{errors_post_avg:.6f}.\t ||'
+                      f'\tRound: True error(max/l2) is {stat_state.true_loss_inf(X_sync):.4f}/{stat_state.true_loss_l2(X_sync):.5f}.'
+                      # f'\t(true) max error = {stat_state.true_loss_inf(X_sync):.4f}.'
+                      # f'\t(true)  l2 error = {stat_state.true_loss_l2(X_sync):.5f}.'
+                      f'\tPriv error(max/l2) is {stat_state.priv_loss_inf(X_sync):.4f}/{stat_state.priv_loss_l2(X_sync):.5f}.'
+                      f'\tGaussian max error {gaussian_error:.4f}.'
                       f'\tElapsed time = {time.time() - stime:.4f}s')
             if debug_fn is not None:
                 debug_fn(i, X_sync)
