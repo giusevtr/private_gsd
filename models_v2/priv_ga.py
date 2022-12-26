@@ -33,7 +33,7 @@ class PrivGA(Generator):
         reg = self.regularization_statistics is not None
         return f'SimpleGA(popsize={self.popsize}, topk={self.top_k}, reg={reg})'
 
-    def fit(self, key, true_stats, stat_module, init_X=None):
+    def fit(self, key, true_stats, stat_module, init_X=None, confidence_bound=None):
         """
         Minimize error between real_stats and sync_stats
         """
@@ -141,15 +141,23 @@ class PrivGA(Generator):
                 if last_best_fitness_avg is not None:
                     percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
                     if percent_change < 0.001:
+                        print(f'Early Stop for time window: round {t}')
                         break
 
                 last_best_fitness_avg = best_fitness_avg
                 best_fitness_avg = 100000
+            X_sync = state.best_member
+            errors = true_stats - stat_fn(X_sync)
+            max_error = jnp.abs(errors).max()
+            if confidence_bound is not None:
+                if max_error<confidence_bound:
+                    print(f'Early Stop for Confidence Bound: round {t}')
+                    break
 
             if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
                 if self.print_progress:
-                    X_sync = state.best_member
-                    errors = true_stats - stat_fn(X_sync)
+                    # X_sync = state.best_member
+                    # errors = true_stats - stat_fn(X_sync)
                     max_error = jnp.abs(errors).max()
 
                     print(f'\tGeneration {t}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
