@@ -24,14 +24,14 @@ if __name__ == "__main__":
     marginal_module.fit(data)
 
 
-    data_size = 500
+    data_size = 100
     strategy = SimpleGAforSyncData(
             domain=data.domain,
             data_size=data_size,
             population_size=100,
-            elite_size=10,
-            mute_rate=3,
-            mate_rate=3
+            elite_size=5,
+            muta_rate=1,
+            mate_rate=10
         )
 
     ########
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     priv_ga = PrivGA(
                     domain=data.domain,
                     data_size=data_size,
-                    num_generations=2000,
+                    num_generations=10000,
                     stop_loss_time_window=20,
                     print_progress=False,
                     # start_mutations=100,

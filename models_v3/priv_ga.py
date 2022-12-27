@@ -52,14 +52,12 @@ class EvoState:
     best_member: chex.Array
     best_fitness: float = jnp.finfo(jnp.float32).max
     gen_counter: int = 0
-    mutations: int = 1
-    cross_rate: int = 1
 
 """
 Implement crossover that is specific to synthetic data
 """
 class SimpleGAforSyncData:
-    def __init__(self, domain: Domain, population_size: int, elite_size: int, data_size: int, mute_rate: int, mate_rate: int):
+    def __init__(self, domain: Domain, population_size: int, elite_size: int, data_size: int, muta_rate: int, mate_rate: int):
         """Simple Genetic Algorithm For Synthetic Data Search Adapted from (Such et al., 2017)
         Reference: https://arxiv.org/abs/1712.06567
         Inspired by: https://github.com/hardmaru/estool/blob/master/es.py"""
@@ -73,7 +71,7 @@ class SimpleGAforSyncData:
         self.num_devices = jax.device_count()
         self.domain = domain
 
-        mutate = get_mutation_fn(domain, mute_rate=mute_rate)
+        mutate = get_mutation_fn(domain, mute_rate=muta_rate)
         mate_fn = get_mating_fn(mate_rate=mate_rate)
 
         self.mutate_vmap = jax.vmap(mutate, in_axes=(0, 0))
@@ -97,7 +95,6 @@ class SimpleGAforSyncData:
             archive=initialization,
             fitness=jnp.zeros(self.elite_size) + jnp.finfo(jnp.float32).max,
             best_member=initialization[0],
-            mutations=self.data_size
         )
         return state
 
@@ -119,18 +116,18 @@ class SimpleGAforSyncData:
         rng, rng_a, rng_b, rng_mate, rng_2 = jax.random.split(rng, 5)
         elite_ids = jnp.arange(self.elite_size)
 
-        idx_a = jax.random.choice(rng_a, elite_ids, (self.elite_size // 2,))
-        idx_b = jax.random.choice(rng_b, elite_ids, (self.elite_size // 2,))
+        idx_a = jax.random.choice(rng_a, elite_ids, (self.population_size // 2,))
+        idx_b = jax.random.choice(rng_b, elite_ids, (self.population_size // 2,))
         A = state.archive[idx_a]
         B = state.archive[idx_b]
 
-        rng_mate_split = jax.random.split(rng_mate, self.elite_size // 2)
+        rng_mate_split = jax.random.split(rng_mate, self.population_size // 2)
         C = self.mate_vmap(rng_mate_split, A, B)
 
 
-        rng_mutate = jax.random.split(rng_2, self.elite_size // 2)
-        A_mut = self.mutate_vmap(rng_mutate, A)
-        x = jnp.concatenate((A_mut, C))
+        x = jnp.concatenate((A, C))
+        rng_mutate = jax.random.split(rng_2, self.population_size)
+        x = self.mutate_vmap(rng_mutate, x)
         return x, state
 
 
@@ -307,7 +304,7 @@ class PrivGA(Generator):
                     loss_change = jnp.abs(smooth_loss_avg - last_loss) / last_loss
                     if loss_change < 0.001:
                         if self.print_progress:
-                            print(f'Stop early at {t}')
+                            print(f'\tStop early at {t}')
                         break
                 last_loss = smooth_loss_avg
                 smooth_loss_sum = 0
@@ -317,7 +314,7 @@ class PrivGA(Generator):
                     print(f'\tGeneration {t:03}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
                     print(f'\ttime={time.time() -init_time:.3f}(s):', end='')
                     print(f'\t\tprivate max_error={max_error:.3f}', end='')
-                    print(f'\tmutations={state.mutations}', end='')
+                    print(f'\t\tprivate l2_error={stat.priv_loss_l2(X_sync):.3f}', end='')
                     print()
                 last_fitness = best_fitness
 
@@ -444,7 +441,7 @@ def test_jit_ask(domain, rounds):
     print(f'Test jit(ask) with {rounds} rounds.')
 
     strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=30, data_size=5000,
-                                   mute_rate=100,
+                                   muta_rate=100,
                                    mate_rate=500)
     stime = time.time()
     key = jax.random.PRNGKey(0)

@@ -6,7 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    SEED = 2
+    SEED = 1
 
     #######
     ## Plot
