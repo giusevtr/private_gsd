@@ -11,7 +11,7 @@ from typing import Callable
 class Generator:
 
     data_size: int
-    def fit(self, key: jax.random.PRNGKeyArray, true_stats: jnp.ndarray, stat_module: Statistic, init_X=None) -> Dataset:
+    def fit(self, key: jax.random.PRNGKeyArray, true_stats: jnp.ndarray, stat_module: Statistic, init_X=None, confidence_bound=None) -> Dataset:
         pass
 
     def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, epsilon, delta, init_X=None):
@@ -24,7 +24,8 @@ class Generator:
             key: jax.random.PRNGKeyArray,
             stat_module: Statistic,
             rho: float,
-            init_X=None
+            init_X=None,
+            confidence_bound=None
     ):
         # Get statistics and noisy statistics
         true_stats = stat_module.get_true_stats()
@@ -35,7 +36,7 @@ class Generator:
         true_stats_noise = true_stats + jax.random.normal(key_gaussian, shape=true_stats.shape) * sigma_gaussian
         key, key_fit = jax.random.split(key, 2)
         dataset: Dataset
-        sync_dataset = self.fit(key_fit, true_stats_noise, stat_module, init_X)
+        sync_dataset = self.fit(key_fit, true_stats_noise, stat_module, init_X,confidence_bound)
         return sync_dataset
 
     def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Statistic, rounds, epsilon, delta, print_progress=False,
@@ -50,7 +51,12 @@ class Generator:
         """
         rho_per_round = rho / rounds
         domain = stat_module.domain
-
+        sensitivity = stat_module.get_sensitivity()
+        sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
+        gau_confidence_bound = jnp.sqrt(2 * sigma_gaussian ** 2 * jnp.log(rounds / 0.01))
+        confidence_bound = (gau_confidence_bound + 0.5 / self.data_size)/3
+        confidence_bound = None
+        # print(f'confidence_bound:{confidence_bound}')
         key, key_init = jax.random.split(key, 2)
         X_sync = Dataset.synthetic_jax_rng(domain, N=self.data_size, rng=key_init)
         data_sync = None
@@ -89,7 +95,7 @@ class Generator:
 
             # fit synthetic data to selected statistics
             sub_stat_module = stat_module.get_sub_stat_module(selected_indices)
-            data_sync = self.fit_zcdp(key_sub, sub_stat_module, rho_per_round/2, init_X=X_sync)
+            data_sync = self.fit_zcdp(key_sub, sub_stat_module, rho_per_round/2, init_X=X_sync, confidence_bound=confidence_bound)
             X_sync = data_sync.to_numpy()
 
             # Get errors for debugging
