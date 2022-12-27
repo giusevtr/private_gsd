@@ -274,7 +274,8 @@ class PrivGA(Generator):
         # MUT_UPT_CNT = 10000 // self.popsize
         # MUT_UPT_CNT = 1
         # counter = 0
-
+        smooth_loss_sum = 0
+        last_loss = None
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             # Produce new candidates
@@ -292,30 +293,24 @@ class PrivGA(Generator):
             best_fitness_avg = min(best_fitness_avg, best_fitness)
             X_sync = state.best_member
             max_error = stat.priv_loss_inf(X_sync)
+            smooth_loss_sum += stat.priv_loss_l2(X_sync)
 
             # print(f'{t:03}) fitness = {fitness.min():.4f}, max_error={max_error:.4f}')
             if max_error < tolerance:
                 if self.print_progress:
                     print(f'Stop early (1) at epoch {t}: max_error= {max_error:.4f} < {tolerance}.')
                 break
-            if t % self.stop_loss_time_window == 0 and t > 0:
-                if last_best_fitness_avg is not None:
-                    percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
-                    if percent_change < 0.001:
-                        if self.print_progress:
-                            print(f'Stop early (2) at epoch {t}:')
-                        break
-                        # if state.mutations > 1:
-                        #     state = state.replace(mutations=(state.mutations + 1) // 2)
-                        #     if self.print_progress:
-                        #         print(f'\t\tUpdate mutation: mutations = {state.mutations}. best_fitness={best_fitness:.4f}')
-                        # else:
-                        #     if self.print_progress:
-                        #         print(f'Stop early (2) at epoch {t}:')
-                        #     break
 
-                last_best_fitness_avg = best_fitness_avg
-                best_fitness_avg = 100000
+            if t >= self.stop_loss_time_window and t % self.stop_loss_time_window == 0:
+                smooth_loss_avg = smooth_loss_sum / self.stop_loss_time_window
+                if last_loss is not None:
+                    loss_change = jnp.abs(smooth_loss_avg - last_loss) / last_loss
+                    if loss_change < 0.001:
+                        if self.print_progress:
+                            print(f'Stop early at {t}')
+                        break
+                last_loss = smooth_loss_avg
+                smooth_loss_sum = 0
 
             if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
                 if self.print_progress:

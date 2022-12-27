@@ -66,6 +66,7 @@ class Generator:
                     'round true avg error': [],
                     'round priv max error': [],
                     'round priv avg error': [],
+                    'time': [],
                     }
 
         true_stats = stat_module.get_true_stats()
@@ -112,16 +113,19 @@ class Generator:
             if debug_fn is not None:
                 debug_fn(i, X_sync)
             ADA_DATA['epoch'].append(i)
-            ADA_DATA['max error'].append(errors_post_max)
-            ADA_DATA['average error'].append(errors_post_avg)
-            ADA_DATA['round true max error'].append(round_true_max_loss)
-            ADA_DATA['round true avg error'].append(round_true_ave_loss)
-            ADA_DATA['round priv max error'].append(round_priv_max_loss)
-            ADA_DATA['round priv avg error'].append(round_priv_ave_loss)
+            ADA_DATA['max error'].append(float(errors_post_max))
+            ADA_DATA['average error'].append(float(errors_post_avg))
+            ADA_DATA['round true max error'].append(float(round_true_max_loss))
+            ADA_DATA['round true avg error'].append(float(round_true_ave_loss))
+            ADA_DATA['round priv max error'].append(float(round_priv_max_loss))
+            ADA_DATA['round priv avg error'].append(float(round_priv_ave_loss))
+            ADA_DATA['time'].append(float(time.time() - stime))
             # ADA_DATA['round init error'].append(initial_max_error)
 
         df = pd.DataFrame(ADA_DATA)
         df['algo'] = str(self)
+        df['rho'] = rho
+        df['rounds'] = rounds
         self.ADA_DATA = df
         return sync_dataset
 
