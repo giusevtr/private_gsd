@@ -62,6 +62,10 @@ class Generator:
         ADA_DATA = {'epoch': [],
                     'average error': [],
                     'max error': [],
+                    'round true max error': [],
+                    'round true avg error': [],
+                    'round priv max error': [],
+                    'round priv avg error': [],
                     }
 
         true_stats = stat_module.get_true_stats()
@@ -90,6 +94,12 @@ class Generator:
             errors_post_max = stat_module.get_sync_data_errors(X_sync).max()
             errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats(sync_dataset), ord=1)/true_stats.shape[0]
 
+            round_true_max_loss = stat_state.true_loss_inf(X_sync)
+            round_true_ave_loss = stat_state.true_loss_l2(X_sync)
+
+            round_priv_max_loss = stat_state.true_loss_inf(X_sync)
+            round_priv_ave_loss = stat_state.true_loss_l2(X_sync)
+
             if print_progress:
                 gaussian_error = jnp.abs(stat_state.get_priv_stats() - stat_state.get_true_stats()).max()
                 print(f'Epoch {i:03}: Total error(max/avg) is {errors_post_max:.4f}/{errors_post_avg:.6f}.\t ||'
@@ -102,8 +112,12 @@ class Generator:
             if debug_fn is not None:
                 debug_fn(i, X_sync)
             ADA_DATA['epoch'].append(i)
-            ADA_DATA['average error'].append(errors_post_avg)
             ADA_DATA['max error'].append(errors_post_max)
+            ADA_DATA['average error'].append(errors_post_avg)
+            ADA_DATA['round true max error'].append(round_true_max_loss)
+            ADA_DATA['round true avg error'].append(round_true_ave_loss)
+            ADA_DATA['round priv max error'].append(round_priv_max_loss)
+            ADA_DATA['round priv avg error'].append(round_priv_ave_loss)
             # ADA_DATA['round init error'].append(initial_max_error)
 
         df = pd.DataFrame(ADA_DATA)
