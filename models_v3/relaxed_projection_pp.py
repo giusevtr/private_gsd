@@ -4,7 +4,7 @@ import optax
 from models_v3 import Generator
 from dataclasses import dataclass
 from utils import Dataset, Domain
-from stats_v3 import PrivateStatistic
+from stats_v3 import Marginals, PrivateMarginalsState
 
 @dataclass
 class RelaxedProjectionPP(Generator):
@@ -18,7 +18,7 @@ class RelaxedProjectionPP(Generator):
     def __str__(self):
         return 'RP++'
 
-    def fit(self, key, stat_module: PrivateStatistic,  init_X=None):
+    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
         # self.optimizer = optax.adam(lr)
         stat_fn = stat_module.get_differentiable_stats_fn()
         target_stats = stat_module.get_private_stats()

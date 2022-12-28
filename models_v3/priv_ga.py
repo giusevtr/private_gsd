@@ -237,7 +237,6 @@ class PrivGA(Generator):
         """
         Minimize error between real_stats and sync_stats
         """
-        # stat_fn = jax.jit(stat_module.get_sub_stats_fn())
         key, key_sub = jax.random.split(key, 2)
 
         # key = jax.random.PRNGKey(seed)
@@ -248,16 +247,13 @@ class PrivGA(Generator):
 
         # FITNESS
         compute_error_fn = lambda X: stat.priv_loss_l2(X)
+        compute_error_fn = jax.jit(compute_error_fn)
         compute_error_vmap = jax.vmap(compute_error_fn, in_axes=(0, ))
         fitness_fn = lambda x: compute_error_vmap(x)
-        # fitness_fn = jax.jit(fitness_fn)
+        fitness_fn = jax.jit(fitness_fn)
 
         self.key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
-        # if self.start_mutations is not None:
-        #     state = state.replace(mutations=self.start_mutations)
-        # if self.cross_rate is not None:
-        #     state = state.replace(cross_rate=self.cross_rate)
 
         if init_X is not None:
             temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
@@ -266,20 +262,22 @@ class PrivGA(Generator):
 
         last_fitness = None
         best_fitness_avg = 100000
-        last_best_fitness_avg = None
-
-        # MUT_UPT_CNT = 10000 // self.popsize
-        # MUT_UPT_CNT = 1
-        # counter = 0
         smooth_loss_sum = 0
         last_loss = None
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             # Produce new candidates
+            stime1 = time.time()
             x, state = self.strategy.ask(ask_subkey, state)
+            if t<=2:
+                print(f'{t}) ask.time = {time.time() - stime1:.5f}')
 
+            stime2 = time.time()
             # Fitness of each candidate
             fitness = fitness_fn(x)
+            if t<=2:
+                print(f'{t}) fit.time = {time.time() - stime2:.5f}')
+
 
             # Get next population
             state = self.strategy.tell(x, fitness, state)

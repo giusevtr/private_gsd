@@ -12,11 +12,17 @@ if __name__ == "__main__":
     task = 'coverage'
     state = 'CA'
     data_name = f'folktables_{task}_2018_{state}'
+    # data = get_data(f'folktables_datasets/{data_name}-mixed',
+    #                 domain_name=f'folktables_datasets/{data_name}-cat',  root_path='../../data_files/')
+
+    # data = get_data(f'folktables_datasets/{data_name}-mixed',
+    #                 domain_name=f'folktables_datasets/{data_name}-num',  root_path='../../data_files/')
+
     data = get_data(f'folktables_datasets/{data_name}-mixed',
                     domain_name=f'folktables_datasets/{data_name}-mixed',  root_path='../../data_files/')
 
     # Create statistics and evaluate
-    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3, bins=10)
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3, bins=30)
     marginal_module.fit(data)
     data_size = 5000
     strategy = SimpleGAforSyncData(

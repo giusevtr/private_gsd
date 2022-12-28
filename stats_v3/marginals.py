@@ -62,7 +62,7 @@ class Marginals:
     domain: Domain
     N: int = None  # Dataset size
 
-    def __init__(self, domain, kway_combinations, bins=30, name='Marginals'):
+    def __init__(self, domain, kway_combinations, bins=30):
         self.domain = domain
         self.kway_combinations = kway_combinations
         self.bins = bins
@@ -70,7 +70,7 @@ class Marginals:
     @staticmethod
     def get_all_kway_combinations(domain, k, bins=30):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
-        return Marginals(domain, kway_combinations, bins=bins, name=f'{k}-way Marginals')
+        return Marginals(domain, kway_combinations, bins=bins)
 
     def fit(self, data: Dataset):
         self.true_stats = []
@@ -103,7 +103,7 @@ class Marginals:
         return jnp.concatenate(self.true_stats)
 
 
-    def get_stats(self, data:Dataset, indices: list = None):
+    def get_stats(self, data: Dataset, indices: list = None):
         X = data.to_numpy()
         stats = []
         I = indices if indices is not None else list(range(self.get_num_queries()))
@@ -112,7 +112,7 @@ class Marginals:
             stats.append(fn(X))
         return jnp.concatenate(stats)
 
-    def get_diff_stats(self, data:Dataset, indices: list = None):
+    def get_diff_stats(self, data: Dataset, indices: list = None):
         X = data.to_onehot()
         stats = []
         I = indices if indices is not None else list(range(self.get_num_queries()))
@@ -120,7 +120,6 @@ class Marginals:
             fn = self.diff_marginals_fn[i]
             stats.append(fn(X))
         return jnp.concatenate(stats)
-
 
     def get_sync_data_errors(self, X):
         assert self.true_stats is not None, "Error: must call the fit function"
@@ -254,6 +253,34 @@ def test_cat_and_diff():
 
     print(jnp.linalg.norm(stats_true - stats_diff, ord=1))
 
+def test_real_and_diff():
+
+    import numpy as np
+    import pandas as pd
+    print('debug')
+    cols = ['A', 'B']
+    domain = Domain(cols, [1, 1])
+
+    A = pd.DataFrame(np.array([
+        [0.0, 1.0],
+        [0.1, 0.1],
+        [0.1, 0.2],
+        [0.0, 0.3],
+    ]), columns=cols)
+    data = Dataset(A, domain=domain)
+    X = data.to_numpy()
+
+    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=3)
+    stat_mod.fit(data)
+
+    stats_true = stat_mod.get_true_stats()
+    stats_diff = stat_mod.get_diff_stats(data)
+
+    print('true_stats - diff_stats', jnp.linalg.norm(stats_true - stats_diff, ord=1))
+    print(stats_true)
+    print(stats_diff)
+
+
 def test_runtime():
     import time
     DATA_SIZE = 10000
@@ -301,9 +328,7 @@ def test_runtime():
     print(f'second evaluate elapsed time = {time.time() - stime:.5f}')
 
 
-
-
 if __name__ == "__main__":
     # test_mixed()
     # test_runtime()
-    test_cat_and_diff()
+    test_real_and_diff()
