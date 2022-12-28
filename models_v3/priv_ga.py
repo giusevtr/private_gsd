@@ -246,11 +246,12 @@ class PrivGA(Generator):
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
         # FITNESS
-        compute_error_fn = lambda X: stat.priv_loss_l2(X)
-        compute_error_fn = jax.jit(compute_error_fn)
-        compute_error_vmap = jax.vmap(compute_error_fn, in_axes=(0, ))
-        fitness_fn = lambda x: compute_error_vmap(x)
-        fitness_fn = jax.jit(fitness_fn)
+        # compute_error_fn = lambda X: stat.priv_loss_l2(X)
+        # compute_error_fn = jax.jit(compute_error_fn)
+        # compute_error_vmap = jax.vmap(compute_error_fn, in_axes=(0, ))
+        # fitness_fn = lambda x: compute_error_vmap(x)
+        # fitness_fn = jax.jit(fitness_fn)
+        fitness_fn = stat.priv_loss_l2_vmap_jit
 
         self.key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
@@ -269,32 +270,37 @@ class PrivGA(Generator):
             # Produce new candidates
             stime1 = time.time()
             x, state = self.strategy.ask(ask_subkey, state)
-            if t<=2:
-                print(f'{t}) ask.time = {time.time() - stime1:.5f}')
+            # if t <= 2:
+            #     print(f'{t}) ask.time = {time.time() - stime1:.5f}')
 
             stime2 = time.time()
             # Fitness of each candidate
             fitness = fitness_fn(x)
-            if t<=2:
-                print(f'{t}) fit.time = {time.time() - stime2:.5f}')
+            # if t <= 2:
+            #     print(f'{t}) fit.time = {time.time() - stime2:.5f}')
 
-
+            stime3 = time.time()
             # Get next population
             state = self.strategy.tell(x, fitness, state)
+            # if t <= 2:
+            #     print(f'{t}) tell.time = {time.time() - stime3:.5f}')
 
             best_fitness = fitness.min()
 
+            stime4 = time.time()
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
             X_sync = state.best_member
-            max_error = stat.priv_loss_inf(X_sync)
-            smooth_loss_sum += stat.priv_loss_l2(X_sync)
+            # max_error = stat.priv_loss_inf(X_sync)
+            smooth_loss_sum += best_fitness
+            # if t <= 2:
+            #     print(f'{t}) get loss.time = {time.time() - stime4:.5f}')
 
             # print(f'{t:03}) fitness = {fitness.min():.4f}, max_error={max_error:.4f}')
-            if max_error < tolerance:
-                if self.print_progress:
-                    print(f'Stop early (1) at epoch {t}: max_error= {max_error:.4f} < {tolerance}.')
-                break
+            # if max_error < tolerance:
+            #     if self.print_progress:
+            #         print(f'Stop early (1) at epoch {t}: max_error= {max_error:.4f} < {tolerance}.')
+            #     break
 
             if t >= self.stop_loss_time_window and t % self.stop_loss_time_window == 0:
                 smooth_loss_avg = smooth_loss_sum / self.stop_loss_time_window
