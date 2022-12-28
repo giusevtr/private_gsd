@@ -29,9 +29,9 @@ if __name__ == "__main__":
             domain=data.domain,
             data_size=data_size,
             population_size=100,
-            elite_size=5,
+            elite_size=10,
             muta_rate=1,
-            mate_rate=10
+            mate_rate=5
         )
 
     ########
@@ -41,7 +41,7 @@ if __name__ == "__main__":
                     domain=data.domain,
                     data_size=data_size,
                     num_generations=10000,
-                    stop_loss_time_window=20,
+                    stop_loss_time_window=50,
                     print_progress=False,
                     # start_mutations=100,
                     strategy=strategy
