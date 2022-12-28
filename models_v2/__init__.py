@@ -1,4 +1,5 @@
 from models_v2.generator_base import Generator
 from models_v2.priv_ga import PrivGA
+from models_v2.priv_ga_ip import PrivGAIP
 from models_v2.relaxed_projection import RelaxedProjection
 from models_v2.relaxed_projection_pp import RelaxedProjectionPP

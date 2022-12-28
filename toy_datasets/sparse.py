@@ -1,6 +1,9 @@
+import numpy as np
 from sklearn.datasets import  make_blobs
 from utils import Dataset, Domain
 from visualize.plot_low_dim_data import plot_2d_data
+import matplotlib.pyplot as plt
+
 
 def get_sparse_1d_dataset(DATA_SIZE = 100,  seed=0):
     center1 = int(DATA_SIZE * 0.95)
@@ -24,7 +27,13 @@ def get_sparse_dataset(DATA_SIZE = 100,  seed=0):
     x_max = X.max(axis=0) + 0.2
     x_min = X.min(axis=0) - 0.2
     X = (X - x_min) / (x_max - x_min)
-    return Dataset.from_onehot_to_dataset(Domain(['A', 'B'], [1, 1]), X)
+
+    D = np.column_stack((X, y))
+
+
+
+
+    return Dataset.from_onehot_to_dataset(Domain(['A', 'B', 'C'], [1, 1, 3]), D)
     # return X
 
 if __name__ == "__main__":

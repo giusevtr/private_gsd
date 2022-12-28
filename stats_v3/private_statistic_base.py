@@ -2,11 +2,19 @@ from typing import Callable
 import jax
 from utils import Dataset, Domain
 import jax.numpy as jnp
+from flax import struct
 
-class Statistic:
+
+@struct.dataclass
+class StatState:
+    params: dict
+
+
+class PrivateStatistic:
     privately_selected_statistics: list = None
     private_stats: jnp.ndarray = None
     confidence_bound: jnp.ndarray = None
+    true_stats = jnp.ndarray
 
     def __init__(self, domain: Domain, name: str):
         # self.data = data
@@ -20,10 +28,38 @@ class Statistic:
     def fit(self, data: Dataset):
         pass
 
+    def initialize(self) -> StatState:
+        return StatState()
+
     def fit_private_stats(self, query_inx, priv_stats, confidence_bound):
         self.privately_selected_statistics = query_inx
         self.private_stats = priv_stats
         self.confidence_bound = confidence_bound
+
+    def private_select_measure_statistic(self, key, rho, X_sync, error_type='max'):
+        """
+        Select a query with max error using the Exponential mechanism. Then privately evaluate the query
+        using a private mechanism.
+        """
+        pass
+
+    def true_sync_errors(self, X_sync, error_type: str, stat_fn: Callable):
+        """
+        Compute error against true statistics
+        """
+        pass
+
+    def private_sync_errors(self, X_sync, error_type: str):
+        """
+        Compute error against the privatized statistics
+        """
+        pass
+
+    def statistics(self, X: jnp.ndarray) -> jnp.ndarray:
+        pass
+
+    def differentiable_statistics(self, X: jnp.ndarray, sigmoid_param: float) -> jnp.ndarray:
+        pass
 
     def get_num_queries(self) -> int:
         pass
@@ -31,7 +67,7 @@ class Statistic:
     def get_true_stats(self) -> jnp.ndarray:
         pass
 
-    def get_sub_true_stats(self, indices) -> jnp.ndarray:
+    def get_private_stats(self) -> jnp.ndarray:
         pass
 
     def get_dataset_size(self) -> int:
@@ -42,9 +78,6 @@ class Statistic:
 
     # def get_sub_stat_module(self, indices: list):
     #     pass
-
-    def get_sync_data_errors(self, X) -> jnp.ndarray:
-        pass
 
     def get_stats_fn(self) -> Callable:
         pass

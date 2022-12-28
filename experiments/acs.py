@@ -45,7 +45,7 @@ def run_experiments(epsilon=(0.07, 0.15, 0.23, 0.41, 0.52, 0.62, 0.74, 0.87, 1.0
         delta = 1.0 / len(data) ** 2
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)
         stats_module = Marginals.get_all_kway_combinations(data.domain, k=3)
-        print("workload:",stats_module.get_num_queries())
+        print("workloadaa:",stats_module.get_num_queries())
         stats_module.fit(data)
 
         for T, eps, seed in itertools.product([25,50], list(epsilon), [0,1,2]):

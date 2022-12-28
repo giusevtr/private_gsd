@@ -31,16 +31,16 @@ class PrivGA(Generator):
 
     def __str__(self):
         reg = self.regularization_statistics is not None
-        return f'SimpleGA(popsize={self.popsize}, topk={self.top_k}, reg={reg})'
+        # return f'SimpleGA(popsize={self.popsize}, topk={self.top_k}, reg={reg})'
+        return f'PrivGA'
+
 
     def fit(self, key, true_stats, stat_module, init_X=None, confidence_bound=None):
         """
         Minimize error between real_stats and sync_stats
         """
-        # num_queries = stat_module.get_num_queries()
-        # indices = jax.random.choice(key, jnp.arange(num_queries), shape=(100, ), )
-        # sub_stat = stat_module.get_sub_stat_module(indices)
-        stat_fn = stat_module.get_stats_fn()
+        target_stats = stat_module.private_stats
+        stat_fn = jax.jit(stat_module.get_sub_stats_fn())
         key, key_sub = jax.random.split(key, 2)
 
         # key = jax.random.PRNGKey(seed)
@@ -61,7 +61,7 @@ class PrivGA(Generator):
 
 
         # FITNESS
-        compute_error_fn = lambda X: (jnp.linalg.norm(true_stats - stat_fn(X), ord=2)**2 ).squeeze()
+        compute_error_fn = lambda X: (jnp.linalg.norm(target_stats - stat_fn(X), ord=2)**2 ).squeeze()
         compute_error_vmap = jax.vmap(compute_error_fn, in_axes=(0, ))
         def distributed_error_fn(X):
             return compute_error_vmap(X)
@@ -136,7 +136,12 @@ class PrivGA(Generator):
 
             # Early stop
             best_fitness_avg = min(best_fitness_avg, best_fitness)
-
+            X_sync = state.best_member
+            errors = target_stats - stat_fn(X_sync)
+            max_error = jnp.abs(errors).max()
+            if max_error < stat_module.confidence_bound:
+                print(f'stop early at {t}')
+                break
             if t % self.stop_loss_time_window == 0 and t > 0:
                 if last_best_fitness_avg is not None:
                     percent_change = jnp.abs(best_fitness_avg - last_best_fitness_avg) / last_best_fitness_avg
@@ -156,8 +161,8 @@ class PrivGA(Generator):
 
             if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
                 if self.print_progress:
-                    # X_sync = state.best_member
-                    # errors = true_stats - stat_fn(X_sync)
+                    X_sync = state.best_member
+                    errors = target_stats - stat_fn(X_sync)
                     max_error = jnp.abs(errors).max()
 
                     print(f'\tGeneration {t}, best_l2_fitness = {jnp.sqrt(best_fitness):.3f}, ', end=' ')
