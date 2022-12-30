@@ -17,13 +17,14 @@ class RelaxedProjection(Generator):
     # print_progress: bool = False
     # early_stop_percent: float = 0.001
 
-    def __init__(self, domain, data_size,iterations=1000, learning_rate=0.001, print_progress=False):
+    def __init__(self, domain, data_size,iterations=1000, learning_rate=0.001, stop_loss_time_window=20, print_progress=False):
         # super().__init__(domain, stat_module, data_size, seed)
         self.domain = domain
         self.data_size = data_size
         self.iterations = iterations
         self.learning_rate = learning_rate
         self.early_stop_percent = 0.001
+        self.stop_loss_time_window = stop_loss_time_window
         self.print_progress = print_progress
 
     def __str__(self):
@@ -71,11 +72,11 @@ class RelaxedProjection(Generator):
                     print(f'Eary stop at {t}')
                 break
             # Stop Early code
-            if t >= stop_loss_window and t % stop_loss_window == 0:
-                smooth_loss_avg = smooth_loss_sum / stop_loss_window
-                if t > stop_loss_window:
+            if t >= self.stop_loss_time_window and t % self.stop_loss_time_window == 0:
+                smooth_loss_avg = smooth_loss_sum / self.stop_loss_time_window
+                if last_loss is not None:
                     loss_change = jnp.abs(smooth_loss_avg - last_loss) / last_loss
-                    if loss_change < self.early_stop_percent:
+                    if loss_change < 0.001:
                         break
                 last_loss = smooth_loss_avg
                 smooth_loss_sum = 0

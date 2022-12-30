@@ -1,5 +1,5 @@
 import jax.random
-from models_v3 import PrivGA, SimpleGAforSyncData
+from models_v3 import PrivGA, SimpleGAforSyncData, RelaxedProjection
 from stats_v3 import Marginals
 from utils.utils_data import get_data
 
@@ -7,39 +7,43 @@ from utils.utils_data import get_data
 if __name__ == "__main__":
 
     # Get Data
-    ROUNDS = 25
+    ROUNDS = 50
 
     task = 'coverage'
     state = 'CA'
-    data_name = f'folktables_{task}_2018_{state}'
-    data = get_data(f'folktables_datasets/{data_name}-mixed',
-                    domain_name=f'folktables_datasets/{data_name}-mixed',  root_path='../../data_files/')
-
+    print("hh")
+    data_name = f'folktables_2018_{task}_{state}'
+    data = get_data(f'folktables_datasets/{data_name}-mixed-train',
+                    domain_name=f'folktables_datasets/domain/{data_name}-cat',  root_path='../../data_files/')
+    SYNC_DATA_SIZE = 5000
     # Create statistics and evaluate
     marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3, bins=10)
     marginal_module.fit(data)
-    data_size = 5000
+
     strategy = SimpleGAforSyncData(
             domain=data.domain,
-            data_size=data_size,
-            population_size=5000,
-            elite_size=10
+            data_size=SYNC_DATA_SIZE,
+            population_size=1000,
+            elite_size=5,
+            muta_rate=10,
+            mate_rate=200,
         )
     # Choose algorithm parameters
     priv_ga = PrivGA(
                     domain=data.domain,
-                    data_size=data_size,
-                    num_generations=1000,
+                    data_size=SYNC_DATA_SIZE,
+                    num_generations=10000,
                     stop_loss_time_window=50,
-                    print_progress=False,
-                    start_mutations=64,
-                    cross_rate=0.01,
+                    print_progress=True,
                     strategy=strategy
     )
+    # rap = RelaxedProjection(domain=data.domain, data_size=1000, iterations=1000, learning_rate=0.05,
+    #                         print_progress=False)
+    delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     key = jax.random.PRNGKey(0)
     sync_data_2 = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS,
-                                 epsilon=0.07, delta=1e-6, tolerance=0.01, print_progress=True)
+                                 epsilon=0.07, delta=delta, tolerance=0.00, print_progress=True,start_X=True)
     errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
     print(f'PrivGA: max error = {errros.max():.5f}')
 
