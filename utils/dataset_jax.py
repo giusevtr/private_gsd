@@ -298,10 +298,74 @@ class Dataset:
         return X_onehot
 
 
+    def discretize(self, num_bins=10):
+        numerical_cols = self.domain.get_numeric_cols()
+        bin_edges = np.linspace(0, 1, num_bins+1)[1:]
+        cols = []
+        domain_shape = []
+        for col, shape in zip(self.domain.attrs, self.domain.shape) :
+            col_values = self.df[col].values
+            if col in numerical_cols:
+                discrete_col_values = np.digitize(col_values, bin_edges)
+                cols.append(discrete_col_values)
+                domain_shape.append(num_bins)
+            else:
+                cols.append(col_values)
+                domain_shape.append(shape)
+
+        discrete_domain = Domain(self.domain.attrs, domain_shape)
+        df = pd.DataFrame(np.column_stack(cols), columns=self.domain.attrs)
+        return Dataset(df, discrete_domain)
+
+    @staticmethod
+    def to_numeric( data, numeric_features: list):
+        cols = []
+        domain_shape = []
+        """ when called on a discretized dataset it turns discretized features into numeric features """
+        for col, shape in zip(data.domain.attrs, data.domain.shape):
+            col_values = data.df[col].values
+
+            if col in numeric_features:
+                rand_values = np.random.rand(col_values.shape[0]) / shape
+                numeric_values = col_values / shape
+                numeric_values = numeric_values + rand_values
+                cols.append(numeric_values)
+                domain_shape.append(1)
+            else:
+                cols.append(col_values)
+                domain_shape.append(shape)
+        numeric_domain = Domain(data.domain.attrs, domain_shape)
+        df = pd.DataFrame(np.column_stack(cols), columns=data.domain.attrs)
+        return Dataset(df, numeric_domain)
 
 ##################################################
 # Test
 ##################################################
+
+def test_discrete():
+    cols = ['A', 'B', 'C']
+    dom = Domain(cols, [3, 1, 1])
+
+    raw_data_array = pd.DataFrame([
+                        [0, 0.0, 0.95],
+                        [1, 0.1, 0.90],
+                        [2, 0.25, 0.01]], columns=cols)
+    # data = Dataset.synthetic_rng(dom, data_size, rng)
+    data = Dataset(raw_data_array, dom)
+    numeric_features = data.domain.get_numeric_cols()
+
+    data_disc = data.discretize(num_bins=5)
+
+    print(f'dicretized')
+    print(data_disc.domain)
+    print(data_disc.df)
+
+    data_num = Dataset.to_numeric(data=data_disc, numeric_features=numeric_features)
+
+    print('numeric')
+    print(data_num.domain)
+    print(data_num.df)
+
 
 def test_onehot_encoding():
     # data_size = 10
@@ -332,4 +396,5 @@ def test_onehot_encoding():
     # assert raw_data_array
 
 if __name__ == "__main__":
-    test_onehot_encoding()
+    # test_onehot_encoding()
+    test_discrete()

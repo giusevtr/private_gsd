@@ -2,32 +2,27 @@ import jax
 import jax.numpy as jnp
 import optax
 from models import Generator
+from dataclasses import dataclass
+from utils import Dataset, Domain
+from stats import Marginals, PrivateMarginalsState
 
-
+@dataclass
 class RelaxedProjectionPP(Generator):
-    def __init__(self, domain, stat_module, data_size, seed, iterations=1000, learning_rate=(0.001, ), print_progress=False):
-        super().__init__(domain, stat_module, data_size, seed)
-        self.iterations = iterations
-        self.learning_rate = list(learning_rate)
-        self.early_stop_percent = 0.001
-        self.print_progress = print_progress
+    # domain: Domain
+    data_size: int
+    iterations: int
+    learning_rate: tuple = (0.001,)
+    print_progress: bool = False
+    early_stop_percent: float = 0.001
 
     def __str__(self):
         return 'RP++'
 
-    @staticmethod
-    def get_generator(iterations=1000, learning_rate=(0.001,), print_progress=False):
-        generator_init = lambda data_dim, stat_module, data_size, seed:   RelaxedProjectionPP(data_dim,
-                                                                                              stat_module,
-                                                                                              data_size, seed,
-                                                                                 iterations, learning_rate,
-                                                                                 print_progress=print_progress)
-        return generator_init
-
-    def fit(self, true_stats,  init_X=None):
-
-        stat_fn =  self.stat_module.get_differentiable_stats_fn()
-        compute_loss = lambda params, sigmoid: jnp.linalg.norm(stat_fn(params['w'], sigmoid) - true_stats)**2
+    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
+        # self.optimizer = optax.adam(lr)
+        stat_fn = stat_module.get_differentiable_stats_fn()
+        target_stats = stat_module.get_private_stats()
+        compute_loss = lambda params, sigmoid: jnp.linalg.norm(stat_fn(params['w'], sigmoid) - target_stats)**2
         compute_loss_jit = jax.jit(compute_loss)
         update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)
         update_fn_jit = jax.jit(update_fn)
@@ -35,23 +30,25 @@ class RelaxedProjectionPP(Generator):
         min_loss = None
         best_sync = None
         for lr in self.learning_rate:
-            sync = self.fit_help(compute_loss_jit, update_fn_jit, lr)
+            key, key2 = jax.random.split(key, 2)
+            sync = self.fit_help(key2, stat_module.domain, compute_loss_jit, update_fn_jit, lr)
             loss = jnp.linalg.norm(true_stats - stat_fn(sync, 10000))
             if best_sync is None or loss < min_loss:
                 best_sync = jnp.copy(sync)
                 min_loss = loss
 
-        return best_sync
+        # Dataset.from_onehot_to_dataset(self.domain, best_sync)
+        return Dataset.from_onehot_to_dataset(stat_module.domain, best_sync)
 
-    def fit_help(self, compute_loss_jit, update_fn_jit, lr):
-
-        self.rng, subkey = jax.random.split(self.key, 2)
-        self.synthetic_data = jax.random.uniform(subkey, shape=(self.data_size, self.data_dim), minval=0, maxval=1)
+    def fit_help(self, key, domain: Domain, compute_loss_jit, update_fn_jit, lr):
+        data_dim = domain.get_dimension()
+        rng, subkey = jax.random.split(key, 2)
+        synthetic_data = jax.random.uniform(subkey, shape=(self.data_size, data_dim), minval=0, maxval=1)
 
         self.optimizer = optax.adam(lr)
         # Obtain the `opt_state` that contains statistics for the optimizer.
-        params = {'w': self.synthetic_data}
-        self.opt_state = self.optimizer.init(params)
+        params = {'w': synthetic_data}
+        opt_state = self.optimizer.init(params)
 
 
         for sigmoid in [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]:
@@ -60,7 +57,7 @@ class RelaxedProjectionPP(Generator):
             stop_loss_window = 20
             for t in range(self.iterations):
                 loss = compute_loss_jit(params, sigmoid)
-                updates, self.opt_state = update_fn_jit(params, sigmoid, self.opt_state)
+                updates, opt_state = update_fn_jit(params, sigmoid, opt_state)
                 params = optax.apply_updates(params, updates)
                 smooth_loss_sum += loss
 
@@ -76,6 +73,6 @@ class RelaxedProjectionPP(Generator):
                     last_loss = smooth_loss_avg
                     smooth_loss_sum = 0
 
-        self.synthetic_data = params['w']
-        return self.synthetic_data
+        synthetic_data = params['w']
+        return synthetic_data
 

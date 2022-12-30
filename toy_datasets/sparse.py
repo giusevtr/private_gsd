@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from sklearn.datasets import  make_blobs
 from utils import Dataset, Domain
 from visualize.plot_low_dim_data import plot_2d_data
@@ -30,10 +31,9 @@ def get_sparse_dataset(DATA_SIZE = 100,  seed=0):
 
     D = np.column_stack((X, y))
 
-
-
-
-    return Dataset.from_onehot_to_dataset(Domain(['A', 'B', 'C'], [1, 1, 3]), D)
+    df = pd.DataFrame(D, columns=['A', 'B', 'C'])
+    data = Dataset(df=df, domain=Domain(['A', 'B', 'C'], [1, 1, 3]))
+    return data
     # return X
 
 if __name__ == "__main__":
