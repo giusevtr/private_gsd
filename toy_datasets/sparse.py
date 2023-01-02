@@ -19,9 +19,9 @@ def get_sparse_1d_dataset(DATA_SIZE = 100,  seed=0):
     return Dataset.from_onehot_to_dataset(Domain(['A'], [1]), X[:,0])
 
 def get_sparse_dataset(DATA_SIZE = 100,  seed=0):
-    center1 = int(DATA_SIZE * 0.80)
-    center2 = int(DATA_SIZE * 0.13)
-    center3 = int(DATA_SIZE * 0.07)
+    center1 = int(DATA_SIZE * 0.60)
+    center2 = int(DATA_SIZE * 0.30)
+    center3 = int(DATA_SIZE * 0.10)
     X, y = make_blobs(n_samples=[center1, center2, center3],
                       cluster_std=[0.01, 0.2, 0.1],
                       random_state=seed)

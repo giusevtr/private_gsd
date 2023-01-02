@@ -5,10 +5,11 @@ from stats import Marginals
 from toy_datasets.sparse import get_sparse_dataset
 import matplotlib.pyplot as plt
 import time
+from plot import plot_sparse
 
 
 PRINT_PROGRESS = True
-ROUNDS = 1
+ROUNDS = 3
 EPSILON = [1.00]
 SEEDS = [0]
 
@@ -20,13 +21,16 @@ if __name__ == "__main__":
     # rng = np.random.default_rng()
     # data_np = np.column_stack((rng.uniform(low=0.20, high=0.21, size=(10000, )),
     #                            rng.uniform(low=0.30, high=0.80, size=(10000, ))))
-    BINS = 30
+    # BINS = 32
     data = get_sparse_dataset(DATA_SIZE=10000)
     # plot_2d_data(data.to_numpy())
-
-    stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=BINS)
-
+    plot_sparse(data.to_numpy(), title='Original sparse')
+    bins = [2, 4, 8, 16]
+    stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=bins)
     stats_module.fit(data)
+    eval_stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=bins)
+    eval_stats_module.fit(data)
+
 
 
     data_size = 1000
@@ -45,7 +49,7 @@ if __name__ == "__main__":
     priv_ga = PrivGA(
                     num_generations=10000,
                     stop_loss_time_window=50,
-                    print_progress=True,
+                    print_progress=False,
                     strategy=strategy
                      )
 
@@ -56,7 +60,7 @@ if __name__ == "__main__":
     def plot_sparse(data_array, alpha=0.9, title='', save_path=None):
         plt.figure(figsize=(5, 5))
         plt.title(title)
-        plt.scatter(data_array[:, 0], data_array[:, 1], c=data_array[:, 2], alpha=alpha, s=0.1)
+        plt.scatter(data_array[:, 0], data_array[:, 1], c=data_array[:, 2], alpha=alpha, s=0.3)
         plt.xlim(0, 1)
         plt.ylim(0, 1)
         if save_path is None:
@@ -72,7 +76,7 @@ if __name__ == "__main__":
 
         def debug_fn(t, sync_dataset):
             X = sync_dataset.to_numpy()
-            plot_sparse(X, title=f'RAP, eps={eps:.2f}, epoch={t:03}')
+            plot_sparse(X, title=f'PrivGA, eps={eps:.2f}, epoch={t:03}')
 
 
         ##############
@@ -86,7 +90,10 @@ if __name__ == "__main__":
                                             tolerance=0.0,
                                          print_progress=True, debug_fn=debug_fn)
         erros = stats_module.get_sync_data_errors(sync_data.to_numpy())
-        print(f'{str(priv_ga)}: max error = {erros.max():.5f}, time={time.time()-stime}')
+
+        stats = eval_stats_module.get_stats(sync_data)
+        ave_error = jax.numpy.linalg.norm(eval_stats_module.get_true_stats() - stats, ord=1)
+        print(f'{str(priv_ga)}: max error = {erros.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
 
         df = priv_ga.ADA_DATA
         df['algo'] = str(priv_ga)

@@ -49,10 +49,9 @@ class RelaxedProjection(Generator):
             params = optax.apply_updates(params, updates)
             smooth_loss_sum += loss
 
-
             priv_max_error = stat.priv_diff_loss_inf(softmax_fn(params['w']))
-            if self.print_progress:
-                print(f'epoch {t:<3}). Loss={loss}, priv_max_error ={priv_max_error}')
+            if self.print_progress and (t % 10) == 0:
+                print(f'epoch {t:<3}). Loss={loss}, priv_max_error={priv_max_error}')
             if priv_max_error < tolerance:
                 if self.print_progress:
                     print(f'Eary stop at {t}')

@@ -6,6 +6,7 @@ from toy_datasets.sparse import get_sparse_dataset
 import matplotlib.pyplot as plt
 import time
 from utils import Dataset
+from plot import plot_sparse
 PRINT_PROGRESS = True
 ROUNDS = 1
 # EPSILON = [0.07]
@@ -19,9 +20,10 @@ if __name__ == "__main__":
     # data_np = np.column_stack((rng.uniform(low=0.20, high=0.21, size=(10000, )),
     #                            rng.uniform(low=0.30, high=0.80, size=(10000, ))))
 
-    BINS = 30
+    BINS = 32
+    learning_rate = 0.1
     data = get_sparse_dataset(DATA_SIZE=10000)
-    eval_stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=BINS)
+    eval_stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=[2, 4, 8, 16, 32])
     eval_stats_module.fit(data)
     numeric_features = data.domain.get_numeric_cols()
 
@@ -29,20 +31,10 @@ if __name__ == "__main__":
     train_stats_module = Marginals.get_all_kway_combinations(data_disc.domain, 3)
     train_stats_module.fit(data_disc)
 
-    rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=5000, learning_rate=0.05, print_progress=True)
+    rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=5000, learning_rate=learning_rate, print_progress=True)
 
-    def plot_sparse(data_array, alpha=0.5, title='', save_path=None):
-        plt.figure(figsize=(5, 5))
-        plt.title(title)
-        plt.scatter(data_array[:, 0], data_array[:, 1], c=data_array[:, 2].astype(int), alpha=alpha, s=0.1)
-        plt.xlim(0, 1)
-        plt.ylim(0, 1)
-        plt.legend()
-        if save_path is None:
-            plt.show()
-        else:
-            plt.savefig(save_path)
-        plt.close()
+    plot_sparse(data.to_numpy(), title='Original sparse')
+
 
     RESULTS = []
     for eps, seed in itertools.product(EPSILON, SEEDS):
@@ -51,7 +43,7 @@ if __name__ == "__main__":
         def debug_fn(t, sync_dataset):
             data_numeric = Dataset.to_numeric(sync_dataset, numeric_features=numeric_features)
             X = data_numeric.to_numpy()
-            plot_sparse(X, title=f'RAP, eps={eps:.2f}, epoch={t:03}')
+            plot_sparse(X, title=f'RAP, lr={learning_rate:.2f} eps={eps:.2f}, epoch={t:03}')
 
         ##############
         ## Non-Regularized
@@ -66,7 +58,9 @@ if __name__ == "__main__":
         numeric_data = Dataset.to_numeric(sync_data, numeric_features)
         erros = eval_stats_module.get_sync_data_errors(numeric_data.to_numpy())
 
-        print(f'RAP: max error = {erros.max():.5f}, time={time.time()-stime}')
+        stats = eval_stats_module.get_stats(numeric_data)
+        ave_error = jax.numpy.linalg.norm(eval_stats_module.get_true_stats() - stats, ord=1)
+        print(f'RAP: max error={erros.max():.5f}, ave_error={ave_error:.6f} time={time.time()-stime:.4f}')
 
         df = rap.ADA_DATA
         df['algo'] = 'RAP'

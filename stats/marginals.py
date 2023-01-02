@@ -25,6 +25,7 @@ class PrivateMarginalsState:
         self.priv_marginals_fn.append(marginal_fn)
         self.priv_diff_marginals_fn.append(diff_marginal_fn)
 
+        # priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2) / priv_stat.shape[0]
         priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2)
         priv_loss_fn_jit = jax.jit(priv_loss_fn)
         self.priv_loss_l2_fn_jit_list.append(priv_loss_fn_jit)
@@ -99,22 +100,35 @@ class PrivateMarginalsState:
     def priv_diff_loss_l2(self, X_oh):
         priv_stats_concat = jnp.concatenate(self.priv_stats)
         sync_stats_concat = self.get_diff_stats(X_oh)
-        return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) ** 2 / priv_stats_concat
+        return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) ** 2 / priv_stats_concat.shape[0]
 
 class Marginals:
-    true_stats: list = None
-    marginals_fn: list
-    domain: Domain
-    N: int = None  # Dataset size
 
-    def __init__(self, domain, kway_combinations, bins=30):
+    def __init__(self, domain, kway_combinations, bins=(32,)):
         self.domain = domain
         self.kway_combinations = kway_combinations
-        self.bins = bins
+        self.bins = list(bins)
+
+        # Check that domain constains real-valued features
+        self.IS_REAL_VALUED = len(domain.get_numeric_cols()) > 0
 
     @staticmethod
-    def get_all_kway_combinations(domain, k, bins=30):
+    def get_all_kway_combinations(domain, k, bins=(32,)):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
+        return Marginals(domain, kway_combinations, bins=bins)
+
+    @staticmethod
+    def get_all_kway_mixed_combinations(domain, k, bins=(32,)):
+        kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
+
+        for cols in itertools.combinations(domain.attrs, k):
+            is_mixed = False
+            for c in list(cols):
+                if c in domain.get_numeric_cols():
+                    is_mixed = True
+            if is_mixed:
+                kway_combinations.append(list(cols))
+
         return Marginals(domain, kway_combinations, bins=bins)
 
     def fit(self, data: Dataset):
@@ -131,14 +145,19 @@ class Marginals:
             for col in cols:
                 sizes.append(self.domain.size(col))
             indices = self.domain.get_attribute_indices(cols)
-            fn = self.get_marginal_stats_fn_helper(indices, sizes)
-            self.true_stats.append(fn(X))
-            self.marginals_fn.append(jax.jit(fn))
-            diff_fn = self.get_differentiable_stats_fn_helper(cols)
-            self.diff_marginals_fn.append(jax.jit(diff_fn))
+            functions_list = self.get_marginal_stats_fn_helper(indices, sizes)
+            for fn in functions_list:
+                self.true_stats.append(fn(X))
+                self.marginals_fn.append(jax.jit(fn))
+
+            if not self.IS_REAL_VALUED:
+                # Don't add differentiable queries
+                diff_fn_list = self.get_differentiable_stats_fn_helper(cols)
+                for diff_fn in diff_fn_list:
+                    self.diff_marginals_fn.append(jax.jit(diff_fn))
 
     def get_num_queries(self):
-        return len(self.kway_combinations)
+        return len(self.true_stats)
 
     def get_dataset_size(self):
         return self.N
@@ -158,6 +177,7 @@ class Marginals:
         return jnp.concatenate(stats)
 
     def get_diff_stats(self, data: Dataset, indices: list = None):
+        assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
         X = data.to_onehot()
         stats = []
         I = indices if indices is not None else list(range(self.get_num_queries()))
@@ -169,28 +189,54 @@ class Marginals:
     def get_sync_data_errors(self, X):
         assert self.true_stats is not None, "Error: must call the fit function"
         max_errors = []
-        for i in range(len(self.kway_combinations)):
+        for i in range(len(self.true_stats)):
             fn = self.marginals_fn[i]
             error = jnp.abs(self.true_stats[i] - fn(X))
             max_errors.append(error.max())
         return jnp.array(max_errors)
 
+    def get_sync_data_ave_errors(self, X):
+        assert self.true_stats is not None, "Error: must call the fit function"
+        max_errors = []
+        for i in range(len(self.true_stats)):
+            fn = self.marginals_fn[i]
+            error = jnp.linalg.norm(self.true_stats[i] - fn(X), ord=1) / self.true_stats[i].shape[0]
+            max_errors.append(error)
+        return jnp.array(max_errors)
 
     def get_sensitivity(self):
         return jnp.sqrt(2) / self.N
 
-    def get_marginal_stats_fn_helper(self, idx, sizes):
+    def get_marginal_stats_fn_helper(self, idx, sizes) -> list:
 
+        def get_stat_fn(idx, sizes_jnp):
+            def stat_fn(X):
+                # X_proj = (X[:, idx]).astype(int)
+                X_proj = X[:, idx]
+                stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
+                return stat
+            return stat_fn
+
+        is_numeric = False
+        numeric_features = self.domain.get_numeric_cols()
         cat_idx = self.domain.get_attribute_indices(self.domain.get_categorical_cols())
-        sizes_jnp = [jnp.arange(s + 1).astype(float) if i in cat_idx else jnp.linspace(0, 1, self.bins+1) for i, s in zip(idx, sizes)]
-        def stat_fn(X):
-            # X_proj = (X[:, idx]).astype(int)
-            X_proj = X[:, idx]
-            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
-            return stat
-        return stat_fn
+        for i in idx:
+            if i not in cat_idx:
+                is_numeric = True
 
-    def get_differentiable_stats_fn_helper(self, kway_attributes):
+        stat_fn_list = []
+        if is_numeric:
+            for bins in self.bins:
+                sizes_jnp = [jnp.arange(s + 1).astype(float) if i in cat_idx else jnp.linspace(0, 1, bins+1) for i, s in zip(idx, sizes)]
+                stat_fn_list.append(get_stat_fn(idx, sizes_jnp))
+        else:
+            sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(idx, sizes)]
+            stat_fn_list.append(get_stat_fn(idx, sizes_jnp))
+
+        return stat_fn_list
+
+    def get_differentiable_stats_fn_helper(self, kway_attributes) -> list:
+        assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
         # For computing differentiable marginal queries
         queries = []
         indices = [self.domain.get_attribute_onehot_indices(att) for att in kway_attributes]
@@ -203,7 +249,7 @@ class Marginals:
         def stat_fn(X):
             return jnp.prod(X[:, queries], 2).sum(0) / X.shape[0]
 
-        return stat_fn
+        return [stat_fn]
     ##################################################
     ## Adaptive statistics
     ##################################################
@@ -212,9 +258,11 @@ class Marginals:
 
         key, key_em = jax.random.split(key, 2)
         errors = self.get_sync_data_errors(X_sync)
+        # errors = self.get_sync_data_ave_errors(X_sync)
 
         # errors = errors.at[]  # Zero out selected errors
         worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), self.get_sensitivity())
+        print(f'debug: worse_index=', worse_index, 'errors = ', errors)
 
         key, key_gaussian = jax.random.split(key, 2)
         selected_true_stat = self.true_stats[worse_index]
@@ -232,8 +280,10 @@ class Marginals:
         # state.priv_marginals_fn.append(self.marginals_fn[worse_index])
         # state.priv_diff_marginals_fn.append(self.diff_marginals_fn[worse_index])
         selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
+
+
         state.add_stats(selected_true_stat, selected_priv_stat, self.marginals_fn[worse_index],
-                        self.diff_marginals_fn[worse_index] )
+                        self.diff_marginals_fn[worse_index] if not self.IS_REAL_VALUED else None)
         # state.selected_marginals.append(worse_index)
 
         return state
