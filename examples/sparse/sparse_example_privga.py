@@ -53,7 +53,8 @@ if __name__ == "__main__":
                     num_generations=10000,
                     stop_loss_time_window=50,
                     print_progress=False,
-                    strategy=strategy
+                    strategy=strategy,
+                    # time_limit=5
                      )
 
 

@@ -206,7 +206,7 @@ class PrivGA(Generator):
                  stop_loss_time_window,
                  print_progress,
                  strategy: SimpleGAforSyncData,
-                    time_limit=None,
+                    time_limit: float = None,
                  ):
         self.domain = strategy.domain
         self.data_size = strategy.data_size
@@ -246,7 +246,7 @@ class PrivGA(Generator):
         best_fitness_avg = 100000
         smooth_loss_sum = 0
         last_loss = None
-        start_time = time.time()
+        start_time: float = 0.0
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             # Produce new candidates
@@ -268,9 +268,9 @@ class PrivGA(Generator):
             max_error = stat.priv_loss_inf(X_sync)
             if max_error < tolerance:
                 break
-            if time.time() - start_time > self.time_limit:
+            if t > 0 and self.time_limit is not None and time.time() - start_time > self.time_limit:
                 if self.print_progress:
-                    print('Stop for time limit')
+                    print('\tStop for time limit')
                 break
 
             if t >= self.stop_loss_time_window and t % self.stop_loss_time_window == 0:
@@ -294,6 +294,8 @@ class PrivGA(Generator):
                     print()
                 last_fitness = best_fitness
 
+            if t == 0:
+                start_time = time.time()
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         return sync_dataset
