@@ -20,15 +20,20 @@ if __name__ == "__main__":
     # data_np = np.column_stack((rng.uniform(low=0.20, high=0.21, size=(10000, )),
     #                            rng.uniform(low=0.30, high=0.80, size=(10000, ))))
 
-    BINS = 32
+    BINS = 16
+    bins = [2, 4, 8, 16]
+
     learning_rate = 0.1
     data = get_sparse_dataset(DATA_SIZE=10000)
-    eval_stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=[2, 4, 8, 16, 32])
+    eval_stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
+                                                                                bins=bins)
+    print(kway_combinations)
+    # eval_stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=[2, 4, 8, 16, 32])
     eval_stats_module.fit(data)
     numeric_features = data.domain.get_numeric_cols()
 
     data_disc = data.discretize(num_bins=BINS)
-    train_stats_module = Marginals.get_all_kway_combinations(data_disc.domain, 3)
+    train_stats_module = Marginals(data_disc.domain, kway_combinations)
     train_stats_module.fit(data_disc)
 
     rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=5000, learning_rate=learning_rate, print_progress=True)

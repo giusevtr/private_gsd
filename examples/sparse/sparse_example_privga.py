@@ -26,10 +26,13 @@ if __name__ == "__main__":
     # plot_2d_data(data.to_numpy())
     plot_sparse(data.to_numpy(), title='Original sparse')
     bins = [2, 4, 8, 16]
-    stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=bins)
+
+    stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
+                                                                                bins=bins)
+
+    # stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=bins)
     stats_module.fit(data)
-    eval_stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=bins)
-    eval_stats_module.fit(data)
+
 
 
 
@@ -91,8 +94,8 @@ if __name__ == "__main__":
                                          print_progress=True, debug_fn=debug_fn)
         erros = stats_module.get_sync_data_errors(sync_data.to_numpy())
 
-        stats = eval_stats_module.get_stats(sync_data)
-        ave_error = jax.numpy.linalg.norm(eval_stats_module.get_true_stats() - stats, ord=1)
+        stats = stats_module.get_stats(sync_data)
+        ave_error = jax.numpy.linalg.norm(stats_module.get_true_stats() - stats, ord=1)
         print(f'{str(priv_ga)}: max error = {erros.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
 
         df = priv_ga.ADA_DATA

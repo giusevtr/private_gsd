@@ -25,7 +25,8 @@ if __name__ == "__main__":
                         domain_name=f'folktables_datasets/domain/{data_name}-mixed')
 
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)
-        stats_module = Marginals.get_all_kway_mixed_combinations(data.domain, 3, bins=[2, 4, 8, 16, 32])
+        stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
+                                                                                    bins=[2, 4, 8, 16, 32])
 
         stats_module.fit(data)
         privga = PrivGA(
@@ -46,7 +47,8 @@ if __name__ == "__main__":
         ## RAP
         #######
         data_disc = data.discretize(num_bins=32)
-        train_stats_module = Marginals.get_all_kway_combinations(data_disc.domain, 3)
+        # train_stats_module = Marginals.get_all_kway_combinations(data_disc.domain, 3)
+        train_stats_module = Marginals(data_disc.domain, kway_combinations=kway_combinations)
         train_stats_module.fit(data_disc)
 
         numeric_features = data.domain.get_numeric_cols()

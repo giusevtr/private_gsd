@@ -118,18 +118,22 @@ class Marginals:
         return Marginals(domain, kway_combinations, bins=bins)
 
     @staticmethod
-    def get_all_kway_mixed_combinations(domain, k, bins=(32,)):
-        kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
+    def get_all_kway_mixed_combinations(domain, k_disc, k_real, bins=(32,)):
+        kway_combinations = []
 
-        for cols in itertools.combinations(domain.attrs, k):
-            is_mixed = False
+        K = k_disc + k_real
+        for cols in itertools.combinations(domain.attrs, K):
+            count_disc = 0
+            count_real = 0
             for c in list(cols):
                 if c in domain.get_numeric_cols():
-                    is_mixed = True
-            if is_mixed:
+                    count_real += 1
+                else:
+                    count_disc += 1
+            if count_disc == k_disc and count_real == k_real:
                 kway_combinations.append(list(cols))
 
-        return Marginals(domain, kway_combinations, bins=bins)
+        return Marginals(domain, kway_combinations, bins=bins), kway_combinations
 
     def fit(self, data: Dataset):
         self.true_stats = []
