@@ -258,9 +258,6 @@ class Marginals:
 
         key, key_em = jax.random.split(key, 2)
         errors = self.get_sync_data_errors(X_sync)
-        # errors = self.get_sync_data_ave_errors(X_sync)
-
-        # errors = errors.at[]  # Zero out selected errors
         worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), self.get_sensitivity())
         print(f'debug: worse_index=', worse_index, 'errors = ', errors)
 
@@ -271,20 +268,29 @@ class Marginals:
         sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
         gau_noise = jax.random.normal(key_gaussian, shape=selected_true_stat.shape) * sigma_gaussian
 
-        # self.priv_stats.append(selected_true_stat + gau_noise)
-        # self.priv_marginals_fn.append(self.marginals_fn[worse_index])
-        # self.selected_marginals.append(worse_index)
-
-        # state.true_stats.append(selected_true_stat)
-        # state.priv_stats.append(selected_true_stat + gau_noise)
-        # state.priv_marginals_fn.append(self.marginals_fn[worse_index])
-        # state.priv_diff_marginals_fn.append(self.diff_marginals_fn[worse_index])
         selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
-
 
         state.add_stats(selected_true_stat, selected_priv_stat, self.marginals_fn[worse_index],
                         self.diff_marginals_fn[worse_index] if not self.IS_REAL_VALUED else None)
-        # state.selected_marginals.append(worse_index)
+
+        return state
+
+    def get_private_statistics(self, key, rho):
+
+        state = PrivateMarginalsState()
+
+        rho_per_stat = rho / len(self.true_stats)
+        for i in range(len(self.true_stats)):
+            true_stat = self.true_stats[i]
+            key, key_gaussian = jax.random.split(key, 2)
+            sensitivity = self.get_sensitivity()
+
+            sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_stat)))
+            gau_noise = jax.random.normal(key_gaussian, shape=true_stat.shape) * sigma_gaussian
+            priv_stat = jnp.clip(true_stat + gau_noise, 0, 1)
+
+            state.add_stats(true_stat, priv_stat, self.marginals_fn[i],
+                            self.diff_marginals_fn[i] if not self.IS_REAL_VALUED else None)
 
         return state
 

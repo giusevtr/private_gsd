@@ -13,28 +13,8 @@ from typing import Callable
 class Generator:
     data_size: int
 
-    def fit(self, key: jax.random.PRNGKeyArray, stat_module: PrivateMarginalsState, init_X=None, tolerance=0) -> Dataset:
+    def fit(self, key: jax.random.PRNGKeyArray, stat_module: PrivateMarginalsState, init_X=None, tolerance:float=0) -> Dataset:
         pass
-
-    def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: PrivateMarginalsState, epsilon, delta, init_X=None, tolerance=0):
-
-        rho = cdp_rho(epsilon, delta)
-        return self.fit_zcdp(key, stat_module, rho, init_X, tolerance)
-
-    def fit_zcdp(
-            self,
-            key: jax.random.PRNGKeyArray,
-            stat_module: PrivateMarginalsState,
-            rho: float,
-            init_X=None, tolerance=0
-    ):
-
-        key, key_fit = jax.random.split(key, 2)
-        dataset: Dataset
-        sync_dataset = self.fit(key_fit, stat_module, init_X)
-        return sync_dataset
-
-
 
     # @staticmethod
     # def default_debug_fn(X):

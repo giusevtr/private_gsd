@@ -56,11 +56,11 @@ if __name__ == "__main__":
                                          print_progress=True, debug_fn=debug_fn)
 
         numeric_data = Dataset.to_numeric(sync_data, numeric_features)
-        erros = eval_stats_module.get_sync_data_errors(numeric_data.to_numpy())
+        errors = eval_stats_module.get_sync_data_errors(numeric_data.to_numpy())
 
         stats = eval_stats_module.get_stats(numeric_data)
         ave_error = jax.numpy.linalg.norm(eval_stats_module.get_true_stats() - stats, ord=1)
-        print(f'RAP: max error={erros.max():.5f}, ave_error={ave_error:.6f} time={time.time()-stime:.4f}')
+        print(f'RAP: max error={errors.max():.5f}, ave_error={ave_error:.6f} time={time.time() - stime:.4f}')
 
         df = rap.ADA_DATA
         df['algo'] = 'RAP'

@@ -216,7 +216,7 @@ class PrivGA(Generator):
     def __str__(self):
         return f'PrivGA'
 
-    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
+    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance: float=0.0):
         """
         Minimize error between real_stats and sync_stats
         """
@@ -263,6 +263,10 @@ class PrivGA(Generator):
             best_fitness_avg = min(best_fitness_avg, best_fitness)
             X_sync = state.best_member
             smooth_loss_sum += best_fitness
+
+            max_error = stat.priv_loss_inf(X_sync)
+            if max_error < tolerance:
+                break
 
             if t >= self.stop_loss_time_window and t % self.stop_loss_time_window == 0:
                 smooth_loss_avg = smooth_loss_sum / self.stop_loss_time_window
