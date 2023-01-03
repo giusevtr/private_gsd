@@ -259,7 +259,6 @@ class Marginals:
         key, key_em = jax.random.split(key, 2)
         errors = self.get_sync_data_errors(X_sync)
         worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), self.get_sensitivity())
-        print(f'debug: worse_index=', worse_index, 'errors = ', errors)
 
         key, key_gaussian = jax.random.split(key, 2)
         selected_true_stat = self.true_stats[worse_index]
