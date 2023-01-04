@@ -22,10 +22,11 @@ if __name__ == "__main__":
     for task, state in itertools.product(tasks, states):
         data_name = f'folktables_2018_{task}_{state}'
         data = get_data(f'folktables_datasets/{data_name}-mixed-train',
-                        domain_name=f'folktables_datasets/domain/{data_name}-mixed')
+                        domain_name=f'folktables_datasets/domain/{data_name}-num')
 
+        data, col_range = data.normalize_real_values()
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)
-        stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
+        stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2,
                                                                                     bins=[2, 4, 8, 16, 32])
 
         stats_module.fit(data)
@@ -41,7 +42,8 @@ if __name__ == "__main__":
                                          mate_rate=10))
 
         run_experiments(data=data,  algorithm=privga, stats_module=stats_module, epsilon=EPSILON,
-                        save_dir=('sync_path', data_name, 'PrivGA'))
+                        save_dir=('sync_path', data_name, 'PrivGA'),
+                        data_post_processing=lambda data_in: data_in.inverse_map_real_values(col_range))
 
         #######
         ## RAP
@@ -52,7 +54,7 @@ if __name__ == "__main__":
         train_stats_module.fit(data_disc)
 
         numeric_features = data.domain.get_numeric_cols()
-        rap_post_processing = lambda data: Dataset.to_numeric(data, numeric_features)
+        rap_post_processing = lambda data: Dataset.to_numeric(data, numeric_features).inverse_map_real_values(col_range)
 
 
         rap = RelaxedProjection(domain=data_disc.domain, data_size=500, iterations=5000, learning_rate=0.01,

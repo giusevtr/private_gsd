@@ -299,6 +299,9 @@ class Dataset:
 
 
     def discretize(self, num_bins=10):
+        """
+        Discretize real-valued columns using an equal sized binning strategy
+        """
         numerical_cols = self.domain.get_numeric_cols()
         bin_edges = np.linspace(0, 1, num_bins+1)[1:]
         cols = []
@@ -317,8 +320,46 @@ class Dataset:
         df = pd.DataFrame(np.column_stack(cols), columns=self.domain.attrs)
         return Dataset(df, discrete_domain)
 
+    def normalize_real_values(self):
+        """
+        Map real-valued to [0, 1]
+        """
+        numerical_cols = self.domain.get_numeric_cols()
+        cols = []
+        col_range = {}
+        for col, shape in zip(self.domain.attrs, self.domain.shape):
+            col_values = self.df[col].values
+            if col in numerical_cols:
+                min_val = col_values.min()
+                max_val = col_values.max()
+                normed_col_values = (col_values-min_val) / (max_val - min_val)
+                cols.append(normed_col_values)
+                col_range[col] = (min_val, max_val)
+            else:
+                cols.append(col_values)
+        df = pd.DataFrame(np.column_stack(cols), columns=self.domain.attrs)
+        return Dataset(df, self.domain), col_range
+
+    def inverse_map_real_values(self, col_range: dict):
+        """
+        Map real-values to original range
+        :param col_range: A dictionary where each entry is the range of each real-valued column
+        """
+        numerical_cols = self.domain.get_numeric_cols()
+        cols = []
+        for col, shape in zip(self.domain.attrs, self.domain.shape):
+            col_values = self.df[col].values
+            if col in numerical_cols:
+                min_val, max_val = col_range[col]
+                orginal_range_col_values = col_values * (max_val - min_val) + min_val
+                cols.append(orginal_range_col_values)
+            else:
+                cols.append(col_values)
+        df = pd.DataFrame(np.column_stack(cols), columns=self.domain.attrs)
+        return Dataset(df, self.domain)
+
     @staticmethod
-    def to_numeric( data, numeric_features: list):
+    def to_numeric(data, numeric_features: list):
         cols = []
         domain_shape = []
         """ when called on a discretized dataset it turns discretized features into numeric features """

@@ -10,7 +10,8 @@ from plot import plot_sparse
 
 PRINT_PROGRESS = True
 ROUNDS = 3
-EPSILON = [1.00]
+EPSILON = [0.1]
+# EPSILON = [1]
 SEEDS = [0]
 
 
