@@ -52,7 +52,7 @@ if __name__ == "__main__":
     priv_ga = PrivGA(
                     num_generations=10000,
                     stop_loss_time_window=50,
-                    print_progress=False,
+                    print_progress=True,
                     strategy=strategy,
                     # time_limit=5
                      )

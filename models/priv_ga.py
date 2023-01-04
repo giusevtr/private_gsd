@@ -267,10 +267,12 @@ class PrivGA(Generator):
 
             max_error = stat.priv_loss_inf(X_sync)
             if max_error < tolerance:
+                if self.print_progress:
+                    print(f'\tTolerance hit at t={t}')
                 break
             if t > 0 and self.time_limit is not None and time.time() - start_time > self.time_limit:
                 if self.print_progress:
-                    print('\tStop for time limit')
+                    print(f'\tTime limit hit at t={t}')
                 break
 
             if t >= self.stop_loss_time_window and t % self.stop_loss_time_window == 0:
@@ -284,13 +286,13 @@ class PrivGA(Generator):
                 last_loss = smooth_loss_avg
                 smooth_loss_sum = 0
 
-            if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
+            if last_fitness is None or best_fitness < last_fitness * 0.98 or t > self.num_generations-2 :
                 if self.print_progress:
                     max_error = stat.priv_loss_inf(X_sync)
-                    print(f'\tGeneration {t:03}, best_l2_fitness = {jnp.sqrt(best_fitness):.6f}, ', end=' ')
-                    print(f'\ttime={time.time() -init_time:.6f}(s):', end='')
+                    print(f'\tGeneration {t:05}, best_l2_fitness = {jnp.sqrt(best_fitness):.6f}, ', end=' ')
                     print(f'\t\tprivate max_error={max_error:.3f}', end='')
                     print(f'\t\tprivate l2_error={stat.priv_loss_l2(X_sync):.6f}', end='')
+                    print(f'\ttime={time.time() -init_time:.6f}(s):', end='')
                     print()
                 last_fitness = best_fitness
 
@@ -298,6 +300,9 @@ class PrivGA(Generator):
                 start_time = time.time()
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
+        if self.print_progress:
+            print(f'\t\tFinal private max_error={stat.priv_loss_inf(X_sync):.3f}, private l2_error={stat.priv_loss_l2(X_sync):.6f},', end='\n')
+
         return sync_dataset
 
 
