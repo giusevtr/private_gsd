@@ -11,12 +11,13 @@ from experiments.experiment import run_experiments
 import os
 import jax
 EPSILON = (0.07, 0.23, 0.52, 0.74, 1.0)
+adaptive_rounds = (1, 2, 3, 4)
 
 if __name__ == "__main__":
     # df = folktables.
 
     # tasks = ['employment', 'coverage', 'income', 'mobility', 'travel']
-    tasks = [ 'mobility', 'travel']
+    tasks = [ 'income']
     states = ['CA']
 
     for task, state in itertools.product(tasks, states):
@@ -26,25 +27,11 @@ if __name__ == "__main__":
 
         data, col_range = data.normalize_real_values()
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)
-        stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2,
+
+        num_numeric_feats = len(data.domain.get_numeric_cols())
+        K = min(num_numeric_feats, 2)
+        stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=K,
                                                                                     bins=[2, 4, 8, 16, 32])
-
-        stats_module.fit(data)
-        privga = PrivGA(
-            num_generations=20000,
-            stop_loss_time_window=100,
-            print_progress=False,
-            strategy=SimpleGAforSyncData(domain=data.domain,
-                                         population_size=50,
-                                         elite_size=2,
-                                         data_size=200,
-                                         muta_rate=1,
-                                         mate_rate=10))
-
-        run_experiments(data=data,  algorithm=privga, stats_module=stats_module, epsilon=EPSILON,
-                        save_dir=('sync_path', data_name, 'PrivGA'),
-                        data_post_processing=lambda data_in: data_in.inverse_map_real_values(col_range))
-
         #######
         ## RAP
         #######
@@ -54,12 +41,13 @@ if __name__ == "__main__":
         train_stats_module.fit(data_disc)
 
         numeric_features = data.domain.get_numeric_cols()
-        rap_post_processing = lambda data: Dataset.to_numeric(data, numeric_features).inverse_map_real_values(col_range)
+        rap_post_processing = lambda data: Dataset.to_numeric(data, numeric_features)
 
 
-        rap = RelaxedProjection(domain=data_disc.domain, data_size=500, iterations=5000, learning_rate=0.01,
+        rap = RelaxedProjection(domain=data_disc.domain, data_size=500, iterations=5000, learning_rate=0.001,
                                 print_progress=False)
-        run_experiments(data=data_disc,  algorithm=rap, stats_module=stats_module, epsilon=EPSILON,
-                        save_dir=('sync_path', data_name, 'RAP'),
+        run_experiments(data=data_disc,  algorithm=rap, stats_module=train_stats_module, epsilon=EPSILON,
+                        adaptive_rounds=adaptive_rounds,
+                        save_dir=('real_valued_sync_data', data_name, 'RAP'),
                         data_post_processing=rap_post_processing)
 

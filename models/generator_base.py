@@ -12,6 +12,29 @@ from typing import Callable
 
 class Generator:
     data_size: int
+    early_stop_elapsed_time = 10
+    last_time: float = None
+    last_error: float = None
+
+    def early_stop_init(self):
+        self.last_time: float = time.time()
+        self.last_error = 10000000
+        self.start_time = time.time()
+
+    def early_stop(self, error):
+        current_time = time.time()
+        elapsed_time = current_time - self.start_time
+        if current_time - self.last_time > self.early_stop_elapsed_time:
+            loss_change = jnp.abs(error - self.last_error) / self.last_error
+            print(f'\t\tError={error:.8f}\tLast error={self.last_error:.8f}\tError change={loss_change:<.5f}\telapsed time={elapsed_time:.5f}')
+            if loss_change < 0.001:
+                return True
+            self.last_time = current_time
+            self.last_error = error
+        return False
+
+
+
 
     def fit(self, key: jax.random.PRNGKeyArray, stat_module: PrivateMarginalsState, init_X=None, tolerance:float=0) -> Dataset:
         pass

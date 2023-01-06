@@ -9,6 +9,7 @@ if __name__ == "__main__":
     # Get Data
     ROUNDS = 8
     BINS = [2, 4, 8, 16]
+    # adaptive_rounds = (3, 10, 100)
 
     task = 'mobility'
     state = 'CA'

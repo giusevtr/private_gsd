@@ -348,7 +348,7 @@ class Dataset:
         numerical_cols = self.domain.get_numeric_cols()
         cols = []
         for col, shape in zip(self.domain.attrs, self.domain.shape):
-            col_values = self.df[col].values
+            col_values = np.array(self.df[col].values)
             if col in numerical_cols:
                 min_val, max_val = col_range[col]
                 orginal_range_col_values = col_values * (max_val - min_val) + min_val
