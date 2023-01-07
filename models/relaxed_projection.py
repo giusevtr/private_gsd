@@ -45,6 +45,8 @@ class RelaxedProjection(Generator):
         smooth_loss_sum = 0
         best_loss = 100
         stop_loss_window = 20
+        self.early_stop_init()
+        last_loss = 100
         for t in range(self.iterations):
             loss = compute_loss(params)
             updates, self.opt_state = update_fn(params, self.opt_state)
@@ -54,8 +56,11 @@ class RelaxedProjection(Generator):
             best_loss = min(best_loss, loss)
 
             priv_max_error = stat.priv_diff_loss_inf(softmax_fn(params['w']))
-            if self.print_progress and (t % 10) == 0:
-                print(f'epoch {t:<3}). Loss={loss}, priv_max_error={priv_max_error}')
+            if last_loss is None or loss < last_loss * 0.95 or t > self.iterations-2 :
+                if self.print_progress :
+                    print(f'epoch {t:<3}). Loss={loss}, priv_max_error={priv_max_error}')
+                last_loss = loss
+
             if priv_max_error < tolerance:
                 if self.print_progress:
                     print(f'Eary stop at {t}')

@@ -279,7 +279,7 @@ class PrivGA(Generator):
                     print(f'\tTolerance hit at t={t}')
                 break
 
-            if last_fitness is None or best_fitness < last_fitness * 0.98 or t > self.num_generations-2 :
+            if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
                 if self.print_progress:
                     print(f'\tGeneration {t:05}, best_l2_fitness = {jnp.sqrt(best_fitness):.6f}, ', end=' ')
                     print(f'\t\tprivate (max/l2) error={stat.priv_loss_inf(X_sync):.5f}/{stat.priv_loss_l2(X_sync):.7f}', end='')

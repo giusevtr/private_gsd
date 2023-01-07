@@ -9,7 +9,7 @@ from plot import plot_sparse
 
 
 PRINT_PROGRESS = True
-ROUNDS = 3
+ROUNDS = 1
 EPSILON = [0.1]
 # EPSILON = [1]
 SEEDS = [0]
@@ -34,17 +34,18 @@ if __name__ == "__main__":
     # stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=bins)
     stats_module.fit(data)
 
+    print(f'workloads = ', len(stats_module.true_stats))
 
 
 
-    data_size = 1000
+    data_size = 200
     strategy = SimpleGAforSyncData(
             domain=data.domain,
             data_size=data_size,
             population_size=100,
             elite_size=10,
             muta_rate=1,
-            mate_rate=100
+            mate_rate=10
         )
 
     ########
@@ -53,7 +54,7 @@ if __name__ == "__main__":
     priv_ga = PrivGA(
                     num_generations=10000,
                     stop_loss_time_window=50,
-                    print_progress=True,
+                    print_progress=False,
                     strategy=strategy,
                     # time_limit=5
                      )

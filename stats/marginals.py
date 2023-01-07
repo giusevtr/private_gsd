@@ -119,6 +119,9 @@ class Marginals:
 
     @staticmethod
     def get_all_kway_mixed_combinations(domain, k_disc, k_real, bins=(32,)):
+        num_numeric_feats = len(domain.get_numeric_cols())
+        k_real = min(num_numeric_feats, k_real)
+
         kway_combinations = []
 
         K = k_disc + k_real
@@ -139,6 +142,7 @@ class Marginals:
         self.true_stats = []
         self.marginals_fn = []
         self.diff_marginals_fn = []
+        self.sensitivity = []
 
         X = data.to_numpy()
         self.N = X.shape[0]
@@ -149,16 +153,15 @@ class Marginals:
             for col in cols:
                 sizes.append(self.domain.size(col))
             indices = self.domain.get_attribute_indices(cols)
-            functions_list = self.get_marginal_stats_fn_helper(indices, sizes)
-            for fn in functions_list:
-                self.true_stats.append(fn(X))
-                self.marginals_fn.append(jax.jit(fn))
+            fn, sensitivity = self.get_marginal_stats_fn_helper(indices, sizes)
+            self.true_stats.append(fn(X))
+            self.marginals_fn.append(jax.jit(fn))
+            self.sensitivity.append(sensitivity / self.N)
 
             if not self.IS_REAL_VALUED:
                 # Don't add differentiable queries
-                diff_fn_list = self.get_differentiable_stats_fn_helper(cols)
-                for diff_fn in diff_fn_list:
-                    self.diff_marginals_fn.append(jax.jit(diff_fn))
+                diff_fn, sensitivity = self.get_differentiable_stats_fn_helper(cols)
+                self.diff_marginals_fn.append(diff_fn)
 
     def get_num_queries(self):
         return len(self.true_stats)
@@ -208,38 +211,52 @@ class Marginals:
             max_errors.append(error)
         return jnp.array(max_errors)
 
-    def get_sensitivity(self):
-        return jnp.sqrt(2) / self.N
+    # def get_sensitivity(self):
+    #     return jnp.sqrt(2) / self.N
 
-    def get_marginal_stats_fn_helper(self, idx, sizes) -> list:
-
-        def get_stat_fn(idx, sizes_jnp):
-            def stat_fn(X):
-                # X_proj = (X[:, idx]).astype(int)
-                X_proj = X[:, idx]
-                stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
-                return stat
-            return stat_fn
-
+    def get_marginal_stats_fn_helper(self, idx, sizes) :
+        """
+        Returns marginals function and sensitivity
+        :return:
+        """
         is_numeric = False
-        numeric_features = self.domain.get_numeric_cols()
         cat_idx = self.domain.get_attribute_indices(self.domain.get_categorical_cols())
         for i in idx:
             if i not in cat_idx:
                 is_numeric = True
 
-        stat_fn_list = []
         if is_numeric:
+            bins_sizes = []
             for bins in self.bins:
                 sizes_jnp = [jnp.arange(s + 1).astype(float) if i in cat_idx else jnp.linspace(0, 1, bins+1) for i, s in zip(idx, sizes)]
-                stat_fn_list.append(get_stat_fn(idx, sizes_jnp))
+                bins_sizes.append(sizes_jnp)
+
+            def stat_fn(X):
+
+                X_proj = X[:, idx]
+                stats = []
+                for sizes_jnp in bins_sizes:
+                    # stat_fn_list.append(get_stat_fn(idx, sizes_jnp))
+                    stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
+                    stats.append(stat)
+                all_stats = jnp.concatenate(stats)
+                return all_stats
+
+            return stat_fn, jnp.sqrt(len(self.bins) *2)
+
         else:
             sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(idx, sizes)]
-            stat_fn_list.append(get_stat_fn(idx, sizes_jnp))
+            def stat_fn(X):
+                # X_proj = (X[:, idx]).astype(int)
+                X_proj = X[:, idx]
+                stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
+                return stat
 
-        return stat_fn_list
+            return stat_fn, jnp.sqrt(2)
+        #
+        # return stat_fn_list
 
-    def get_differentiable_stats_fn_helper(self, kway_attributes) -> list:
+    def get_differentiable_stats_fn_helper(self, kway_attributes):
         assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
         # For computing differentiable marginal queries
         queries = []
@@ -253,7 +270,7 @@ class Marginals:
         def stat_fn(X):
             return jnp.prod(X[:, queries], 2).sum(0) / X.shape[0]
 
-        return [stat_fn]
+        return stat_fn, jnp.sqrt(2)
     ##################################################
     ## Adaptive statistics
     ##################################################
@@ -262,12 +279,13 @@ class Marginals:
 
         key, key_em = jax.random.split(key, 2)
         errors = self.get_sync_data_errors(X_sync)
-        worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), self.get_sensitivity())
+        max_sensitivity = max(self.sensitivity)
+        worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), max_sensitivity)
 
         key, key_gaussian = jax.random.split(key, 2)
         selected_true_stat = self.true_stats[worse_index]
 
-        sensitivity = self.get_sensitivity()
+        sensitivity = self.sensitivity[worse_index]
         sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
         gau_noise = jax.random.normal(key_gaussian, shape=selected_true_stat.shape) * sigma_gaussian
 
@@ -286,7 +304,7 @@ class Marginals:
         for i in range(len(self.true_stats)):
             true_stat = self.true_stats[i]
             key, key_gaussian = jax.random.split(key, 2)
-            sensitivity = self.get_sensitivity()
+            sensitivity = self.sensitivity[i]
 
             sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_stat)))
             gau_noise = jax.random.normal(key_gaussian, shape=true_stat.shape) * sigma_gaussian

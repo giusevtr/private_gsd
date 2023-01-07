@@ -1,17 +1,21 @@
 import jax.random
+import jax.numpy as jnp
 from models import PrivGA, SimpleGAforSyncData
 from stats import Marginals
 from utils.utils_data import get_data
+from utils.utils_data import Dataset
+
+import time
 
 
 if __name__ == "__main__":
 
     # Get Data
-    ROUNDS = 8
-    BINS = [2, 4, 8, 16]
+    ROUNDS = 1
+    BINS = [2, 4, 8, 16, 32]
     # adaptive_rounds = (3, 10, 100)
 
-    task = 'mobility'
+    task = 'income'
     state = 'CA'
     data_name = f'folktables_2018_{task}_{state}'
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
@@ -23,6 +27,9 @@ if __name__ == "__main__":
     # Create statistics and evaluate
     marginal_module, kway = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2, bins=BINS)
     marginal_module.fit(data)
+
+    print(f'Workloads = {len(marginal_module.true_stats)}')
+
     ########
     # PrivGA
     ########
@@ -37,14 +44,20 @@ if __name__ == "__main__":
             population_size=500,
             elite_size=10,
             muta_rate=1,
-            mate_rate=10
+            mate_rate=100
         )
     )
 
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     key = jax.random.PRNGKey(0)
-    sync_data_2 = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS,
-                                 epsilon=0.07, delta=1e-6, tolerance=0.0, print_progress=True)
-    errors = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
-    print(f'PrivGA: max error = {errors.max():.5f}')
+    stime = time.time()
+
+    sync_data = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS,
+                                 epsilon=0.01, delta=1e-6, tolerance=0.0, print_progress=True)
+
+    true_stats = marginal_module.get_true_stats()
+    sync_stats = marginal_module.get_stats(sync_data)
+    print(f'PrivGA: max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
+          f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
+          f'time = {time.time() - stime:.5f}')
 

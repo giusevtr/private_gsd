@@ -12,13 +12,13 @@ import jax.numpy as jnp
 import os
 import jax
 EPSILON = (0.07, 0.23, 0.52, 0.74, 1.0)
-adaptive_rounds = (1, 4, 8, 16)
+adaptive_rounds = (1, 2, 3, 4, 5)
 
 if __name__ == "__main__":
     # df = folktables.
 
     # tasks = ['employment', 'coverage', 'income', 'mobility', 'travel']
-    tasks = [ 'income']
+    tasks = ['employment', 'coverage', 'income', 'mobility']
     states = ['CA']
 
     columns = ['data', 'generator','T', 'epsilon', 'seed', 'max error', 'l1 error']
@@ -31,10 +31,8 @@ if __name__ == "__main__":
         orig_data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                              domain_name=f'folktables_datasets/domain/{data_name}-num', root_path='../../data_files')
         orig_data_normed, _ = orig_data.normalize_real_values()
-        num_numeric_feats = len(orig_data.domain.get_numeric_cols())
-        K = min(num_numeric_feats, 2)
         stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(orig_data.domain,
-                                                                                    k_disc=0, k_real=K,
+                                                                                    k_disc=0, k_real=2,
                                                                                                     bins=[2, 4, 8, 16,
                                                                                                           32])
         stats_module.fit(orig_data_normed)
@@ -42,14 +40,16 @@ if __name__ == "__main__":
 
         print()
         print(data_name)
-        for root, dirs, files in os.walk(data_name):
+        loc = f'results/{data_name}'
+        for root, dirs, files in os.walk(loc):
             for name in files:
                 if name.endswith((".csv")):
                     path_list = root.split('/')
+                    print(path_list)
 
-                    algo = path_list[1]
-                    T = int(path_list[2])
-                    eps = float(path_list[3])
+                    algo = path_list[2]
+                    T = int(path_list[3])
+                    eps = float(path_list[4])
 
                     for file in files:
                         seed = int(file[-5])

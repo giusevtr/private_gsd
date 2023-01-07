@@ -10,17 +10,17 @@ from utils.utils_data import get_data
 from experiments.experiment import run_experiments
 import os
 import jax
-# EPSILON = (0.07, 0.23, 0.52, 0.74, 1.0)
-EPSILON = (0.74, )
-SEEDS = [0]
+EPSILON = (0.07, 0.23, 0.52, 0.74, 1.0)
+# EPSILON = (0.01, )
+SEEDS = [0, 1, 2]
 # adaptive_rounds = (1, 4, 8, 16)
-adaptive_rounds = (5, )
+adaptive_rounds = (1, 2, 3, 4, 5)
 
 if __name__ == "__main__":
     # df = folktables.
 
-    # tasks = [ 'coverage', 'income', 'mobility', 'travel']
-    tasks = ['income']
+    tasks = ['employment', 'coverage', 'income', 'mobility', 'travel']
+    # tasks = ['income']
     # tasks = [ 'mobility', 'travel']
     states = ['CA']
 
@@ -33,8 +33,7 @@ if __name__ == "__main__":
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)
 
         num_numeric_feats = len(data.domain.get_numeric_cols())
-        K = min(num_numeric_feats, 2)
-        stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=K,
+        stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2,
                                                                                     bins=[2, 4, 8, 16, 32])
 
         stats_module.fit(data)
@@ -45,15 +44,15 @@ if __name__ == "__main__":
             print_progress=False,
             strategy=SimpleGAforSyncData(domain=data.domain,
                                          population_size=200,
-                                         elite_size=5,
-                                         data_size=2000,
-                                         muta_rate=2,
+                                         elite_size=10,
+                                         data_size=1000,
+                                         muta_rate=1,
                                          mate_rate=50))
 
         run_experiments(data=data,  algorithm=privga, stats_module=stats_module, epsilon=EPSILON,
                         adaptive_rounds=adaptive_rounds,
                         seeds=SEEDS,
-                        save_dir=(data_name, 'PrivGA'),
+                        save_dir=('results', data_name, 'PrivGA'),
                         # data_post_processing=lambda data_in: data_in.inverse_map_real_values(col_range)
                         )
 
