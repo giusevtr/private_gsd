@@ -1,6 +1,6 @@
 import jax.random
-from models_v3 import PrivGA, SimpleGAforSyncData, RelaxedProjection
-from stats_v3 import Marginals
+from models import PrivGA, SimpleGAforSyncData
+from stats import Marginals
 from utils.utils_data import get_data
 
 
@@ -11,29 +11,26 @@ if __name__ == "__main__":
 
     task = 'coverage'
     state = 'CA'
-    print("hh")
     data_name = f'folktables_2018_{task}_{state}'
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                     domain_name=f'folktables_datasets/domain/{data_name}-cat',  root_path='../../data_files/')
-    SYNC_DATA_SIZE = 5000
+    SYNC_DATA_SIZE = 2000
     # Create statistics and evaluate
-    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3, bins=10)
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3, bins=30)
     marginal_module.fit(data)
 
     strategy = SimpleGAforSyncData(
             domain=data.domain,
             data_size=SYNC_DATA_SIZE,
             population_size=1000,
-            elite_size=5,
-            muta_rate=10,
+            elite_size=2,
+            muta_rate=1,
             mate_rate=200,
         )
     # Choose algorithm parameters
     priv_ga = PrivGA(
-                    domain=data.domain,
-                    data_size=SYNC_DATA_SIZE,
                     num_generations=10000,
-                    stop_loss_time_window=50,
+                    stop_loss_time_window=100,
                     print_progress=True,
                     strategy=strategy
     )

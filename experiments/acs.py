@@ -1,17 +1,13 @@
 import itertools
 import time
-
-import folktables
-import numpy as np
 import pandas as pd
-from folktables import ACSDataSource, ACSEmployment
-from utils import Dataset, Domain, DataTransformer
-from models_v2 import Generator, PrivGA, RelaxedProjectionPP
-from stats_v2 import Marginals
-from utils.utils_data import get_data
 import os
 import jax
+import jax.random
 import jax.numpy as jnp
+from models import PrivGA, SimpleGAforSyncData, Generator, RelaxedProjection
+from stats import Marginals
+from utils.utils_data import get_data
 
 """
 Runtime analysis of PrivGA
@@ -21,49 +17,41 @@ RAP datasize = 50000
 3 random seeds
 T= [25, 50, 100]
 """
-ALGORITHMS = [
-    PrivGA(popsize=1000,
-           top_k=2,
-           num_generations=10000,
-           stop_loss_time_window=40,
-           print_progress=True,
-           start_mutations=256,
-           data_size=1000)
-]
 
-
-def run_experiments(epsilon=(0.07, 0.15, 0.23, 0.41, 0.52, 0.62, 0.74, 0.87, 1.0,)):
-    # tasks = ['employment', 'coverage', 'income', 'mobility', 'travel']
+def run_experiments(epsilon=(0.07,0.23,0.52,0.74,1.0,)):
+    tasks = ['mobility']
     # states = ['NY', 'CA', 'FL', 'TX', 'PA']
-    tasks = ['coverage']
+    # tasks = ['coverage']
     states = ['CA']
     RESULTS = []
+    print("ssm:bb")
     for task, state in itertools.product(tasks, states):
         data_name = f'folktables_2018_{task}_{state}'
         data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                         domain_name=f'folktables_datasets/domain/{data_name}-cat')
+        rap = RelaxedProjection(domain=data.domain, data_size=1000, iterations=1000, learning_rate=0.05, print_progress=False)
+        ALGORITHMS = [rap]
         delta = 1.0 / len(data) ** 2
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)
-        stats_module = Marginals.get_all_kway_combinations(data.domain, k=3)
-        print("workloadaa:",stats_module.get_num_queries())
+        stats_module = Marginals.get_all_kway_combinations(data.domain, k=3,bins=30)
+        # print("workloadaa:",stats_module.get_num_queries())
         stats_module.fit(data)
 
-        for T, eps, seed in itertools.product([25,50], list(epsilon), [0,1,2]):
+        for T, eps, seed in itertools.product([100], list(epsilon), [0,1,2]):
 
             for algorithm in ALGORITHMS:
                 algorithm: Generator
                 key = jax.random.PRNGKey(seed)
                 stime = time.time()
                 sync_data_2 = algorithm.fit_dp_adaptive(key, stat_module=stats_module,
-                                                        rounds=T, epsilon=eps, delta=delta, print_progress=True)
+                                                        rounds=T, epsilon=eps, delta=delta, print_progress=True,tolerance=0.00,start_X=True)
                 total_time = time.time()-stime
                 errors = stats_module.get_sync_data_errors(sync_data_2.to_numpy())
                 max_error = errors.max()
-                stats_fn = stats_module.get_stats_fn()
-                X_sync = sync_data_2.to_numpy()
-                l1_error = jnp.mean(jnp.abs(stats_module.get_true_stats() - stats_fn(X_sync)))
+                sync_stats = stats_module.get_stats(sync_data_2)
+                l1_error = jnp.mean(jnp.abs(stats_module.get_true_stats() - sync_stats))
                 RESULTS.append(
-                    [data_name, str(algorithm), str(stats_module), eps, seed, max_error, l1_error, total_time])
+                    [data_name, str(algorithm), str(stats_module), T, eps, seed, max_error, l1_error, total_time])
                 print(f'{str(algorithm)}: max error = {errors.max():.5f}')
 
                 algo_name = str(algorithm)
@@ -82,9 +70,9 @@ def run_experiments(epsilon=(0.07, 0.15, 0.23, 0.41, 0.52, 0.62, 0.74, 0.87, 1.0
                 print(f'Saving {save_path}')
                 data_df.to_csv(save_path)
     results_df = pd.DataFrame(RESULTS,
-                              columns=['data', 'generator', 'stats', 'epsilon', 'seed', 'max error','l1 error',
+                              columns=['data', 'generator', 'stats', 'T', 'epsilon', 'seed', 'max error','l1 error',
                                        'time'])
-    results_df.to_csv("result_T_25_50.csv")
+    results_df.to_csv("result_T_RAP.csv")
 
 if __name__ == "__main__":
     # df = folktables.
