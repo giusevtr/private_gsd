@@ -12,7 +12,6 @@ if __name__ == "__main__":
 
     # Get Data
     ROUNDS = 1
-    BINS = [2, 4, 8, 16, 32]
     # adaptive_rounds = (3, 10, 100)
 
     task = 'income'
@@ -25,6 +24,7 @@ if __name__ == "__main__":
     data, real_cols_range = data.normalize_real_values()
 
     # Create statistics and evaluate
+    BINS = [2, 4, 8, 16, 32]
     marginal_module, kway = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2, bins=BINS)
     marginal_module.fit(data)
 

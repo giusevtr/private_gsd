@@ -49,7 +49,7 @@ class EvoState:
 """
 Implement crossover that is specific to synthetic data
 """
-class SimpleGAforSyncData:
+class SimpleGAforSyncDataFast:
     def __init__(self, domain: Domain, population_size: int, elite_size: int, data_size: int, muta_rate: int, mate_rate: int):
         """Simple Genetic Algorithm For Synthetic Data Search Adapted from (Such et al., 2017)
         Reference: https://arxiv.org/abs/1712.06567
@@ -199,13 +199,13 @@ def initialize_population(rng: chex.PRNGKey, pop_size, domain: Domain, data_size
 
 
 # @dataclass
-class PrivGA(Generator):
+class PrivGAfast(Generator):
 
     def __init__(self,
                  num_generations,
                  stop_loss_time_window,
                  print_progress,
-                 strategy: SimpleGAforSyncData,
+                 strategy: SimpleGAforSyncDataFast,
                     time_limit: float = None,
                  ):
         self.domain = strategy.domain
@@ -244,11 +244,7 @@ class PrivGA(Generator):
 
         last_fitness = None
         best_fitness_total = 100000
-        smooth_loss_sum = 0
-        last_loss = None
-        start_time: float = 0.0
         self.early_stop_init()
-        total_best_fitness = 1000000
 
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
