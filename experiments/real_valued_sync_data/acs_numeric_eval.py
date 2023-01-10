@@ -17,8 +17,8 @@ adaptive_rounds = (1, 2, 3, 4, 5)
 if __name__ == "__main__":
     # df = folktables.
 
-    # tasks = ['employment', 'coverage', 'income', 'mobility', 'travel']
-    tasks = ['employment', 'coverage', 'income', 'mobility']
+    tasks = ['employment', 'coverage', 'income', 'mobility', 'travel']
+    # tasks = ['employment']
     states = ['CA']
 
     columns = ['data', 'generator','T', 'epsilon', 'seed', 'max error', 'l1 error']
@@ -33,7 +33,8 @@ if __name__ == "__main__":
         orig_data_normed, _ = orig_data.normalize_real_values()
         stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(orig_data.domain,
                                                                                     k_disc=0, k_real=2,
-                                                                                                    bins=[2, 4, 8, 16,
+                                                                                                    bins=[
+                                                                                                        2, 4, 8, 16,
                                                                                                           32])
         stats_module.fit(orig_data_normed)
         orig_stats = stats_module.get_true_stats()
@@ -45,30 +46,29 @@ if __name__ == "__main__":
             for name in files:
                 if name.endswith((".csv")):
                     path_list = root.split('/')
-                    print(path_list)
+                    # print(path_list)
 
                     algo = path_list[2]
                     T = int(path_list[3])
                     eps = float(path_list[4])
 
-                    for file in files:
-                        seed = int(file[-5])
+                    seed = int(name[-5])
 
-                        sync_data_path = os.path.join(root, file)
-                        print(f'loading {sync_data_path}')
-                        df_sync = pd.read_csv(sync_data_path)
-                        sync_data = Dataset(df_sync, domain=orig_data.domain)
-                        # sync_data = get_data(sync_data_path,
-                        #         domain_name=f'../../data_files/folktables_datasets/domain/{data_name}-num', root_path='.')
+                    sync_data_path = os.path.join(root, name)
+                    # print(f'loading {sync_data_path}')
+                    df_sync = pd.read_csv(sync_data_path)
+                    sync_data = Dataset(df_sync, domain=orig_data.domain)
+                    # sync_data = get_data(sync_data_path,
+                    #         domain_name=f'../../data_files/folktables_datasets/domain/{data_name}-num', root_path='.')
 
-                        sync_stats = stats_module.get_stats(sync_data)
+                    sync_stats = stats_module.get_stats(sync_data)
 
-                        max_error = float(jnp.abs(orig_stats - sync_stats).max())
-                        l1_error = float(jnp.linalg.norm(orig_stats-sync_stats, ord=1)/orig_stats.shape[0])
+                    max_error = float(jnp.abs(orig_stats - sync_stats).max())
+                    l1_error = float(jnp.linalg.norm(orig_stats-sync_stats, ord=1)/orig_stats.shape[0])
 
-                        res = [data_name, algo, T, eps, seed, max_error, l1_error]
-                        print(res)
-                        RES.append(res)
+                    res = [data_name, algo, T, eps, seed, max_error, l1_error]
+                    print(res)
+                    RES.append(res)
 
 
 

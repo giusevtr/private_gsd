@@ -30,13 +30,13 @@ if __name__ == "__main__":
     train_stats_module = Marginals.get_all_kway_combinations(data_disc.domain, 2)
     train_stats_module.fit(data_disc)
 
-    rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=5000, learning_rate=0.005, print_progress=True)
+    rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=100, learning_rate=0.05, print_progress=True)
 
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     key = jax.random.PRNGKey(0)
     stime = time.time()
     sync_data_disc = rap.fit_dp_adaptive(key, stat_module=train_stats_module, rounds=ROUNDS,
-                                 epsilon=0.01, delta=1e-6, tolerance=0.0, print_progress=False)
+                                 epsilon=1, delta=1e-6, tolerance=0.0, print_progress=False)
     sync_data = Dataset.to_numeric(sync_data_disc, data.domain.get_numeric_cols())
 
     true_stats = marginal_module.get_true_stats()

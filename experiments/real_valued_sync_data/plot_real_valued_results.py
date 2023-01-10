@@ -19,7 +19,14 @@ df = df.groupby(['data', 'generator',   'epsilon'], as_index=False)[ERROR_TYPE].
 ##################################################
 
 
-sns.relplot(data=df, x='epsilon', y=ERROR_TYPE, hue='generator', col='data',   kind='line', facet_kws={'sharey': False, 'sharex': True})
+g = sns.relplot(data=df, x='epsilon', y=ERROR_TYPE, hue='generator', col='data',   kind='line',
+                marker='o',
+                facet_kws={'sharey': False, 'sharex': True})
+
+g.set(ylim=(0, None))
+
 plt.subplots_adjust(top=0.9)
-plt.title(f'Real valued data with \nquery class range-marginals')
+# plt.title(f'Real valued data with \nquery class range-marginals')
+g.fig.suptitle(f'ACS-train real-valued with range queries.')
+
 plt.show()

@@ -1,14 +1,14 @@
 import itertools
-
+import os
 import jax.random
 import pandas as pd
-
 from models import PrivGA, SimpleGAforSyncData
 from stats import Marginals
 from utils.utils_data import get_data
 from utils.cdp2adp import cdp_rho
-
 import time
+
+
 if __name__ == "__main__":
 
     # Get Data
@@ -73,6 +73,10 @@ if __name__ == "__main__":
 
             res_df = pd.DataFrame(results, columns=['pop', 'elite', 'mut', 'mate', 'data_size', 'seed', 'eps',
                                                     'ave_error', 'max_error', 'time'])
-            res_df.to_csv(f'privga_params_{seed}.csv', index_label=False)
+
+            save_path = f'param_results/{data_name}/PrivGA'
+            os.makedirs(save_path)
+            save_path = f'{save_path}/privga_params_{seed}.csv'
+            res_df.to_csv(save_path, index_label=False)
 
 

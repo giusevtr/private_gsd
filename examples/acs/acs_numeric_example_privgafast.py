@@ -1,6 +1,6 @@
 import jax.random
 import jax.numpy as jnp
-from models import PrivGA, SimpleGAforSyncData
+from models import PrivGAfast, SimpleGAforSyncDataFast
 from stats import Marginals
 from utils.utils_data import get_data
 from utils.utils_data import Dataset
@@ -34,17 +34,17 @@ if __name__ == "__main__":
     # PrivGA
     ########
     data_size = 2000
-    priv_ga = PrivGA(
+    priv_ga = PrivGAfast(
         num_generations=10000,
         stop_loss_time_window=50,
         print_progress=True,
-        strategy=SimpleGAforSyncData(
+        strategy=SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
             population_size=500,
             elite_size=10,
             muta_rate=1,
-            mate_rate=10
+            mate_rate=0
         )
     )
 
@@ -53,11 +53,11 @@ if __name__ == "__main__":
     stime = time.time()
 
     sync_data = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS,
-                                 epsilon=1, delta=1e-6, tolerance=0.0, print_progress=True)
+                                 epsilon=1.00, delta=1e-6, tolerance=0.0, print_progress=True)
 
     true_stats = marginal_module.get_true_stats()
     sync_stats = marginal_module.get_stats(sync_data)
-    print(f'PrivGA: max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
+    print(f'PrivGA(fast): max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
           f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
           f'time = {time.time() - stime:.5f}')
 

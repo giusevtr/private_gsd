@@ -18,14 +18,15 @@ adaptive_rounds = (1, 2, 3, 4, 5)
 if __name__ == "__main__":
     # df = folktables.
 
-    tasks = ['employment', 'coverage', 'income', 'mobility', 'travel']
+    # tasks = ['employment', 'coverage', 'income', 'mobility', 'travel']
+    tasks = [  'mobility', 'travel']
     # tasks = ['income']
     states = ['CA']
 
     for task, state in itertools.product(tasks, states):
         data_name = f'folktables_2018_{task}_{state}'
         data = get_data(f'folktables_datasets/{data_name}-mixed-train',
-                        domain_name=f'folktables_datasets/domain/{data_name}-num')
+                        domain_name=f'folktables_datasets/domain/{data_name}-num', root_path='../../data_files')
 
         # Normalize numeric columns to be in [0, 1]
         data, col_range = data.normalize_real_values()
@@ -48,8 +49,9 @@ if __name__ == "__main__":
 
 
         # Initialize RAP with discrete domain
-        rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=50000, learning_rate=0.0009,
-                                print_progress=True)
+        rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=100,
+                                learning_rate=0.0500,
+                                print_progress=False)
 
         # Run rap with discretized data and categorical-marginal queries
         run_experiments(data=data_disc,  algorithm=rap, stats_module=train_stats_module,
