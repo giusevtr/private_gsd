@@ -253,10 +253,16 @@ class PrivGA(Generator):
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             # Produce new candidates
+            stime = time.time()
             x, state = self.strategy.ask(ask_subkey, state)
+            ask_time = time.time() - stime
+
 
             # Fitness of each candidate
+            stime = time.time()
             fitness = fitness_fn(x)
+            fit_time = time.time() - stime
+
 
             # Get next population
             state = self.strategy.tell(x, fitness, state)
@@ -285,6 +291,7 @@ class PrivGA(Generator):
                     print(f'\t\tprivate (max/l2) error={stat.priv_loss_inf(X_sync):.5f}/{stat.priv_loss_l2(X_sync):.7f}', end='')
                     print(f'\t\ttrue (max/l2) error={stat.true_loss_inf(X_sync):.5f}/{stat.true_loss_l2(X_sync):.7f}', end='')
                     print(f'\ttime={time.time() -init_time:.7f}(s):', end='')
+                    print(f'\task_time={ask_time:.7f}(s), fit_time={fit_time:.7f}(s)', end='')
                     print()
                 last_fitness = best_fitness
 
@@ -412,10 +419,13 @@ def test_mating():
 
 
 # @timeit
-def test_jit_ask(domain, rounds):
-    print(f'Test jit(ask) with {rounds} rounds.')
+def test_jit_ask(rounds):
+    d = 20
+    k = 1
+    domain = Domain([f'A {i}' for i in range(d)], [3 for _ in range(d)])
+    print(f'Test jit(ask) with {rounds} rounds. d={d}, k={k}')
 
-    strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=30, data_size=2000,
+    strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=10, data_size=2000,
                                    muta_rate=1,
                                    mate_rate=1)
     stime = time.time()
@@ -428,16 +438,15 @@ def test_jit_ask(domain, rounds):
         stime = time.time()
         x, state = strategy.ask(key, state)
         x.block_until_ready()
-        if r <= 3 or r == rounds - 1:
-            print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.5f}')
+        # if r <= 3 or r == rounds - 1:
+        print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.5f}')
+        print()
 
 
 if __name__ == "__main__":
 
-    d = 30
-    domain = Domain([f'A {i}' for i in range(d)], [3 for _ in range(d)])
     # test_crossover()
 
     # test_mutation()
     # test_mating()
-    test_jit_ask(domain, rounds=10)
+    test_jit_ask(rounds=10)

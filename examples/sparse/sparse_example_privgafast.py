@@ -26,7 +26,7 @@ if __name__ == "__main__":
     data = get_sparse_dataset(DATA_SIZE=10000)
     # plot_2d_data(data.to_numpy())
     # plot_sparse(data.to_numpy(), title='Original sparse')
-    bins = [2, 4, 8, 16]
+    bins = [2, 4, 8, 16, 32, 64]
 
     stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
                                                                                 bins=bins)
@@ -45,18 +45,13 @@ if __name__ == "__main__":
             population_size=100,
             elite_size=10,
             muta_rate=1,
-            mate_rate=10
+            mate_rate=1
         )
-
-    ########
-    # PrivGA
-    ########
     priv_ga = PrivGAfast(
                     num_generations=10000,
                     stop_loss_time_window=50,
                     print_progress=True,
                     strategy=strategy,
-                    # time_limit=5
                      )
 
 
