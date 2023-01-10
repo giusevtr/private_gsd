@@ -21,6 +21,7 @@ class RelaxedProjection(Generator):
 
     def __str__(self):
         return f'RP(lr={self.learning_rate:.4f})'
+
     def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
 
         data_dim = self.domain.get_dimension()
@@ -42,30 +43,34 @@ class RelaxedProjection(Generator):
 
         last_loss = None
         smooth_loss_sum = 0
+        best_loss = 100
         stop_loss_window = 20
+        self.early_stop_init()
+        last_loss = 100
         for t in range(self.iterations):
             loss = compute_loss(params)
             updates, self.opt_state = update_fn(params, self.opt_state)
             params = optax.apply_updates(params, updates)
             smooth_loss_sum += loss
 
+            best_loss = min(best_loss, loss)
 
             priv_max_error = stat.priv_diff_loss_inf(softmax_fn(params['w']))
-            if self.print_progress:
-                print(f'epoch {t:<3}). Loss={loss}, priv_max_error ={priv_max_error}')
+            if last_loss is None or loss < last_loss * 0.95 or t > self.iterations-2 :
+                if self.print_progress :
+                    print(f'epoch {t:<3}). Loss={loss}, priv_max_error={priv_max_error}')
+                last_loss = loss
+
             if priv_max_error < tolerance:
                 if self.print_progress:
                     print(f'Eary stop at {t}')
                 break
-            # Stop Early code
-            if t >= self.stop_loss_time_window and t % self.stop_loss_time_window == 0:
-                smooth_loss_avg = smooth_loss_sum / self.stop_loss_time_window
-                if last_loss is not None:
-                    loss_change = jnp.abs(smooth_loss_avg - last_loss) / last_loss
-                    if loss_change < 0.001:
-                        break
-                last_loss = smooth_loss_avg
-                smooth_loss_sum = 0
+
+            if self.early_stop(best_loss):
+                if self.print_progress:
+                    print(f'\tStop early at {t}')
+                break
+
 
         params['w'] = softmax_fn(params['w'])
         self.synthetic_data = params['w']

@@ -205,18 +205,21 @@ class PrivGA(Generator):
                  num_generations,
                  stop_loss_time_window,
                  print_progress,
-                 strategy: SimpleGAforSyncData):
+                 strategy: SimpleGAforSyncData,
+                    time_limit: float = None,
+                 ):
         self.domain = strategy.domain
         self.data_size = strategy.data_size
         self.num_generations = num_generations
         self.stop_loss_time_window = stop_loss_time_window
         self.print_progress = print_progress
         self.strategy = strategy
+        self.time_limit = time_limit
 
     def __str__(self):
         return f'PrivGA'
 
-    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
+    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance: float=0.0):
         """
         Minimize error between real_stats and sync_stats
         """
@@ -240,51 +243,57 @@ class PrivGA(Generator):
             state = state.replace(archive=new_archive)
 
         last_fitness = None
-        best_fitness_avg = 100000
+        best_fitness_total = 100000
         smooth_loss_sum = 0
         last_loss = None
+        start_time: float = 0.0
+        self.early_stop_init()
+        total_best_fitness = 1000000
+
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             # Produce new candidates
-            stime1 = time.time()
             x, state = self.strategy.ask(ask_subkey, state)
-            stime2 = time.time()
+
             # Fitness of each candidate
             fitness = fitness_fn(x)
 
-            stime3 = time.time()
             # Get next population
             state = self.strategy.tell(x, fitness, state)
 
             best_fitness = fitness.min()
 
             # Early stop
-            best_fitness_avg = min(best_fitness_avg, best_fitness)
-            X_sync = state.best_member
-            smooth_loss_sum += best_fitness
+            best_fitness_total = min(best_fitness_total, best_fitness)
 
-            if t >= self.stop_loss_time_window and t % self.stop_loss_time_window == 0:
-                smooth_loss_avg = smooth_loss_sum / self.stop_loss_time_window
-                if last_loss is not None:
-                    loss_change = jnp.abs(smooth_loss_avg - last_loss) / last_loss
-                    if loss_change < 0.001:
-                        if self.print_progress:
-                            print(f'\tStop early at {t}')
-                        break
-                last_loss = smooth_loss_avg
-                smooth_loss_sum = 0
+
+            if self.early_stop(best_fitness_total):
+                if self.print_progress:
+                    print(f'\tStop early at {t}')
+                break
+
+            X_sync = state.best_member
+            max_error = stat.priv_loss_inf(X_sync)
+            if max_error < tolerance:
+                if self.print_progress:
+                    print(f'\tTolerance hit at t={t}')
+                break
 
             if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
                 if self.print_progress:
-                    max_error = stat.priv_loss_inf(X_sync)
-                    print(f'\tGeneration {t:03}, best_l2_fitness = {jnp.sqrt(best_fitness):.6f}, ', end=' ')
-                    print(f'\ttime={time.time() -init_time:.6f}(s):', end='')
-                    print(f'\t\tprivate max_error={max_error:.3f}', end='')
-                    print(f'\t\tprivate l2_error={stat.priv_loss_l2(X_sync):.6f}', end='')
+                    print(f'\tGeneration {t:05}, best_l2_fitness = {jnp.sqrt(best_fitness):.6f}, ', end=' ')
+                    print(f'\t\tprivate (max/l2) error={stat.priv_loss_inf(X_sync):.5f}/{stat.priv_loss_l2(X_sync):.7f}', end='')
+                    print(f'\t\ttrue (max/l2) error={stat.true_loss_inf(X_sync):.5f}/{stat.true_loss_l2(X_sync):.7f}', end='')
+                    print(f'\ttime={time.time() -init_time:.7f}(s):', end='')
                     print()
                 last_fitness = best_fitness
+            if t == 0:
+                start_time = time.time()
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
+        if self.print_progress:
+            print(f'\t\tFinal private max_error={stat.priv_loss_inf(X_sync):.3f}, private l2_error={stat.priv_loss_l2(X_sync):.6f},', end='\n')
+
         return sync_dataset
 
 
