@@ -8,17 +8,19 @@ class PrivateMarginalsState:
         self.true_stats = []
         self.priv_stats = []
         self.priv_marginals_fn = []
+        self.priv_row_answers_fn = []
         self.priv_diff_marginals_fn = []
         self.selected_marginals = []
 
         self.priv_loss_l2_fn_jit_list = []
         self.priv_loss_l2_fn_jit_vmap_list = []
 
-    def add_stats(self, true_stat, priv_stat, marginal_fn, diff_marginal_fn):
+    def add_stats(self, true_stat, priv_stat, marginal_fn, row_answers_fn, diff_marginal_fn):
         self.NUM_STATS += true_stat.shape[0]
         self.true_stats.append(true_stat)
         self.priv_stats.append(priv_stat)
         self.priv_marginals_fn.append(marginal_fn)
+        self.priv_row_answers_fn.append(row_answers_fn)
         self.priv_diff_marginals_fn.append(diff_marginal_fn)
 
         # priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2) / priv_stat.shape[0]
@@ -31,6 +33,9 @@ class PrivateMarginalsState:
         # fitness_fn_vmap = lambda x_pop: compute_error_vmap(x_pop)
         # fitness_fn_vmap_jit = jax.jit(fitness_fn)
 
+        get_stats_vmap = lambda X: marginal_fn(X)
+        self.get_stats_vmap = jax.vmap(get_stats_vmap, in_axes=(0, ))
+
     def get_true_stats(self):
         return jnp.concatenate(self.true_stats)
 
@@ -39,6 +44,9 @@ class PrivateMarginalsState:
 
     def get_stats(self, X):
         return jnp.concatenate([fn(X) for fn in self.priv_marginals_fn])
+
+    def get_rows_answers(self, X):
+        return jnp.concatenate([fn(X) for fn in self.priv_row_answers_fn], axis=1)
 
     def get_diff_stats(self, X):
         return jnp.concatenate([diff_fn(X) for diff_fn in self.priv_diff_marginals_fn])
@@ -100,50 +108,3 @@ class PrivateMarginalsState:
 
 
 
-def get_private_statistics(self, key, rho):
-
-    state = PrivateMarginalsState()
-
-    rho_per_stat = rho / len(self.true_stats)
-    for i in range(len(self.true_stats)):
-        true_stat = self.true_stats[i]
-        key, key_gaussian = jax.random.split(key, 2)
-        sensitivity = self.sensitivity[i]
-
-        sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_stat)))
-        gau_noise = jax.random.normal(key_gaussian, shape=true_stat.shape) * sigma_gaussian
-        priv_stat = jnp.clip(true_stat + gau_noise, 0, 1)
-
-        state.add_stats(true_stat, priv_stat, self.marginals_fn[i],
-                        self.diff_marginals_fn[i] if not self.IS_REAL_VALUED else None)
-
-    return state
-
-
-def private_select_measure_statistic(self, key, rho_per_round, X_sync, state: PrivateMarginalsState):
-    rho_per_round = rho_per_round / 2
-
-    key, key_em = jax.random.split(key, 2)
-    errors = self.get_sync_data_errors(X_sync)
-    max_sensitivity = max(self.sensitivity)
-    worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), max_sensitivity)
-
-    key, key_gaussian = jax.random.split(key, 2)
-    selected_true_stat = self.true_stats[worse_index]
-
-    sensitivity = self.sensitivity[worse_index]
-    sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
-    gau_noise = jax.random.normal(key_gaussian, shape=selected_true_stat.shape) * sigma_gaussian
-
-    selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
-
-    state.add_stats(selected_true_stat, selected_priv_stat, self.marginals_fn[worse_index],
-                    self.diff_marginals_fn[worse_index] if not self.IS_REAL_VALUED else None)
-
-    return state
-
-def exponential_mechanism(key:jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
-    dist = jax.nn.softmax(2 * eps0 * scores / (2 * sensitivity))
-    cumulative_dist = jnp.cumsum(dist)
-    max_query_idx = jnp.searchsorted(cumulative_dist, jax.random.uniform(key, shape=(1,)))
-    return max_query_idx[0]

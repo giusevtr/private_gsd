@@ -415,9 +415,9 @@ def test_mating():
 def test_jit_ask(domain, rounds):
     print(f'Test jit(ask) with {rounds} rounds.')
 
-    strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=30, data_size=5000,
-                                   muta_rate=100,
-                                   mate_rate=500)
+    strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=30, data_size=2000,
+                                   muta_rate=1,
+                                   mate_rate=1)
     stime = time.time()
     key = jax.random.PRNGKey(0)
     state = strategy.initialize(rng=key)
@@ -429,7 +429,7 @@ def test_jit_ask(domain, rounds):
         x, state = strategy.ask(key, state)
         x.block_until_ready()
         if r <= 3 or r == rounds - 1:
-            print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.3f}')
+            print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.5f}')
 
 
 if __name__ == "__main__":
@@ -440,4 +440,4 @@ if __name__ == "__main__":
 
     # test_mutation()
     # test_mating()
-    test_jit_ask(domain, rounds=100)
+    test_jit_ask(domain, rounds=10)

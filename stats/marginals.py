@@ -5,6 +5,8 @@ from utils import Dataset, Domain
 from utils.utils_data import Domain
 from stats.private_statistics import PrivateMarginalsState
 import numpy as np
+import chex
+
 
 # class PrivateMarginalsState:
 #     def __init__(self):
@@ -143,6 +145,7 @@ class Marginals:
     def fit(self, data: Dataset):
         self.true_stats = []
         self.marginals_fn = []
+        self.row_answer_fn = []
         self.diff_marginals_fn = []
         self.sensitivity = []
 
@@ -156,14 +159,23 @@ class Marginals:
                 sizes.append(self.domain.size(col))
             indices = self.domain.get_attribute_indices(cols)
             fn, sensitivity = self.get_marginal_stats_fn_helper(indices, sizes)
+            row_answer_fn, sensitivity = self.get_marginal_stats_fn_helper(indices, sizes)
+            # row_answer_fn_vmap = jax.vmap(row_answer_fn, in_axes=(0, ), out_axes=(0, ))
+            row_answer_fn_vmap = jax.vmap(row_answer_fn, in_axes=(0, ))
             self.true_stats.append(fn(X))
             self.marginals_fn.append(jax.jit(fn))
+
+            self.row_answer_fn.append(jax.jit(row_answer_fn_vmap))
+
             self.sensitivity.append(sensitivity / self.N)
 
             if not self.IS_REAL_VALUED:
                 # Don't add differentiable queries
                 diff_fn, sensitivity = self.get_differentiable_stats_fn_helper(cols)
                 self.diff_marginals_fn.append(diff_fn)
+
+        get_stats_vmap = lambda X: self.get_stats_jax(X)
+        self.get_stats_jax_vmap = jax.vmap(get_stats_vmap, in_axes=(0,))
 
     def get_num_queries(self):
         return len(self.true_stats)
@@ -184,6 +196,24 @@ class Marginals:
             fn = self.marginals_fn[i]
             stats.append(fn(X))
         return jnp.concatenate(stats)
+
+
+    def get_stats_jax(self, X: chex.Array):
+        stats = []
+        I = list(range(self.get_num_queries()))
+        for i in I:
+            fn = self.marginals_fn[i]
+            stats.append(fn(X))
+        return jnp.concatenate(stats)
+
+    def get_row_answers(self, data: Dataset, indices: list = None):
+        X = data.to_numpy()
+        stats = []
+        I = indices if indices is not None else list(range(self.get_num_queries()))
+        for i in I:
+            fn = self.row_answer_fn[i]
+            stats.append(fn(X))
+        return jnp.concatenate(stats, axis=1)
 
     def get_diff_stats(self, data: Dataset, indices: list = None):
         assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
@@ -222,6 +252,7 @@ class Marginals:
         :return:
         """
         is_numeric = False
+        dim = len(self.domain.attrs)
         cat_idx = self.domain.get_attribute_indices(self.domain.get_categorical_cols())
         for i in idx:
             if i not in cat_idx:
@@ -235,6 +266,7 @@ class Marginals:
 
             def stat_fn(X):
 
+                X = X.reshape((-1, dim))
                 X_proj = X[:, idx]
                 stats = []
                 for sizes_jnp in bins_sizes:
@@ -250,6 +282,7 @@ class Marginals:
             sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(idx, sizes)]
             def stat_fn(X):
                 # X_proj = (X[:, idx]).astype(int)
+                X = X.reshape((-1, dim))
                 X_proj = X[:, idx]
                 stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
                 return stat
@@ -294,6 +327,7 @@ class Marginals:
         selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
 
         state.add_stats(selected_true_stat, selected_priv_stat, self.marginals_fn[worse_index],
+                        self.row_answer_fn[worse_index],
                         self.diff_marginals_fn[worse_index] if not self.IS_REAL_VALUED else None)
 
         return state
@@ -312,7 +346,7 @@ class Marginals:
             gau_noise = jax.random.normal(key_gaussian, shape=true_stat.shape) * sigma_gaussian
             priv_stat = jnp.clip(true_stat + gau_noise, 0, 1)
 
-            state.add_stats(true_stat, priv_stat, self.marginals_fn[i],
+            state.add_stats(true_stat, priv_stat, self.marginals_fn[i], self.row_answer_fn[i],
                             self.diff_marginals_fn[i] if not self.IS_REAL_VALUED else None)
 
         return state
@@ -485,9 +519,38 @@ def test_runtime():
             print(f'2) it={it:02}. time = {time.time()-stime:.5f}')
     print(f'second evaluate elapsed time = {time.time() - stime:.5f}')
 
+def test_row_answers():
+
+    import numpy as np
+    import pandas as pd
+    print('debug')
+    cols = ['A', 'B', 'C']
+    domain = Domain(cols, [2, 3, 1])
+
+    A = pd.DataFrame(np.array([
+        [0, 0, 0.1],
+        [0, 2, 0.3],
+        [0, 2, 0.9],
+        [0, 1, 0.0],
+    ]), columns=cols)
+    data = Dataset(A, domain=domain)
+
+    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=[2, 4, 8])
+    stat_mod.fit(data)
+
+    stats1 = stat_mod.get_true_stats()
+
+    row_answers = stat_mod.get_row_answers(data)
+    print(stats1.shape)
+    print(stats1)
+    print(f'row_answers.shape:')
+    print(row_answers.shape)
+    print(f'row_answers:')
+    print(row_answers)
 
 if __name__ == "__main__":
     # test_mixed()
     # test_runtime()
     # test_real_and_diff()
-    test_discrete()
+    # test_discrete()
+    test_row_answers()
