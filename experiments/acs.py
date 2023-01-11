@@ -5,7 +5,7 @@ import os
 import jax
 import jax.random
 import jax.numpy as jnp
-from models import PrivGAfast, SimpleGAforSyncDataFast, Generator, RelaxedProjection
+from models import PrivGA, SimpleGAforSyncData, Generator, RelaxedProjection
 from stats import Marginals
 from utils.utils_data import get_data
 
@@ -29,11 +29,11 @@ def run_experiments(epsilon=(0.07,0.23,0.52,0.74,1.0,)):
         data_name = f'folktables_2018_{task}_{state}'
         data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                         domain_name=f'folktables_datasets/domain/{data_name}-cat')
-        priv_ga = PrivGAfast(
+        priv_ga = PrivGA(
             num_generations=10000,
             stop_loss_time_window=50,
             print_progress=True,
-            strategy=SimpleGAforSyncDataFast(
+            strategy=SimpleGAforSyncData(
                 domain=data.domain,
                 data_size=2000,
                 population_size=1000,
