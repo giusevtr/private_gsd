@@ -23,15 +23,14 @@ class Generator:
 
     def early_stop(self, error):
         current_time = time.time()
-        elapsed_time = current_time - self.start_time
+        stop_early = False
         if current_time - self.last_time > self.early_stop_elapsed_time:
             loss_change = jnp.abs(error - self.last_error) / self.last_error
-            # print(f'\t\tError={error:.8f}\tLast error={self.last_error:.8f}\tError change={loss_change:<.5f}\telapsed time={elapsed_time:.5f}')
             if loss_change < 0.001:
-                return True
+                stop_early = True
             self.last_time = current_time
             self.last_error = error
-        return False
+        return stop_early
 
 
 

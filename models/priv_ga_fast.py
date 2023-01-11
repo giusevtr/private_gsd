@@ -263,6 +263,7 @@ class PrivGAfast(Generator):
             add_stats = get_stats_for_fitness(added_rows) * num_rows
             upt_sync_stat = init_sync_stat + add_stats - rem_stats
             fitness = jnp.linalg.norm(priv_stats - upt_sync_stat/self.data_size, ord=2)
+            # fitness = jnp.abs(priv_stats - upt_sync_stat/self.data_size).max()
             return fitness, upt_sync_stat
         # fitness_fn = lambda sync_stat: jnp.linalg.norm(priv_stats - sync_stat, ord=2)
         fitness_vmap_fn = jax.vmap(fitness_fn, in_axes=(0, 0, 0))
@@ -282,14 +283,14 @@ class PrivGAfast(Generator):
         tell_time = 0
         last_fitness = None
 
-        mutate_only = False
+        mutate_only = 0
 
         for t in range(self.num_generations):
             self.key, ask_subkey = jax.random.split(self.key, 2)
 
             # ASK
             t0 = timer()
-            x, a, removed_rows, added_rows, state = self.strategy.ask(ask_subkey, state, mutate_only=mutate_only)
+            x, a, removed_rows, added_rows, state = self.strategy.ask(ask_subkey, state, mutate_only=mutate_only>0)
             ask_time += timer() - t0
 
             # FIT
@@ -305,10 +306,25 @@ class PrivGAfast(Generator):
 
             best_fitness = fitness.min()
 
-            # Early stop
+            # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)
 
-            stop_early = self.early_stop(best_fitness_total)
+            stop_early = False
+            if mutate_only == 0 and self.early_stop(best_fitness_total):
+                # If early stop is hit for the first type then set a flag to begin mutate only
+                if self.print_progress:
+                    print(f'\t\tSwitching to mutate only at t={t}')
+                mutate_only = mutate_only + 1
+            elif mutate_only == 1:
+                # if this is the first round where mutate_only is turned on then do nothing
+                # This allows time for the jax.jit function to compile
+                self.early_stop(best_fitness_total)  # Call this function to reset the time
+                mutate_only = mutate_only + 1
+            elif mutate_only == 2 and self.early_stop(best_fitness_total):
+                # if early stop is hit a second time then halt
+                if self.print_progress:
+                    print(f'\t\tStop early at t={t}')
+                stop_early = True
 
             if last_fitness is None or best_fitness < last_fitness * 0.99 or t > self.num_generations-2 or stop_early:
                 if self.print_progress:
@@ -322,14 +338,7 @@ class PrivGAfast(Generator):
                 last_fitness = best_fitness
 
             if stop_early:
-                if not mutate_only:
-                    if self.print_progress:
-                        print('\t\tSwitching to mutate only at t={t}')
-                    mutate_only = True
-                else:
-                    if self.print_progress:
-                        print(f'\t\tStop early at t={t}')
-                    break
+                break
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
