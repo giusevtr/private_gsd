@@ -93,7 +93,8 @@ class PrivateMarginalsState:
         for jit_fn in self.priv_loss_l2_fn_jit_vmap_list:
             this_loss = jit_fn(X_pop)
             loss = this_loss if loss is None else loss + this_loss
-        return loss / self.NUM_STATS if loss is not None else 0
+        # return loss / self.NUM_STATS if loss is not None else 0
+        return loss if loss is not None else 0
 
 
     def priv_diff_loss_inf(self, X_oh):

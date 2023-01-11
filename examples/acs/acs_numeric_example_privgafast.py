@@ -44,7 +44,7 @@ if __name__ == "__main__":
             population_size=100,
             elite_size=10,
             muta_rate=1,
-            mate_rate=0
+            mate_rate=10
         )
     )
 
