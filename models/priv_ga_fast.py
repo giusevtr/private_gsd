@@ -87,6 +87,7 @@ class SimpleGAforSyncDataFast:
         # return state
         init_x = self.initialize_population(rng)
         init_a = self.data_size * eval_stats_vmap(init_x)
+        # print("check,shape:",init_a.shape)
         state = EvoState(
             mean=init_x.mean(axis=0),
             archive=init_x,
@@ -96,19 +97,19 @@ class SimpleGAforSyncDataFast:
         )
         return state
 
-    # @partial(jax.jit, static_argnums=(0,))
-    def initialize_strategy(self, rng: chex.PRNGKey) -> EvoState:
-        """`initialize` the differential evolution strategy."""
-        initialization = self.initialize_population(rng).astype(jnp.float32)
-
-        state = EvoState(
-            mean=initialization.mean(axis=0),
-            archive=initialization,
-            archive_row_answers=jnp.zeros((self.elite_size, 1)),
-            fitness=jnp.zeros(self.elite_size) + jnp.finfo(jnp.float32).max,
-            best_member=initialization[0],
-        )
-        return state
+    # # @partial(jax.jit, static_argnums=(0,))
+    # def initialize_strategy(self, rng: chex.PRNGKey) -> EvoState:
+    #     """`initialize` the differential evolution strategy."""
+    #     initialization = self.initialize_population(rng).astype(jnp.float32)
+    #
+    #     state = EvoState(
+    #         mean=initialization.mean(axis=0),
+    #         archive=initialization,
+    #         archive_row_answers=jnp.zeros((self.elite_size, 1)),
+    #         fitness=jnp.zeros(self.elite_size) + jnp.finfo(jnp.float32).max,
+    #         best_member=initialization[0],
+    #     )
+    #     return state
 
     @partial(jax.jit, static_argnums=(0,))
     def initialize_population(self, rng: chex.PRNGKey):
@@ -120,14 +121,15 @@ class SimpleGAforSyncDataFast:
     def ask_strategy(self, rng: chex.PRNGKey, eval_stats_vmap, state):
         x_mutated, old_rows, new_rows, idx_elite = self.ask_mutate_help(rng, state)
         # print(f'debug1: {time.time() - stime}')
-
+        # print("old_rows:",old_rows.shape)
         pop_ind = jnp.arange(self.population_size)
         old_stats = eval_stats_vmap(old_rows)
-
+        # print("old_stats:",old_stats.shape)
         new_stats = eval_stats_vmap(new_rows)
 
         # Update stats
         a = state.archive_stats[idx_elite]  # With corresponding statistics
+        # print("a:",a.shape)
         a_updated = a.at[pop_ind].add(new_stats - old_stats)
 
         return x_mutated, a_updated, state

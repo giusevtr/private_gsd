@@ -5,7 +5,7 @@ import os
 import jax
 import jax.random
 import jax.numpy as jnp
-from models import PrivGA, SimpleGAforSyncData, Generator, RelaxedProjection
+from models import PrivGAfast, SimpleGAforSyncDataFast, Generator, RelaxedProjection
 from stats import Marginals
 from utils.utils_data import get_data
 
@@ -24,16 +24,29 @@ def run_experiments(epsilon=(0.07,0.23,0.52,0.74,1.0,)):
     # tasks = ['coverage']
     states = ['CA']
     RESULTS = []
-    print("ssm:bb")
+    print("ssm:b")
     for task, state in itertools.product(tasks, states):
         data_name = f'folktables_2018_{task}_{state}'
         data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                         domain_name=f'folktables_datasets/domain/{data_name}-cat')
-        rap = RelaxedProjection(domain=data.domain, data_size=1000, iterations=1000, learning_rate=0.05, print_progress=False)
-        ALGORITHMS = [rap]
+        priv_ga = PrivGAfast(
+            num_generations=10000,
+            stop_loss_time_window=50,
+            print_progress=True,
+            strategy=SimpleGAforSyncDataFast(
+                domain=data.domain,
+                data_size=2000,
+                population_size=1000,
+                elite_size=2,
+                muta_rate=1,
+                mate_rate=0
+            )
+        )
+        # rap = RelaxedProjection(domain=data.domain, data_size=1000, iterations=1000, learning_rate=0.05, print_progress=False)
+        ALGORITHMS = [priv_ga]
         delta = 1.0 / len(data) ** 2
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)
-        stats_module = Marginals.get_all_kway_combinations(data.domain, k=3,bins=30)
+        stats_module = Marginals.get_all_kway_combinations(data.domain, k=3,bins=(30,))
         # print("workloadaa:",stats_module.get_num_queries())
         stats_module.fit(data)
 
