@@ -39,7 +39,7 @@ def run_experiments(epsilon=(0.07,0.23,0.52,0.74,1.0,)):
                 population_size=1000,
                 elite_size=2,
                 muta_rate=1,
-                mate_rate=0
+                mate_rate=200
             )
         )
         # rap = RelaxedProjection(domain=data.domain, data_size=1000, iterations=1000, learning_rate=0.05, print_progress=False)

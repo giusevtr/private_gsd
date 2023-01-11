@@ -122,6 +122,25 @@ class Marginals:
     def get_all_kway_combinations(domain, k, bins=(32,)):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
         return Marginals(domain, kway_combinations, bins=bins)
+    @staticmethod
+    def get_all_kway_mixed_combinations_v1(domain, k, bins=(32,)):
+        num_numeric_feats = len(domain.get_numeric_cols())
+        k_real = num_numeric_feats
+
+        kway_combinations = []
+
+        for cols in itertools.combinations(domain.attrs, k):
+            count_disc = 0
+            count_real = 0
+            for c in list(cols):
+                if c in domain.get_numeric_cols():
+                    count_real += 1
+                else:
+                    count_disc += 1
+            if count_disc > 0 and count_real > 0:
+                kway_combinations.append(list(cols))
+
+        return Marginals(domain, kway_combinations, bins=bins), kway_combinations
 
     @staticmethod
     def get_all_kway_mixed_combinations(domain, k_disc, k_real, bins=(32,)):
@@ -201,12 +220,8 @@ class Marginals:
 
 
     def get_stats_jax(self, X: chex.Array):
-        stats = []
-        I = list(range(self.get_num_queries()))
-        for i in I:
-            fn = self.marginals_fn[i]
-            stats.append(fn(X))
-        return jnp.concatenate(stats)
+        stats = jnp.concatenate([fn(X) for fn in self.marginals_fn])
+        return stats
 
     def get_row_answers(self, data: Dataset, indices: list = None):
         X = data.to_numpy()

@@ -35,16 +35,16 @@ if __name__ == "__main__":
     ########
     data_size = 2000
     priv_ga = PrivGAfast(
-        num_generations=10000,
+        num_generations=100000,
         stop_loss_time_window=50,
         print_progress=True,
         strategy=SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
-            population_size=500,
+            population_size=100,
             elite_size=10,
             muta_rate=1,
-            mate_rate=0
+            mate_rate=10
         )
     )
 

@@ -108,13 +108,14 @@ class SimpleGAforSyncData:
     ) -> Tuple[chex.Array, EvoState]:
         rng, rng_a, rng_b, rng_mate, rng_2 = jax.random.split(rng, 5)
         elite_ids = jnp.arange(self.elite_size)
+        pop_size = self.population_size // 2
 
-        idx_a = jax.random.choice(rng_a, elite_ids, (self.population_size // 2,))
-        idx_b = jax.random.choice(rng_b, elite_ids, (self.population_size // 2,))
+        idx_a = jax.random.choice(rng_a, elite_ids, (pop_size,))
+        idx_b = jax.random.choice(rng_b, elite_ids, (pop_size,))
         A = state.archive[idx_a]
         B = state.archive[idx_b]
 
-        rng_mate_split = jax.random.split(rng_mate, self.population_size // 2)
+        rng_mate_split = jax.random.split(rng_mate, pop_size)
         C = self.mate_vmap(rng_mate_split, A, B)
 
 
@@ -232,7 +233,7 @@ class PrivGA(Generator):
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
         # FITNESS
-        fitness_fn = stat.priv_loss_l2_vmap_jit
+        fitness_fn = jax.jit(stat.priv_loss_l2_vmap_jit)
 
         self.key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
@@ -250,16 +251,27 @@ class PrivGA(Generator):
         self.early_stop_init()
         total_best_fitness = 1000000
 
+        ask_time = 0
+        fit_time = 0
+        tell_time = 0
         for t in range(self.num_generations):
             self.key, ask_subkey, eval_subkey = jax.random.split(self.key, 3)
             # Produce new candidates
+            t0 = time.time()
             x, state = self.strategy.ask(ask_subkey, state)
+            ask_time += time.time() - t0
+
 
             # Fitness of each candidate
+            t0 = time.time()
             fitness = fitness_fn(x)
+            fit_time += time.time() - t0
+
 
             # Get next population
+            t0 = time.time()
             state = self.strategy.tell(x, fitness, state)
+            tell_time += time.time() - t0
 
             best_fitness = fitness.min()
 
@@ -272,23 +284,18 @@ class PrivGA(Generator):
                     print(f'\tStop early at {t}')
                 break
 
-            X_sync = state.best_member
-            max_error = stat.priv_loss_inf(X_sync)
-            if max_error < tolerance:
-                if self.print_progress:
-                    print(f'\tTolerance hit at t={t}')
-                break
 
             if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
                 if self.print_progress:
+                    X_sync = state.best_member
                     print(f'\tGeneration {t:05}, best_l2_fitness = {jnp.sqrt(best_fitness):.6f}, ', end=' ')
                     print(f'\t\tprivate (max/l2) error={stat.priv_loss_inf(X_sync):.5f}/{stat.priv_loss_l2(X_sync):.7f}', end='')
                     print(f'\t\ttrue (max/l2) error={stat.true_loss_inf(X_sync):.5f}/{stat.true_loss_l2(X_sync):.7f}', end='')
-                    print(f'\ttime={time.time() -init_time:.7f}(s):', end='')
+                    print(f'\ttime={time.time() -init_time:.4f}(s):', end='')
+                    print(f'\task_time={ask_time:.4f}(s), fit_time={fit_time:.4f}(s), tell_time={tell_time:.4f}', end='')
                     print()
                 last_fitness = best_fitness
-            if t == 0:
-                start_time = time.time()
+
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         if self.print_progress:
@@ -411,12 +418,16 @@ def test_mating():
 
 
 # @timeit
-def test_jit_ask(domain, rounds):
-    print(f'Test jit(ask) with {rounds} rounds.')
+def test_jit_ask():
+    rounds = 10
+    d = 20
+    k = 1
+    domain = Domain([f'A {i}' for i in range(d)], [3 for _ in range(d)])
+    print(f'Test jit(ask) with {rounds} rounds. d={d}, k={k}')
 
-    strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=30, data_size=2000,
+    strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=10, data_size=2000,
                                    muta_rate=1,
-                                   mate_rate=1)
+                                   mate_rate=50)
     stime = time.time()
     key = jax.random.PRNGKey(0)
     state = strategy.initialize(rng=key)
@@ -427,16 +438,15 @@ def test_jit_ask(domain, rounds):
         stime = time.time()
         x, state = strategy.ask(key, state)
         x.block_until_ready()
-        if r <= 3 or r == rounds - 1:
-            print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.5f}')
+        # if r <= 3 or r == rounds - 1:
+        print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.5f}')
+        print()
 
 
 if __name__ == "__main__":
 
-    d = 30
-    domain = Domain([f'A {i}' for i in range(d)], [3 for _ in range(d)])
     # test_crossover()
 
     # test_mutation()
     # test_mating()
-    test_jit_ask(domain, rounds=10)
+    test_jit_ask()
