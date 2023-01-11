@@ -34,14 +34,14 @@ if __name__ == "__main__":
 
     print(f'workloads = ', len(stats_module.true_stats))
 
-    data_size = 1000
+    data_size = 2000
     strategy = SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
             population_size=100,
             elite_size=10,
             muta_rate=1,
-            mate_rate=10,
+            mate_rate=40,
                 debugging=False
         )
     priv_ga = PrivGAfast(

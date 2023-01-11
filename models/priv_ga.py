@@ -285,7 +285,7 @@ class PrivGA(Generator):
                 break
 
 
-            if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 :
+            if last_fitness is None or best_fitness < last_fitness * 0.99 or t > self.num_generations-2 :
                 if self.print_progress:
                     X_sync = state.best_member
                     print(f'\tGeneration {t:05}, best_l2_fitness = {jnp.sqrt(best_fitness):.6f}, ', end=' ')
@@ -427,7 +427,7 @@ def test_jit_ask():
 
     strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=10, data_size=2000,
                                    muta_rate=1,
-                                   mate_rate=50)
+                                   mate_rate=1)
     stime = time.time()
     key = jax.random.PRNGKey(0)
     state = strategy.initialize(rng=key)
@@ -438,6 +438,7 @@ def test_jit_ask():
         stime = time.time()
         x, state = strategy.ask(key, state)
         x.block_until_ready()
+
         # if r <= 3 or r == rounds - 1:
         print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.5f}')
         print()
