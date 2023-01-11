@@ -26,7 +26,8 @@ if __name__ == "__main__":
 
     # Create statistics and evaluate
     BINS = [2, 4, 8, 16, 32]
-    marginal_module, kway = Marginals.get_all_kway_mixed_combinations_v1(data.domain, k=2, bins=BINS)
+    # marginal_module, kway = Marginals.get_all_kway_mixed_combinations_v1(data.domain, k=2, bins=BINS)
+    marginal_module, kway = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2, bins=BINS)
     marginal_module.fit(data)
 
     print(f'Workloads = {len(marginal_module.true_stats)}')

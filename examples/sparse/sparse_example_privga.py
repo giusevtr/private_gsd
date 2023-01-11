@@ -26,18 +26,12 @@ if __name__ == "__main__":
     data = get_sparse_dataset(DATA_SIZE=10000)
     # plot_2d_data(data.to_numpy())
     plot_sparse(data.to_numpy(), title='Original sparse')
-    bins = [2, 4, 8, 16, 32, 64, 128]
+    bins = [2, 4, 8, 16, 32, 64]
 
     stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
                                                                                 bins=bins)
-
-    # stats_module = Marginals.get_all_kway_combinations(data.domain, 3, bins=bins)
     stats_module.fit(data)
-
     print(f'workloads = ', len(stats_module.true_stats))
-
-
-
     data_size = 2000
     strategy = SimpleGAforSyncData(
             domain=data.domain,
@@ -45,7 +39,7 @@ if __name__ == "__main__":
             population_size=100,
             elite_size=10,
             muta_rate=1,
-            mate_rate=40
+            mate_rate=10
         )
     priv_ga = PrivGA(
                     num_generations=10000,

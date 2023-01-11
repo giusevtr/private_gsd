@@ -278,23 +278,22 @@ class PrivGA(Generator):
             # Early stop
             best_fitness_total = min(best_fitness_total, best_fitness)
 
+            stop_early = self.early_stop(best_fitness_total)
 
-            if self.early_stop(best_fitness_total):
-                if self.print_progress:
-                    print(f'\tStop early at {t}')
-                break
-
-
-            if last_fitness is None or best_fitness < last_fitness * 0.99 or t > self.num_generations-2 :
+            if last_fitness is None or best_fitness < last_fitness * 0.99 or t > self.num_generations-2 or stop_early:
                 if self.print_progress:
                     X_sync = state.best_member
-                    print(f'\tGeneration {t:05}, best_l2_fitness = {jnp.sqrt(best_fitness):.6f}, ', end=' ')
+                    print(f'\tGeneration {t:05}, best_l2_fitness = {best_fitness:.6f}, ', end=' ')
                     print(f'\t\tprivate (max/l2) error={stat.priv_loss_inf(X_sync):.5f}/{stat.priv_loss_l2(X_sync):.7f}', end='')
                     print(f'\t\ttrue (max/l2) error={stat.true_loss_inf(X_sync):.5f}/{stat.true_loss_l2(X_sync):.7f}', end='')
                     print(f'\ttime={time.time() -init_time:.4f}(s):', end='')
                     print(f'\task_time={ask_time:.4f}(s), fit_time={fit_time:.4f}(s), tell_time={tell_time:.4f}', end='')
                     print()
+                    if stop_early: print(f'\tStop early at {t}')
+
                 last_fitness = best_fitness
+
+            if stop_early: break
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
@@ -427,7 +426,7 @@ def test_jit_ask():
 
     strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=10, data_size=2000,
                                    muta_rate=1,
-                                   mate_rate=1)
+                                   mate_rate=0)
     stime = time.time()
     key = jax.random.PRNGKey(0)
     state = strategy.initialize(rng=key)
@@ -440,7 +439,7 @@ def test_jit_ask():
         x.block_until_ready()
 
         # if r <= 3 or r == rounds - 1:
-        print(f'{r:>3}) Jitted elapsed time {time.time() - stime:.5f}')
+        print(f'{r:>3}) ask() elapsed time {time.time() - stime:.5f}')
         print()
 
 

@@ -539,18 +539,16 @@ def test_row_answers():
     import numpy as np
     import pandas as pd
     print('debug')
-    cols = ['A', 'B', 'C']
-    domain = Domain(cols, [2, 3, 1])
+    cols = ['A']
+    domain = Domain(cols, [1])
 
     A = pd.DataFrame(np.array([
-        [0, 0, 0.1],
-        [0, 2, 0.3],
-        [0, 2, 0.9],
-        [0, 1, 0.0],
+        [ 0.4999],
+        [ 0.999],
     ]), columns=cols)
     data = Dataset(A, domain=domain)
 
-    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=[2, 4, 8])
+    stat_mod = Marginals.get_all_kway_combinations(domain, 1, bins=[2])
     stat_mod.fit(data)
 
     stats1 = stat_mod.get_true_stats()
