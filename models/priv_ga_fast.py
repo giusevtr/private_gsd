@@ -5,15 +5,14 @@ XLA_FLAGS=--xla_force_host_platform_device_count=4
 import jax.numpy as jnp
 from models import Generator
 import time
-from stats import Marginals, PrivateMarginalsState
+from stats import PrivateMarginalsState
 from typing import Callable
 import jax
-import numpy as np
 import chex
 from flax import struct
 from utils import Dataset, Domain
 from functools import partial
-from typing import Tuple, Optional
+from typing import Tuple
 from evosax.utils import get_best_fitness_member
 
 
@@ -396,6 +395,3 @@ if __name__ == "__main__":
     # test_mutation()
     test_jit_ask()
     # test_jit_mutate()
-    # test_jit_mate()
-
-    # test_mate_muta()

@@ -233,7 +233,7 @@ class PrivGA(Generator):
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
         # FITNESS
-        fitness_fn = jax.jit(stat.priv_loss_l2_vmap_jit)
+        fitness_fn = stat.priv_loss_l2_vmap_jit
 
         self.key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
@@ -261,7 +261,7 @@ class PrivGA(Generator):
             x, state = self.strategy.ask(ask_subkey, state)
             ask_time += time.time() - t0
 
-
+            # fitness_fn = jax.jit(stat.priv_loss_l2_vmap_jit)
             # Fitness of each candidate
             t0 = time.time()
             fitness = fitness_fn(x)

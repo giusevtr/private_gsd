@@ -27,7 +27,7 @@ if __name__ == "__main__":
     for task, state in itertools.product(tasks, states):
         data_name = f'folktables_2018_{task}_{state}'
         data = get_data(f'folktables_datasets/{data_name}-mixed-train',
-                        domain_name=f'folktables_datasets/domain/{data_name}-num', root_path='../../data_files')
+                        domain_name=f'folktables_datasets/domain/{data_name}-mixed', root_path='../../data_files')
 
         data, col_range = data.normalize_real_values()
         # stats_module = TwoWayPrefix.get_stat_module(data.domain, num_rand_queries=1000000)

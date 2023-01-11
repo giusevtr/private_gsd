@@ -115,6 +115,8 @@ class Marginals:
 
         # Check that domain constains real-valued features
         self.IS_REAL_VALUED = len(domain.get_numeric_cols()) > 0
+    def __str__(self):
+        return f'Marginals'
 
     @staticmethod
     def get_all_kway_combinations(domain, k, bins=(32,)):
