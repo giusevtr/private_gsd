@@ -12,14 +12,14 @@ import time
 if __name__ == "__main__":
 
     # Get Data
-    ROUNDS = 5
+    ROUNDS = 4
     # adaptive_rounds = (3, 10, 100)
 
     task = 'mobility'
     state = 'CA'
     data_name = f'folktables_2018_{task}_{state}'
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
-                    domain_name=f'folktables_datasets/domain/{data_name}-mixed',  root_path='../../data_files/')
+                    domain_name=f'folktables_datasets/domain/{data_name}-num',  root_path='../../data_files/')
 
     # Real values must be in [0,1]
     data, real_cols_range = data.normalize_real_values()
@@ -28,12 +28,6 @@ if __name__ == "__main__":
     BINS = [2, 4, 8, 16, 32]
     marginal_module, kway = Marginals.get_all_kway_mixed_combinations_v1(data.domain, k=2, bins=BINS)
     marginal_module.fit(data)
-
-    true_stats = marginal_module.get_true_stats()
-    true_stats_np = np.array(true_stats)
-
-
-    np.save('2way_range_marginals.npy', true_stats_np)
 
     print(f'Workloads = {len(marginal_module.true_stats)}')
 
@@ -44,14 +38,14 @@ if __name__ == "__main__":
     priv_ga = PrivGA(
         num_generations=100000,
         stop_loss_time_window=50,
-        print_progress=True,
+        print_progress=False,
         strategy=SimpleGAforSyncData(
             domain=data.domain,
             data_size=data_size,
             population_size=100,
             elite_size=10,
             muta_rate=1,
-            mate_rate=0
+            mate_rate=40
         )
     )
 

@@ -11,7 +11,7 @@ import time
 if __name__ == "__main__":
 
     # Get Data
-    ROUNDS = 5
+    ROUNDS = 4
     # adaptive_rounds = (3, 10, 100)
 
     task = 'mobility'
@@ -37,14 +37,14 @@ if __name__ == "__main__":
     priv_ga = PrivGAfast(
         num_generations=100000,
         stop_loss_time_window=50,
-        print_progress=True,
+        print_progress=False,
         strategy=SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
             population_size=100,
             elite_size=10,
             muta_rate=1,
-            mate_rate=10
+            mate_rate=40
         )
     )
 
