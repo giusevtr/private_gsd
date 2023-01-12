@@ -66,7 +66,7 @@ class SimpleGAforSyncDataFast:
             archive=init_x,
             archive_stats=init_a,
             fitness=jnp.zeros(self.elite_size) + jnp.finfo(jnp.float32).max,
-            best_member=init_x[0],
+            best_member=init_x[0].astype(jnp.float32),
         )
 
         rng1, rng2 = jax.random.split(rng, 2)
