@@ -39,7 +39,7 @@ if __name__ == "__main__":
     priv_ga = PrivGA(
         num_generations=100000,
         stop_loss_time_window=50,
-        print_progress=False,
+        print_progress=True,
         strategy=SimpleGAforSyncData(
             domain=data.domain,
             data_size=data_size,
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                                  epsilon=1, delta=1e-6, tolerance=0.0, print_progress=True)
 
     true_stats = marginal_module.get_true_stats()
-    sync_stats = marginal_module.get_stats(sync_data)
+    sync_stats = marginal_module.priv_stats_fn(sync_data)
     print(f'PrivGA: max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
           f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
           f'time = {time.time() - stime:.5f}')

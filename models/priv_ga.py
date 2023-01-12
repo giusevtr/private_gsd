@@ -233,7 +233,7 @@ class PrivGA(Generator):
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
         # FITNESS
-        fitness_fn = stat.priv_loss_l2_vmap_jit
+        fitness_fn = stat.priv_population_l2_loss_fn_jit
 
         self.key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
@@ -261,7 +261,6 @@ class PrivGA(Generator):
             x, state = self.strategy.ask(ask_subkey, state)
             ask_time += time.time() - t0
 
-            # fitness_fn = jax.jit(stat.priv_loss_l2_vmap_jit)
             # Fitness of each candidate
             t0 = time.time()
             fitness = fitness_fn(x)
@@ -280,12 +279,12 @@ class PrivGA(Generator):
 
             stop_early = self.early_stop(best_fitness_total)
 
-            if last_fitness is None or best_fitness < last_fitness * 0.99 or t > self.num_generations-2 or stop_early:
+            if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 or stop_early:
                 if self.print_progress:
                     X_sync = state.best_member
                     print(f'\tGeneration {t:05}, best_l2_fitness = {best_fitness:.6f}, ', end=' ')
-                    print(f'\t\tprivate (max/l2) error={stat.priv_loss_inf(X_sync):.5f}/{stat.priv_loss_l2(X_sync):.7f}', end='')
-                    print(f'\t\ttrue (max/l2) error={stat.true_loss_inf(X_sync):.5f}/{stat.true_loss_l2(X_sync):.7f}', end='')
+                    print(f'\tprivate (max/l2) error={stat.priv_loss_inf(X_sync):.5f}/{stat.priv_loss_l2(X_sync):.7f}', end='')
+                    print(f'\ttrue (max/l2) error={stat.true_loss_inf(X_sync):.5f}/{stat.true_loss_l2(X_sync):.7f}', end='')
                     print(f'\ttime={time.time() -init_time:.4f}(s):', end='')
                     print(f'\task_time={ask_time:.4f}(s), fit_time={fit_time:.4f}(s), tell_time={tell_time:.4f}', end='')
                     print()
@@ -388,11 +387,8 @@ def test_mating():
     print(X)
     print('Y =')
     print(Y)
-
     print(f'x_mate:')
     print(x_mate)
-
-
 
     print(f'Runtime test:')
 

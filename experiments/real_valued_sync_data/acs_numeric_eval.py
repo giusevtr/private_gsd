@@ -61,7 +61,7 @@ if __name__ == "__main__":
                     # sync_data = get_data(sync_data_path,
                     #         domain_name=f'../../data_files/folktables_datasets/domain/{data_name}-num', root_path='.')
 
-                    sync_stats = stats_module.get_stats(sync_data)
+                    sync_stats = stats_module.priv_stats_fn(sync_data)
 
                     max_error = float(jnp.abs(orig_stats - sync_stats).max())
                     l1_error = float(jnp.linalg.norm(orig_stats-sync_stats, ord=1)/orig_stats.shape[0])

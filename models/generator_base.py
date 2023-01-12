@@ -96,7 +96,7 @@ class Generator:
 
             # Get errors for debugging
             errors_post_max = stat_module.get_sync_data_errors(X_sync).max()
-            errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats(sync_dataset), ord=1)/true_stats.shape[0]
+            errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats_jit(sync_dataset), ord=1)/true_stats.shape[0]
 
             round_true_max_loss = stat_state.true_loss_inf(X_sync)
             round_true_ave_loss = stat_state.true_loss_l2(X_sync)

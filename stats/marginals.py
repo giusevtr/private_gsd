@@ -11,8 +11,9 @@ import chex
 class Marginals:
     true_stats: list
     marginals_fn: list
-    row_answer_fn: list
+    marginals_fn_jit: list
     diff_marginals_fn: list
+    diff_marginals_fn_jit: list
     sensitivity: list
 
     def __init__(self, domain, kway_combinations, bins=(32,)):
@@ -75,8 +76,9 @@ class Marginals:
     def fit(self, data: Dataset):
         self.true_stats = []
         self.marginals_fn = []
-        self.row_answer_fn = []
+        self.marginals_fn_jit = []
         self.diff_marginals_fn = []
+        self.diff_marginals_fn_jit = []
         self.sensitivity = []
 
         X = data.to_numpy()
@@ -86,23 +88,25 @@ class Marginals:
         for cols in self.kway_combinations:
 
             if self.is_workload_numeric(cols):
-                fn, sensitivity = self.get_range_marginal_stats_fn_helper(cols)
-                row_answer_fn, sensitivity = self.get_range_marginal_stats_fn_helper(cols)
+                fn, sensitivity = self.get_range_marginal_stats_fn_helper(cols, debug_msg=f'non-jit {cols}: ')
+                fn_jit = jax.jit(self.get_range_marginal_stats_fn_helper(cols, debug_msg=f'Compiling {cols}:')[0])
+
             else:
                 fn, sensitivity = self.get_categorical_marginal_stats_fn_helper(cols)
-                row_answer_fn, sensitivity = self.get_categorical_marginal_stats_fn_helper(cols)
+                fn_jit = jax.jit(self.get_categorical_marginal_stats_fn_helper(cols)[0])
 
 
-            row_answer_fn_vmap = jax.vmap(row_answer_fn, in_axes=(0, ))
             self.true_stats.append(fn(X))
-            self.marginals_fn.append(jax.jit(fn))
-            self.row_answer_fn.append(jax.jit(row_answer_fn_vmap))
+            self.marginals_fn.append(fn)
+            self.marginals_fn_jit.append(fn_jit)
             self.sensitivity.append(sensitivity / self.N)
 
             if not self.IS_REAL_VALUED:
                 # Don't add differentiable queries
                 diff_fn, sensitivity = self.get_differentiable_stats_fn_helper(cols)
+                diff_fn_jit = jax.jit(self.get_differentiable_stats_fn_helper(cols)[0])
                 self.diff_marginals_fn.append(diff_fn)
+                self.diff_marginals_fn_jit.append(diff_fn_jit)
 
         get_stats_vmap = lambda X: self.get_stats_jax(X)
         self.get_stats_jax_vmap = jax.vmap(get_stats_vmap, in_axes=(0,))
@@ -127,19 +131,22 @@ class Marginals:
             stats.append(fn(X))
         return jnp.concatenate(stats)
 
+    def get_stats_jit(self, data: Dataset, indices: list = None):
+        X = data.to_numpy()
+        stats = []
+        I = indices if indices is not None else list(range(self.get_num_queries()))
+        for i in I:
+            fn = self.marginals_fn_jit[i]
+            stats.append(fn(X))
+        return jnp.concatenate(stats)
 
     def get_stats_jax(self, X: chex.Array):
         stats = jnp.concatenate([fn(X) for fn in self.marginals_fn])
         return stats
 
-    def get_row_answers(self, data: Dataset, indices: list = None):
-        X = data.to_numpy()
-        stats = []
-        I = indices if indices is not None else list(range(self.get_num_queries()))
-        for i in I:
-            fn = self.row_answer_fn[i]
-            stats.append(fn(X))
-        return jnp.concatenate(stats, axis=1)
+    def get_stats_jax_jit(self, X: chex.Array):
+        stats = jnp.concatenate([fn(X) for fn in self.marginals_fn_jit])
+        return stats
 
     def get_diff_stats(self, data: Dataset, indices: list = None):
         assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
@@ -147,7 +154,7 @@ class Marginals:
         stats = []
         I = indices if indices is not None else list(range(self.get_num_queries()))
         for i in I:
-            fn = self.diff_marginals_fn[i]
+            fn = self.diff_marginals_fn_jit[i]
             stats.append(fn(X))
         return jnp.concatenate(stats)
 
@@ -155,19 +162,19 @@ class Marginals:
         assert self.true_stats is not None, "Error: must call the fit function"
         max_errors = []
         for i in range(len(self.true_stats)):
-            fn = self.marginals_fn[i]
+            fn = self.marginals_fn_jit[i]
             error = jnp.abs(self.true_stats[i] - fn(X))
             max_errors.append(error.max())
         return jnp.array(max_errors)
 
-    def get_sync_data_ave_errors(self, X):
-        assert self.true_stats is not None, "Error: must call the fit function"
-        max_errors = []
-        for i in range(len(self.true_stats)):
-            fn = self.marginals_fn[i]
-            error = jnp.linalg.norm(self.true_stats[i] - fn(X), ord=1) / self.true_stats[i].shape[0]
-            max_errors.append(error)
-        return jnp.array(max_errors)
+    # def get_sync_data_ave_errors(self, X):
+    #     assert self.true_stats is not None, "Error: must call the fit function"
+    #     max_errors = []
+    #     for i in range(len(self.true_stats)):
+    #         fn = self.marginals_fn[i]
+    #         error = jnp.linalg.norm(self.true_stats[i] - fn(X), ord=1) / self.true_stats[i].shape[0]
+    #         max_errors.append(error)
+    #     return jnp.array(max_errors)
 
     def is_workload_numeric(self, cols):
         for c in cols:
@@ -175,7 +182,7 @@ class Marginals:
                 return True
         return False
 
-    def get_range_marginal_stats_fn_helper(self, cols):
+    def get_range_marginal_stats_fn_helper(self, cols, debug_msg=''):
         sizes = []
         for col in cols:
             sizes.append(self.domain.size(col))
@@ -192,7 +199,7 @@ class Marginals:
 
         dim = len(self.domain.attrs)
         def stat_fn(X):
-
+            print(debug_msg, X.shape, end='\n')
             X = X.reshape((-1, dim))
             X_proj = X[:, idx]
             stats = []
@@ -217,11 +224,14 @@ class Marginals:
         assert not self.is_workload_numeric(cols), "Workload cannot contain any numeric attribute"
 
         sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(idx, sizes)]
-        def stat_fn(X):
-            X = X.reshape((-1, dim))
-            X_proj = X[:, idx]
-            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
+        def stat_fn(x):
+            x = x.reshape((-1, dim))
+            X_proj = x[:, idx]
+            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten()
             return stat
+
+        # def stat_fn(X):
+
 
         return stat_fn, jnp.sqrt(2)
 
@@ -261,8 +271,10 @@ class Marginals:
         selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
 
         state.add_stats(selected_true_stat, selected_priv_stat, self.marginals_fn[worse_index],
-                        self.row_answer_fn[worse_index],
-                        self.diff_marginals_fn[worse_index] if not self.IS_REAL_VALUED else None)
+                        self.marginals_fn_jit[worse_index],
+                        self.diff_marginals_fn[worse_index] if not self.IS_REAL_VALUED else None,
+                        self.diff_marginals_fn_jit[worse_index] if not self.IS_REAL_VALUED else None,
+                        )
 
         return state
 
@@ -280,8 +292,10 @@ class Marginals:
             gau_noise = jax.random.normal(key_gaussian, shape=true_stat.shape) * sigma_gaussian
             priv_stat = jnp.clip(true_stat + gau_noise, 0, 1)
 
-            state.add_stats(true_stat, priv_stat, self.marginals_fn[i], self.row_answer_fn[i],
-                            self.diff_marginals_fn[i] if not self.IS_REAL_VALUED else None)
+            state.add_stats(true_stat, priv_stat, self.marginals_fn[i], self.marginals_fn_jit[i],
+                            self.diff_marginals_fn[i] if not self.IS_REAL_VALUED else None,
+                            self.diff_marginals_fn_jit[i] if not self.IS_REAL_VALUED else None,
+                            )
 
         return state
 
@@ -393,12 +407,13 @@ def test_runtime():
     stat_mod = Marginals.get_all_kway_combinations(domain, 3)
     print(f'create stat_module elapsed time = {time.time() - stime:.5f}')
 
-    print(f'num queries = {stat_mod.get_num_queries()}')
     print(f'Fitting')
     stime = time.time()
     stat_mod.fit(data)
     etime = time.time() - stime
     print(f'fit elapsed time = {etime:.5f}')
+
+    print(f'num queries = {stat_mod.get_num_queries()}')
 
     true_stats = stat_mod.get_true_stats()
     print(f'true_stats.shape = ', true_stats.shape)
@@ -407,11 +422,10 @@ def test_runtime():
 
     sync_data = Dataset.synthetic(domain, 500, 0)
 
-    sync_X = sync_data.to_numpy()
     # stat_fn = jax.jit(sub_stats_moudule.get_stats_fn())
     stime = time.time()
     for it in range(0, 101):
-        stat = stat_mod.get_stats(sync_X, indices=[0, 1, 2, 3, 4])
+        stat = stat_mod.get_stats(sync_data, indices=[0, 1, 2, 3, 4])
         stat.block_until_ready()
         # print(stat)
         del stat
@@ -422,7 +436,7 @@ def test_runtime():
     print(f'Testing submodule with one more workload...')
     stime = time.time()
     for it in range(0, 101):
-        D_temp = stat_mod.get_stats(sync_X, indices=[0, 1, 2, 3, 4, 5])
+        D_temp = stat_mod.get_stats(sync_data, indices=[0, 1, 2, 3, 4, 5])
         del D_temp
         if it % 50 == 0:
             print(f'2) it={it:02}. time = {time.time()-stime:.5f}')
@@ -456,8 +470,8 @@ def test_row_answers():
     print(row_answers)
 
 if __name__ == "__main__":
-    test_mixed()
-    # test_runtime()
+    # test_mixed()
+    test_runtime()
     # test_cat_and_diff()
     # test_discrete()
     # test_row_answers()

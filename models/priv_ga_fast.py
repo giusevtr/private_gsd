@@ -243,6 +243,7 @@ class PrivGAfast(Generator):
         """
         Minimize error between real_stats and sync_stats
         """
+        print(f'startt priv_ga_fast')
 
         init_time = time.time()
         # key = jax.random.PRNGKey(seed)
@@ -250,22 +251,22 @@ class PrivGAfast(Generator):
         if num_devices > 1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
-        get_stats_jax = lambda X: priv_stat_module.get_stats(X)
-        get_stats_jax_vmap = jax.vmap(get_stats_jax, in_axes=(0,))
-        get_stats_jax_vmap = jax.jit(get_stats_jax_vmap)
+        d = len(self.domain.attrs)
+        init_stats_fn_jit = lambda X: priv_stat_module.priv_stats_fn_jit(X)
+        init_population_stats_fn_jit = jax.vmap(init_stats_fn_jit, in_axes=(0,))
+        # init_population_stats_fn_jit(jnp.zeros((1, self.data_size, d)))
 
         self.key, subkey = jax.random.split(key, 2)
-        state = self.strategy.initialize(subkey, get_stats_jax_vmap)
-
+        state = self.strategy.initialize(subkey, init_population_stats_fn_jit)
 
         # FITNESS
         priv_stats = priv_stat_module.get_priv_stats()
-        get_stats_for_fitness = lambda X: priv_stat_module.get_stats(X)
+        stats_fn_for_fitness = lambda X: priv_stat_module.priv_stats_fn(X)
 
         def fitness_fn(init_sync_stat, removed_rows, added_rows):
             num_rows, d = removed_rows.shape
-            rem_stats = get_stats_for_fitness(removed_rows) * num_rows
-            add_stats = get_stats_for_fitness(added_rows) * num_rows
+            rem_stats = stats_fn_for_fitness(removed_rows) * num_rows
+            add_stats = stats_fn_for_fitness(added_rows) * num_rows
             upt_sync_stat = init_sync_stat + add_stats - rem_stats
             fitness = jnp.linalg.norm(priv_stats - upt_sync_stat / self.data_size, ord=2)
             # fitness = jnp.abs(priv_stats - upt_sync_stat/self.data_size).max()
@@ -273,11 +274,12 @@ class PrivGAfast(Generator):
 
         # fitness_fn = lambda sync_stat: jnp.linalg.norm(priv_stats - sync_stat, ord=2)
         fitness_vmap_fn = jax.vmap(fitness_fn, in_axes=(0, 0, 0))
-        fitness_vmap_fn = jax.jit(fitness_vmap_fn)
+        # fitness_vmap_fn = jax.jit(fitness_vmap_fn)
 
         if init_X is not None:
             temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
-            temp_stats = self.data_size * get_stats_jax_vmap(temp)
+            # temp_stats = self.data_size * init_population_stats_fn_jit(temp)
+            temp_stats = self.data_size * priv_stat_module.priv_stats_fn_jit(init_X).reshape((1, -1))
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             new_archive_stats = jnp.concatenate([temp_stats, state.archive_stats[1:, :]])
             state = state.replace(archive=new_archive, archive_stats=new_archive_stats)
@@ -333,7 +335,7 @@ class PrivGAfast(Generator):
                     print(f'\t\tStop early at t={t}')
                 stop_early = True
 
-            if last_fitness is None or best_fitness < last_fitness * 0.99 or t > self.num_generations - 2 or stop_early:
+            if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
                 if self.print_progress:
                     X_sync = state.best_member
                     print(f'\tGeneration {t:05}, best_l2_fitness = {best_fitness:.6f}, ', end=' ')
@@ -385,10 +387,11 @@ def test_jit_ask():
     stime = time.time()
     key = jax.random.PRNGKey(0)
 
-    state = strategy.initialize(key, get_stats_vmap)
+    strategy.initialize(key, get_stats_vmap)
+    print(f'Initialize(1) elapsed time {time.time() - stime:.3f}s')
 
-    # state = strategy.initialize(rng=key)
-    print(f'Initialize elapsed time {time.time() - stime:.3f}s')
+    state = strategy.initialize(key, get_stats_vmap)
+    print(f'Initialize(2) elapsed time {time.time() - stime:.3f}s')
 
     for r in range(rounds):
         stime = time.time()

@@ -28,7 +28,7 @@ class RelaxedProjection(Generator):
 
         # compute_loss = lambda params, sigmoid: optax.l2_loss(stat_fn(params['w'], sigmoid), true_stats)
         softmax_fn = lambda X: Dataset.apply_softmax(self.domain, X)
-        compute_loss = lambda params: jnp.linalg.norm(stat.get_diff_stats(softmax_fn(params['w'])) - stat.get_priv_stats())**2
+        compute_loss = lambda params: jnp.linalg.norm(stat.priv_diff_stats_fn(softmax_fn(params['w'])) - stat.get_priv_stats()) ** 2
 
         self.key, subkey = jax.random.split(key, 2)
         self.synthetic_data = softmax_fn(jax.random.uniform(subkey, shape=(self.data_size, data_dim), minval=0, maxval=1))
