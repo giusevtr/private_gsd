@@ -8,105 +8,12 @@ import numpy as np
 import chex
 
 
-# class PrivateMarginalsState:
-#     def __init__(self):
-#         self.NUM_STATS = 0
-#         self.true_stats = []
-#         self.priv_stats = []
-#         self.priv_marginals_fn = []
-#         self.priv_diff_marginals_fn = []
-#         self.selected_marginals = []
-#
-#         self.priv_loss_l2_fn_jit_list = []
-#         self.priv_loss_l2_fn_jit_vmap_list = []
-#
-#     def add_stats(self, true_stat, priv_stat, marginal_fn, diff_marginal_fn):
-#         self.NUM_STATS += true_stat.shape[0]
-#         self.true_stats.append(true_stat)
-#         self.priv_stats.append(priv_stat)
-#         self.priv_marginals_fn.append(marginal_fn)
-#         self.priv_diff_marginals_fn.append(diff_marginal_fn)
-#
-#         # priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2) / priv_stat.shape[0]
-#         priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2)
-#         priv_loss_fn_jit = jax.jit(priv_loss_fn)
-#         self.priv_loss_l2_fn_jit_list.append(priv_loss_fn_jit)
-#
-#         priv_loss_fn_jit_vmap = jax.vmap(priv_loss_fn_jit, in_axes=(0, ))
-#         self.priv_loss_l2_fn_jit_vmap_list.append(jax.jit(priv_loss_fn_jit_vmap))
-#         # fitness_fn_vmap = lambda x_pop: compute_error_vmap(x_pop)
-#         # fitness_fn_vmap_jit = jax.jit(fitness_fn)
-#
-#     def get_true_stats(self):
-#         return jnp.concatenate(self.true_stats)
-#
-#     def get_priv_stats(self):
-#         return jnp.concatenate(self.priv_stats)
-#
-#     def get_stats(self, X):
-#         return jnp.concatenate([fn(X) for fn in self.priv_marginals_fn])
-#
-#     def get_diff_stats(self, X):
-#         return jnp.concatenate([diff_fn(X) for diff_fn in self.priv_diff_marginals_fn])
-#
-#     def true_loss_inf(self, X):
-#         true_stats_concat = jnp.concatenate(self.true_stats)
-#         sync_stats_concat = self.get_stats(X)
-#         return jnp.abs(true_stats_concat - sync_stats_concat).max()
-#
-#     def true_loss_l2(self, X):
-#         true_stats_concat = jnp.concatenate(self.true_stats)
-#         # loss = jnp.sum(jnp.array([fn_jit(X)  for fn_jit in self.priv_loss_l2_fn_jit]))
-#         sync_stats_concat = self.get_stats(X)
-#         return jnp.linalg.norm(true_stats_concat - sync_stats_concat, ord=2) / true_stats_concat.shape[0]
-#
-#     def priv_loss_inf(self, X):
-#         priv_stats_concat = jnp.concatenate(self.priv_stats)
-#         sync_stats_concat = self.get_stats(X)
-#         return jnp.abs(priv_stats_concat - sync_stats_concat).max()
-#
-#     def priv_loss_l2(self, X):
-#         priv_stats_concat = jnp.concatenate(self.priv_stats)
-#         sync_stats_concat = self.get_stats(X)
-#         return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) / priv_stats_concat.shape[0]
-#
-#     def priv_loss_l2_jit(self, X):
-#         loss = 0
-#         for jit_fn in self.priv_loss_l2_fn_jit_list:
-#             loss += jit_fn(X)
-#         return loss / self.NUM_STATS
-#
-#
-#     def priv_marginal_loss_l2_jit(self, X):
-#         losses = []
-#         # for jit_fn in self.priv_loss_l2_fn_jit_list:
-#         for i in range(len(self.priv_loss_l2_fn_jit_list)):
-#             stat_size = self.priv_stats[i].shape[0]
-#             jit_fn = self.priv_loss_l2_fn_jit_list[i]
-#             losses.append(jit_fn(X)/stat_size)
-#         return losses
-#
-#     def priv_loss_l2_vmap_jit(self, X_pop):
-#         loss = None
-#         for jit_fn in self.priv_loss_l2_fn_jit_vmap_list:
-#             this_loss = jit_fn(X_pop)
-#             loss = this_loss if loss is None else loss + this_loss
-#         return loss / self.NUM_STATS if loss is not None else 0
-#
-#
-#     def priv_diff_loss_inf(self, X_oh):
-#         priv_stats_concat = jnp.concatenate(self.priv_stats)
-#         sync_stats_concat = self.get_diff_stats(X_oh)
-#         return jnp.abs(priv_stats_concat - sync_stats_concat).max()
-#
-#     def priv_diff_loss_l2(self, X_oh):
-#         priv_stats_concat = jnp.concatenate(self.priv_stats)
-#         sync_stats_concat = self.get_diff_stats(X_oh)
-#         return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) ** 2 / priv_stats_concat.shape[0]
-
-
-
 class Marginals:
+    true_stats: list
+    marginals_fn: list
+    row_answer_fn: list
+    diff_marginals_fn: list
+    sensitivity: list
 
     def __init__(self, domain, kway_combinations, bins=(32,)):
         self.domain = domain
@@ -115,6 +22,7 @@ class Marginals:
 
         # Check that domain constains real-valued features
         self.IS_REAL_VALUED = len(domain.get_numeric_cols()) > 0
+
     def __str__(self):
         return f'Marginals'
 
@@ -122,6 +30,7 @@ class Marginals:
     def get_all_kway_combinations(domain, k, bins=(32,)):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
         return Marginals(domain, kway_combinations, bins=bins)
+
     @staticmethod
     def get_all_kway_mixed_combinations_v1(domain, k, bins=(32,)):
         num_numeric_feats = len(domain.get_numeric_cols())
@@ -175,19 +84,19 @@ class Marginals:
         self.domain = data.domain
 
         for cols in self.kway_combinations:
-            sizes = []
-            for col in cols:
-                sizes.append(self.domain.size(col))
-            indices = self.domain.get_attribute_indices(cols)
-            fn, sensitivity = self.get_marginal_stats_fn_helper(indices, sizes)
-            row_answer_fn, sensitivity = self.get_marginal_stats_fn_helper(indices, sizes)
-            # row_answer_fn_vmap = jax.vmap(row_answer_fn, in_axes=(0, ), out_axes=(0, ))
+
+            if self.is_workload_numeric(cols):
+                fn, sensitivity = self.get_range_marginal_stats_fn_helper(cols)
+                row_answer_fn, sensitivity = self.get_range_marginal_stats_fn_helper(cols)
+            else:
+                fn, sensitivity = self.get_categorical_marginal_stats_fn_helper(cols)
+                row_answer_fn, sensitivity = self.get_categorical_marginal_stats_fn_helper(cols)
+
+
             row_answer_fn_vmap = jax.vmap(row_answer_fn, in_axes=(0, ))
             self.true_stats.append(fn(X))
             self.marginals_fn.append(jax.jit(fn))
-
             self.row_answer_fn.append(jax.jit(row_answer_fn_vmap))
-
             self.sensitivity.append(sensitivity / self.N)
 
             if not self.IS_REAL_VALUED:
@@ -260,53 +169,61 @@ class Marginals:
             max_errors.append(error)
         return jnp.array(max_errors)
 
-    # def get_sensitivity(self):
-    #     return jnp.sqrt(2) / self.N
+    def is_workload_numeric(self, cols):
+        for c in cols:
+            if c in self.domain.get_numeric_cols():
+                return True
+        return False
 
-    def get_marginal_stats_fn_helper(self, idx, sizes) :
+    def get_range_marginal_stats_fn_helper(self, cols):
+        sizes = []
+        for col in cols:
+            sizes.append(self.domain.size(col))
+        idx = self.domain.get_attribute_indices(cols)
+        assert self.is_workload_numeric(cols), "cols tuple must contain at least one numeric attribute"
+
+        cat_idx = self.domain.get_attribute_indices(self.domain.get_categorical_cols())
+
+        bins_sizes = []
+        for bins in self.bins:
+            sizes_jnp = [jnp.arange(s + 1).astype(float) if i in cat_idx else jnp.linspace(0, 1, bins + 1) for i, s in
+                         zip(idx, sizes)]
+            bins_sizes.append(sizes_jnp)
+
+        dim = len(self.domain.attrs)
+        def stat_fn(X):
+
+            X = X.reshape((-1, dim))
+            X_proj = X[:, idx]
+            stats = []
+            for sizes_jnp in bins_sizes:
+                stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
+                stats.append(stat)
+            all_stats = jnp.concatenate(stats)
+            return all_stats
+
+        return stat_fn, jnp.sqrt(len(self.bins) * 2)
+
+    def get_categorical_marginal_stats_fn_helper(self, cols):
         """
         Returns marginals function and sensitivity
         :return:
         """
-        is_numeric = False
+        sizes = []
+        for col in cols:
+            sizes.append(self.domain.size(col))
+        idx = self.domain.get_attribute_indices(cols)
         dim = len(self.domain.attrs)
-        cat_idx = self.domain.get_attribute_indices(self.domain.get_categorical_cols())
-        for i in idx:
-            if i not in cat_idx:
-                is_numeric = True
+        assert not self.is_workload_numeric(cols), "Workload cannot contain any numeric attribute"
 
-        if is_numeric:
-            bins_sizes = []
-            for bins in self.bins:
-                sizes_jnp = [jnp.arange(s + 1).astype(float) if i in cat_idx else jnp.linspace(0, 1, bins+1) for i, s in zip(idx, sizes)]
-                bins_sizes.append(sizes_jnp)
+        sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(idx, sizes)]
+        def stat_fn(X):
+            X = X.reshape((-1, dim))
+            X_proj = X[:, idx]
+            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
+            return stat
 
-            def stat_fn(X):
-
-                X = X.reshape((-1, dim))
-                X_proj = X[:, idx]
-                stats = []
-                for sizes_jnp in bins_sizes:
-                    # stat_fn_list.append(get_stat_fn(idx, sizes_jnp))
-                    stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
-                    stats.append(stat)
-                all_stats = jnp.concatenate(stats)
-                return all_stats
-
-            return stat_fn, jnp.sqrt(len(self.bins) *2)
-
-        else:
-            sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(idx, sizes)]
-            def stat_fn(X):
-                # X_proj = (X[:, idx]).astype(int)
-                X = X.reshape((-1, dim))
-                X_proj = X[:, idx]
-                stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
-                return stat
-
-            return stat_fn, jnp.sqrt(2)
-        #
-        # return stat_fn_list
+        return stat_fn, jnp.sqrt(2)
 
     def get_differentiable_stats_fn_helper(self, kway_attributes):
         assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
@@ -429,7 +346,7 @@ def test_mixed():
     data = Dataset(A, domain=domain)
     X = data.to_numpy()
 
-    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=3)
+    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=[4])
     stat_mod.fit(data)
 
     stats1 = stat_mod.get_true_stats()
@@ -454,7 +371,7 @@ def test_cat_and_diff():
     data = Dataset(A, domain=domain)
     X = data.to_numpy()
 
-    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=3)
+    stat_mod = Marginals.get_all_kway_combinations(domain, 2)
     stat_mod.fit(data)
 
     stats_true = stat_mod.get_true_stats()
@@ -462,32 +379,7 @@ def test_cat_and_diff():
 
     print(jnp.linalg.norm(stats_true - stats_diff, ord=1))
 
-def test_real_and_diff():
 
-    import numpy as np
-    import pandas as pd
-    print('debug')
-    cols = ['A', 'B']
-    domain = Domain(cols, [1, 1])
-
-    A = pd.DataFrame(np.array([
-        [0.0, 1.0],
-        [0.1, 0.1],
-        [0.1, 0.2],
-        [0.0, 0.3],
-    ]), columns=cols)
-    data = Dataset(A, domain=domain)
-    X = data.to_numpy()
-
-    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=3)
-    stat_mod.fit(data)
-
-    stats_true = stat_mod.get_true_stats()
-    stats_diff = stat_mod.get_diff_stats(data)
-
-    print('true_stats - diff_stats', jnp.linalg.norm(stats_true - stats_diff, ord=1))
-    print(stats_true)
-    print(stats_diff)
 
 
 def test_runtime():
@@ -564,8 +456,8 @@ def test_row_answers():
     print(row_answers)
 
 if __name__ == "__main__":
-    # test_mixed()
+    test_mixed()
     # test_runtime()
-    # test_real_and_diff()
+    # test_cat_and_diff()
     # test_discrete()
-    test_row_answers()
+    # test_row_answers()
