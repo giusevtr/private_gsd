@@ -105,7 +105,7 @@ def adaptive(generator, prefix_queries: TwoWayPrefix, data, epsilon, rounds, see
 
         # generator = get_generator(data.domain, marginal_queries, data_size=data_size, seed=seed)
         sub_true_answers_jnp = jnp.array(sub_true_answers)
-        data_sync = generator.fit(key_sub, sub_true_answers_jnp, sub_prefix_module, init_X=data_sync.to_numpy())
+        data_sync = generator.fit(key_sub, sub_true_answers_jnp, sub_prefix_module, init_sync=data_sync.to_numpy())
 
         os.makedirs('progress', exist_ok=True)
         save_dir = f'progress/{str(generator)}'

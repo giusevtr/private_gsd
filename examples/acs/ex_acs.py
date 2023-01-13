@@ -40,7 +40,8 @@ if __name__ == "__main__":
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     key = jax.random.PRNGKey(0)
     sync_data_2 = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS,
-                                 epsilon=0.07, delta=delta, tolerance=0.00, print_progress=True,start_X=True)
+                                          epsilon=0.07, delta=delta, tolerance=0.00, print_progress=True,
+                                          start_sync=True)
     errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
     print(f'PrivGA: max error = {errros.max():.5f}')
 

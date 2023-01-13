@@ -38,7 +38,7 @@ if __name__ == "__main__":
     priv_ga = PrivGA(
         num_generations=100000,
         stop_loss_time_window=50,
-        print_progress=True,
+        print_progress=False,
         strategy=SimpleGAforSyncData(
             domain=data.domain,
             data_size=data_size,

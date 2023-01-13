@@ -22,7 +22,7 @@ class RelaxedProjection(Generator):
     def __str__(self):
         return f'RP(lr={self.learning_rate:.4f})'
 
-    def fit(self, key, stat: AdaptiveStatisticState, init_X=None, tolerance=0):
+    def fit(self, key, stat: AdaptiveStatisticState, init_sync=None, tolerance=0):
 
         data_dim = self.domain.get_dimension()
 

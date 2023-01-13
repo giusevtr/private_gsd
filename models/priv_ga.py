@@ -220,7 +220,7 @@ class PrivGA(Generator):
     def __str__(self):
         return f'PrivGA'
 
-    def fit(self, key, stat: AdaptiveStatisticState, init_X=None, tolerance: float=0.0):
+    def fit(self, key, stat: AdaptiveStatisticState, init_sync=None, tolerance: float=0.0):
         """
         Minimize error between real_stats and sync_stats
         """
@@ -238,8 +238,8 @@ class PrivGA(Generator):
         self.key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
 
-        if init_X is not None:
-            temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
+        if init_sync is not None:
+            temp = init_sync.reshape((1, init_sync.shape[0], init_sync.shape[1]))
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             state = state.replace(archive=new_archive)
 

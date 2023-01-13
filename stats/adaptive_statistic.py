@@ -1,3 +1,4 @@
+import chex
 import jax.numpy as jnp
 import jax
 import numpy as np
@@ -37,16 +38,12 @@ class AdaptiveStatisticState:
         priv_population_loss_fn_jit_vmap = jax.vmap(priv_loss_fn_jit, in_axes=(0, ))
         self.priv_population_l2_loss_fn_list.append(jax.jit(priv_population_loss_fn_jit_vmap))
 
-
-    ##################################################
-    ## Adaptive statistics
-    ##################################################
-    def private_select_measure_statistic(self, key, rho_per_round, X_sync):
+    def private_select_measure_statistic(self, key: chex.PRNGKey, rho_per_round: float, sync_data_mat: chex.Array):
         rho_per_round = rho_per_round / 2
         STAT = self.STAT_MODULE
 
         key, key_em = jax.random.split(key, 2)
-        errors = STAT.get_sync_data_errors(X_sync)
+        errors = STAT.get_sync_data_errors(sync_data_mat)
         max_sensitivity = max(self.STAT_MODULE.sensitivity)
         worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), max_sensitivity)
 
@@ -58,6 +55,21 @@ class AdaptiveStatisticState:
         gau_noise = jax.random.normal(key_gaussian, shape=selected_true_stat.shape) * sigma_gaussian
         selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
         self.add_stats(worse_index, selected_priv_stat)
+
+    def private_measure_all_statistics(self, key: chex.PRNGKey, rho: float):
+        STAT = self.STAT_MODULE
+        m = self.STAT_MODULE.get_num_queries()
+
+        rho_per_marginal = rho / m
+        for stat_id in range(m):
+            key, key_gaussian = jax.random.split(key, 2)
+            selected_true_stat = STAT.true_stats[stat_id]
+            sensitivity = STAT.sensitivity[stat_id]
+
+            sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_marginal)))
+            gau_noise = jax.random.normal(key_gaussian, shape=selected_true_stat.shape) * sigma_gaussian
+            selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
+            self.add_stats(stat_id, selected_priv_stat)
 
     def get_true_statistics(self):
         return jnp.concatenate([self.STAT_MODULE.true_stats[i] for i in self.statistics_ids])

@@ -89,7 +89,7 @@ class Marginals:
 
         def get_get_range_func(cols_arg):
             def fn():
-                return self.get_range_marginal_stats_fn_helper(cols_arg, debug_msg=f'get_marginal_fn {cols_arg}: ')[0]
+                return self.get_range_marginal_stats_fn_helper(cols_arg, debug_msg=f'')[0]
             return fn
         def get_get_cat_func(cols_arg):
             def fn():
@@ -233,9 +233,6 @@ class Marginals:
             X_proj = x[:, idx]
             stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten()
             return stat
-
-        # def stat_fn(X):
-
 
         return stat_fn, jnp.sqrt(2)
 

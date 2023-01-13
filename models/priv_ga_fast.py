@@ -27,7 +27,7 @@ def timer(last_time=None, msg=None):
 class EvoState:
     mean: chex.Array
     archive: chex.Array
-    archive_stats: chex.Array
+    # archive_stats: chex.Array
     fitness: chex.Array
     best_member: chex.Array
     best_fitness: float = jnp.finfo(jnp.float32).max
@@ -61,15 +61,14 @@ class SimpleGAforSyncDataFast:
         self.debugging = debugging
 
     def initialize(
-            self, rng: chex.PRNGKey, get_stats_vmap: Callable
+            self, rng: chex.PRNGKey
     ) -> EvoState:
         """`initialize` the evolution strategy."""
-        init_x = self.initialize_population(rng)
-        init_a = self.data_size * get_stats_vmap(init_x)
+        init_x = self.initialize_elite_population(rng)
+        # init_a = self.data_size * get_stats_vmap(init_x)
         state = EvoState(
             mean=init_x.mean(axis=0),
             archive=init_x,
-            archive_stats=init_a,
             fitness=jnp.zeros(self.elite_size) + jnp.finfo(jnp.float32).max,
             best_member=init_x[0].astype(jnp.float32),
         )
@@ -86,7 +85,7 @@ class SimpleGAforSyncDataFast:
         return state
 
     @partial(jax.jit, static_argnums=(0,))
-    def initialize_population(self, rng: chex.PRNGKey):
+    def initialize_elite_population(self, rng: chex.PRNGKey):
         d = len(self.domain.attrs)
         pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng)
         initialization = pop.reshape((self.elite_size, self.data_size, d))
@@ -102,9 +101,7 @@ class SimpleGAforSyncDataFast:
 
     @partial(jax.jit, static_argnums=(0,))
     def initialize_random_population(self, rng: chex.PRNGKey):
-        d = len(self.domain.attrs)
         pop = Dataset.synthetic_jax_rng(self.domain, self.population_size, rng)
-        # initialization = pop.reshape((self.elite_size, self.data_size, d))
         return pop
 
     @partial(jax.jit, static_argnums=(0,))
@@ -115,11 +112,11 @@ class SimpleGAforSyncDataFast:
         j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(pop_size,))
         x_i = state.archive[i]
         x_j = state.archive[j]
-        a = state.archive_stats[i]
+        # a = state.archive_stats[i]
 
         rng_mate_split = jax.random.split(rng_mate, pop_size)
         x, removed_rows, added_rows = self.mate_mutate_vmap(rng_mate_split, x_i, x_j, random_data)
-        return x, a, removed_rows, added_rows, state
+        return x, i, removed_rows, added_rows, state
 
     @partial(jax.jit, static_argnums=(0,))
     def ask_strategy_mutate_only(self, rng: chex.PRNGKey, random_data, state: EvoState):
@@ -129,49 +126,46 @@ class SimpleGAforSyncDataFast:
         j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(pop_size,))
         x_i = state.archive[i]
         x_j = state.archive[j]
-        a = state.archive_stats[i]
+        # a = state.archive_stats[i]
         rng_muta_split = jax.random.split(rng_mutate, pop_size)
         x, removed_rows, added_rows = self.muta_only_vmap(rng_muta_split, x_i, x_j, random_data)
-        return x, a, removed_rows, added_rows, state
+        return x, i, removed_rows, added_rows, state
 
     @partial(jax.jit, static_argnums=(0,))
     def tell(
             self,
             x: chex.Array,
-            a: chex.Array,
+            # a: chex.Array,
             fitness: chex.Array,
             state: EvoState,
-    ) -> EvoState:
+    ) -> Tuple[EvoState, chex.Array]:
         """`tell` performance data for strategy state update."""
-        state = self.tell_strategy(x, a, fitness, state)
+        state, new_elite_idx = self.tell_strategy(x, fitness, state)
         best_member, best_fitness = get_best_fitness_member(x, fitness, state)
         return state.replace(
             best_member=best_member,
             best_fitness=best_fitness,
             gen_counter=state.gen_counter + 1,
-        )
+        ), new_elite_idx
 
     def tell_strategy(
             self,
             x: chex.Array,
-            a: chex.Array,
             fitness: chex.Array,
             state: EvoState,
             # elite_popsize: int
-    ) -> EvoState:
+    ) -> Tuple[EvoState, chex.Array]:
         fitness = jnp.concatenate([fitness, state.fitness])
         solution = jnp.concatenate([x, state.archive])
-        stats = jnp.concatenate([a, state.archive_stats])
         idx = jnp.argsort(fitness)[0: self.elite_size]
 
         fitness = fitness[idx]
         archive = solution[idx]
-        archive_stats = stats[idx]
 
         mean = archive.mean(axis=0)
         return state.replace(
-            fitness=fitness, archive=archive, archive_stats=archive_stats, mean=mean
-        )
+            fitness=fitness, archive=archive, mean=mean
+        ), idx
 
 
 def get_mutate_mating_fn(mate_rate: int, random_numbers):
@@ -241,11 +235,10 @@ class PrivGAfast(Generator):
     def __str__(self):
         return f'PrivGAfast'
 
-    def fit(self, key, adaptive_statistic: AdaptiveStatisticState, init_X=None, tolerance: float = 0.0):
+    def fit(self, key, adaptive_statistic: AdaptiveStatisticState, init_sync=None, tolerance: float = 0.0):
         """
         Minimize error between real_stats and sync_stats
         """
-        print(f'startt priv_ga_fast')
 
         init_time = time.time()
         # key = jax.random.PRNGKey(seed)
@@ -261,12 +254,14 @@ class PrivGAfast(Generator):
                 elite_population_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
                 mate_and_mute_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
                 mute_only_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
-                self.CACHE[stat_id] = (jax.jit(jax.vmap(elite_population_fn, in_axes=(0, ))),
+                self.CACHE[stat_id] = ((jax.vmap(elite_population_fn, in_axes=(0, ))),
                                        jax.jit(jax.vmap(mate_and_mute_rows_fn, in_axes=(0, ))),
                                        jax.jit(jax.vmap(mute_only_rows_fn, in_axes=(0, )))
                                        )
             # elite_population_fn_jit, mate_and_mute_rows_fn_jit, mute_only_rows_fn_jit = self.CACHE[stat_id]
 
+        debug_fn = lambda X : adaptive_statistic.private_statistics_fn(X)
+        debug_fn_vmap = jax.vmap(debug_fn, in_axes=(0, ))
 
         def elite_population_fn(x):
             pop_stats = []
@@ -295,29 +290,36 @@ class PrivGAfast(Generator):
 
         # FITNESS
         priv_stats = adaptive_statistic.get_private_statistics()
-        def fitness_fn(init_sync_stat, rem_stats, add_stats):
+        def fitness_fn(elite_stats, elite_ids, rem_stats, add_stats):
+            init_sync_stat = elite_stats[elite_ids]
             # rem_stats = stats_fn_for_fitness(removed_rows) * num_rows
             # add_stats = stats_fn_for_fitness(added_rows) * num_rows
             upt_sync_stat = init_sync_stat + add_stats - rem_stats
             fitness = jnp.linalg.norm(priv_stats - upt_sync_stat / self.data_size, ord=2)
             return fitness, upt_sync_stat
-        fitness_vmap_fn = jax.vmap(fitness_fn, in_axes=(0, 0, 0))
+        fitness_vmap_fn = jax.vmap(fitness_fn, in_axes=(None, 0, 0, 0))
         fitness_vmap_fn = jax.jit(fitness_vmap_fn)
 
 
 
         key, subkey = jax.random.split(key, 2)
-        state = self.strategy.initialize(subkey, elite_population_fn)
-        assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
+        state = self.strategy.initialize(subkey)
 
-        if init_X is not None:
-            # temp_stats = self.data_size * init_population_stats_fn_jit(temp)
-            temp_stats = self.data_size * adaptive_statistic.private_statistics_fn_jit(init_X).reshape((1, -1))
-            temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
+        if init_sync is not None:
+            temp = init_sync.reshape((1, init_sync.shape[0], init_sync.shape[1]))
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
-            new_archive_stats = jnp.concatenate([temp_stats, state.archive_stats[1:, :]])
-            state = state.replace(archive=new_archive, archive_stats=new_archive_stats)
-        assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
+            state = state.replace(archive=new_archive)
+        # assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
+
+        # Init slite statistics here
+        elite_stats = self.data_size * elite_population_fn(state.archive)
+
+        @jax.jit
+        def tell_elite_stats(a, old_elite_stats, new_elite_idx):
+            temp_stats = jnp.concatenate([a, old_elite_stats])
+            elite_stats = temp_stats[new_elite_idx]
+            return elite_stats
+
 
         self.early_stop_init()  # Initiate time-based early stop system
 
@@ -330,14 +332,12 @@ class PrivGAfast(Generator):
         mutate_only = 0
 
         for t in range(self.num_generations):
-            # assert jnp.abs(elite_population_fn(
-            #     state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
 
             key, ask_subkey = jax.random.split(key, 2)
 
             # ASK
             t0 = timer()
-            x, a, removed_rows, added_rows, state = self.strategy.ask(ask_subkey, state, mutate_only=mutate_only > 0)
+            x, elite_ids, removed_rows, added_rows, state = self.strategy.ask(ask_subkey, state, mutate_only=mutate_only > 0)
             _, num_rows, _ = removed_rows.shape
             ask_time += timer() - t0
 
@@ -350,12 +350,22 @@ class PrivGAfast(Generator):
                 removed_stats = num_rows * muta_only_population_fn(removed_rows)
                 added_stats = num_rows * muta_only_population_fn(added_rows)
 
-            fitness, a_updated = fitness_vmap_fn(a, removed_stats, added_stats)
+            # a = elite_stats[elite_ids]
+            # fitness, a_updated = fitness_vmap_fn(a, removed_stats, added_stats)
+            fitness, a = fitness_vmap_fn(elite_stats, elite_ids, removed_stats, added_stats)
+
+            # assert jnp.abs(debug_fn_vmap(x) * self.strategy.data_size - a).max() < 1, f'archive stats error (1)'
             fit_time += timer() - t0
 
             # TELL
             t0 = timer()
-            state = self.strategy.tell(x, a_updated, fitness, state)
+            state, new_elite_idx = self.strategy.tell(x, fitness, state)
+            # temp_stats = jnp.concatenate([a, elite_stats])
+            # elite_stats = temp_stats[new_elite_idx]
+            elite_stats = tell_elite_stats(a, elite_stats, new_elite_idx)
+
+            # assert jnp.abs(elite_population_fn(
+            #     state.archive) * self.strategy.data_size - elite_stats).max() < 1, f'archive stats error (2)'
             tell_time += timer() - t0
 
             best_fitness = fitness.min()
@@ -364,7 +374,7 @@ class PrivGAfast(Generator):
             best_fitness_total = min(best_fitness_total, best_fitness)
 
             stop_early = False
-            if mutate_only == 0 and self.early_stop(best_fitness_total):
+            if mutate_only == 0 and self.early_stop(best_fitness_total) and t > 0:
                 # If early stop is hit for the first type then set a flag to begin mutate only
                 if self.print_progress:
                     print(f'\t\tSwitching to mutate only at t={t}')

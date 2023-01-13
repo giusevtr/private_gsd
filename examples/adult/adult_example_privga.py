@@ -44,7 +44,7 @@ if __name__ == "__main__":
         stime = time.time()
         key = jax.random.PRNGKey(SEED)
         sync_data_2 = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS,
-                                     epsilon=0.01, delta=1e-6, tolerance=0.00, start_X=True, print_progress=True)
+                                              epsilon=0.01, delta=1e-6, tolerance=0.00, start_sync=True, print_progress=True)
         errros = marginal_module.get_sync_data_errors(sync_data_2.to_numpy())
         print(f'PrivGA: max error = {errros.max():.5f}, time={time.time() - stime:.4f}s\n')
         priv_ga.ADA_DATA.to_csv(f'res/privga_results_{SEED}.csv', index=False)

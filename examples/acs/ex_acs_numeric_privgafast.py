@@ -35,7 +35,7 @@ if __name__ == "__main__":
     data_size = 2000
     priv_ga = PrivGAfast(
         num_generations=100000,
-        print_progress=True,
+        print_progress=False,
         strategy=SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
@@ -50,8 +50,8 @@ if __name__ == "__main__":
     key = jax.random.PRNGKey(0)
     stime = time.time()
 
-    sync_data = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS, start_X=True,
-                                 epsilon=1.00, delta=1e-6, tolerance=0.0, print_progress=True)
+    sync_data = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS, start_sync=True,
+                                        epsilon=1.00, delta=1e-6, tolerance=0.0, print_progress=True)
 
     true_stats = marginal_module.get_true_stats()
     sync_stats = marginal_module.get_stats_jit(sync_data)

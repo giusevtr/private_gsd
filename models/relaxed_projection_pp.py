@@ -18,7 +18,7 @@ class RelaxedProjectionPP(Generator):
     def __str__(self):
         return 'RP++'
 
-    def fit(self, key, stat: AdaptiveStatisticState, init_X=None, tolerance=0):
+    def fit(self, key, stat: AdaptiveStatisticState, init_sync=None, tolerance=0):
         # self.optimizer = optax.adam(lr)
         # stat_fn = stat.get_differentiable_stats_fn()
         true_stats = stat.get_true_statistics()

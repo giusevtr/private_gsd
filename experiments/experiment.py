@@ -45,8 +45,8 @@ def run_experiments(data: Dataset,
             continue
         delta = 1/N**2
         key = jax.random.PRNGKey(seed)
-        sync_data = algorithm.fit_dp_adaptive(key, stat_module=stats_module, start_X=True,
-                                                rounds=T, epsilon=eps, delta=delta, print_progress=True)
+        sync_data = algorithm.fit_dp_adaptive(key, stat_module=stats_module, start_sync=True,
+                                              rounds=T, epsilon=eps, delta=delta, print_progress=True)
 
         true_stats = stats_module.get_true_stats()
         errors = true_stats - stats_module.get_stats(sync_data)
