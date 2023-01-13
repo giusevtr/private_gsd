@@ -1,3 +1,4 @@
+import chex
 import jax
 # from stats import PrivateStatistic
 from stats import Marginals, AdaptiveStatisticState
@@ -12,7 +13,7 @@ from typing import Callable
 
 class Generator:
     data_size: int
-    early_stop_elapsed_time = 5
+    early_stop_elapsed_time = 1
     last_time: float = None
     last_error: float = None
 
@@ -32,24 +33,37 @@ class Generator:
             self.last_error = error
         return stop_early
 
-
-
-
-    def fit(self, key: jax.random.PRNGKeyArray, stat_module: AdaptiveStatisticState, init_X=None, tolerance:float=0) -> Dataset:
+    def fit(self, key: jax.random.PRNGKeyArray, stat: AdaptiveStatisticState, init_sync: chex.Array = None,
+            tolerance: float = 0) -> Dataset:
         pass
+
+    def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, epsilon: float, delta: float,
+               init_sync: chex.Array = None, tolerance: float = 0) -> Dataset:
+        rho = cdp_rho(epsilon, delta)
+        return self.fit_zcdp(key, stat_module, rho, init_sync, tolerance )
+
+    def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rho: float,
+                 init_sync: chex.Array = None, tolerance: float=0) -> Dataset:
+        key_stats, key_fit = jax.random.split(key)
+        stat = AdaptiveStatisticState(stat_module)
+        stat.private_measure_all_statistics(key_stats, rho)
+        return self.fit(key_fit, stat, init_sync, tolerance)
 
     # @staticmethod
     # def default_debug_fn(X):
-    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds, epsilon, delta, tolerance=0,
-                        start_X=False,
+    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds,
+                        epsilon: float, delta: float,
+                        tolerance: float =0,
+                        start_sync=False,
                         print_progress=False,
                         debug_fn: Callable = None):
         rho = cdp_rho(epsilon, delta)
-        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, tolerance, start_X, print_progress, debug_fn)
+        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, tolerance, start_sync, print_progress, debug_fn)
 
-    def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds, rho, tolerance=0,
-                          start_X=False,
-                             print_progress=False,
+    def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds: int,
+                          rho: float, tolerance: float = 0,
+                          start_sync=False,
+                          print_progress=False,
                           debug_fn: Callable = None):
         rho_per_round = rho / rounds
         domain = stat_module.domain
@@ -86,7 +100,7 @@ class Generator:
 
             key, key_fit = jax.random.split(key, 2)
             dataset: Dataset
-            if start_X:
+            if start_sync:
                 sync_dataset = self.fit(key_fit, adaptive_statistic, X_sync, tolerance=tolerance)
             else:
                 sync_dataset = self.fit(key_fit, adaptive_statistic, tolerance=tolerance)

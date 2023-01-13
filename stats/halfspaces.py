@@ -3,7 +3,6 @@ import jax
 import jax.numpy as jnp
 from utils import Dataset, Domain
 from utils.utils_data import Domain
-from stats.private_statistics import PrivateMarginalsState
 from stats import Marginals
 import numpy as np
 import chex
@@ -12,11 +11,12 @@ import chex
 class Halfspace(Marginals):
     true_stats: list
     marginals_fn: list
-    row_answer_fn: list
+    marginals_fn_jit: list
+    get_marginals_fn: list
     diff_marginals_fn: list
+    diff_marginals_fn_jit: list
     sensitivity: list
-
-    def __init__(self, domain: Domain, kway_combinations: list, num_random_halfspaces: int = 10):
+    def __init__(self, domain: Domain, kway_combinations: list, rng: chex.PRNGKey, num_random_halfspaces: int = 10):
         """
         :param domain:
         :param kway_combinations:
@@ -24,17 +24,13 @@ class Halfspace(Marginals):
         """
         super().__init__(domain, kway_combinations)
         self.num_hs = num_random_halfspaces
+        self.rng = rng
 
     def __str__(self):
         return f'Halfspaces'
 
     @staticmethod
-    def get_all_kway_combinations(domain, k: int, random_hs: int = 10):
-        kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
-        return Halfspace(domain, kway_combinations, num_random_halfspaces=random_hs)
-
-    @staticmethod
-    def get_all_kway_mixed_combinations_v1(domain, k, random_hs: int = 32):
+    def get_kway_random_halfspaces(domain: Domain, k: int, rng:chex.PRNGKey, random_hs: int = 32):
         kway_combinations = []
         for cols in itertools.combinations(domain.attrs, k):
             count_real = 0
@@ -42,40 +38,58 @@ class Halfspace(Marginals):
                 count_real += 1 * (c in domain.get_numeric_cols())
             if 0 < count_real < k:
                 kway_combinations.append(list(cols))
-        return Halfspace(domain, kway_combinations, num_random_halfspaces=random_hs), kway_combinations
+        return Halfspace(domain, kway_combinations, rng=rng, num_random_halfspaces=random_hs), kway_combinations
 
 
-    def fit(self, data: Dataset, rng: chex.PRNGKey):
+    def fit(self, data: Dataset):
         self.true_stats = []
         self.marginals_fn = []
+        self.marginals_fn_jit = []
         self.diff_marginals_fn = []
+        self.diff_marginals_fn_jit = []
+        self.get_marginals_fn = []
         self.sensitivity = []
 
         X = data.to_numpy()
         self.N = X.shape[0]
         self.domain = data.domain
 
+        def get_get_halfspace_func(cols_arg: tuple, rng_arg: chex.PRNGKey):
+            def fn(): return self.get_halfspace_marginal_stats_fn_helper(cols_arg, rng_arg, self.num_hs)[0]
+            return fn
+
+        def get_get_cat_func(cols_arg):
+            return lambda: self.get_categorical_marginal_stats_fn_helper(cols_arg)[0]
+
+        rng = self.rng
         for cols in self.kway_combinations:
             if self.is_workload_numeric(cols):
                 rng, rng_sub = jax.random.split(rng)
+                get_marginal_fn = get_get_halfspace_func(cols, rng_sub)
                 fn, sensitivity = self.get_halfspace_marginal_stats_fn_helper(cols, rng_sub, num_hs_projections=self.num_hs)
+                fn_jit = jax.jit(self.get_halfspace_marginal_stats_fn_helper(cols, rng_sub, num_hs_projections=self.num_hs)[0])
             else:
                 fn, sensitivity = self.get_categorical_marginal_stats_fn_helper(cols)
+                fn_jit = jax.jit(self.get_categorical_marginal_stats_fn_helper(cols)[0])
+                get_marginal_fn = get_get_cat_func(cols)
 
             self.true_stats.append(fn(X))
-            self.marginals_fn.append(jax.jit(fn))
+            self.marginals_fn.append(fn)
+            self.marginals_fn_jit.append(fn_jit)
+            self.get_marginals_fn.append(get_marginal_fn)
             self.sensitivity.append(sensitivity / self.N)
 
+            # NOTE: Not implemented for halfspaces yet
             diff_fn, sensitivity = self.get_differentiable_stats_fn_helper(cols)
+            diff_fn_jit = jax.jit(self.get_differentiable_stats_fn_helper(cols)[0])
             self.diff_marginals_fn.append(diff_fn)
+            self.diff_marginals_fn_jit.append(diff_fn_jit)
 
     # @jax.jit
     # def get_halfspace
     def get_halfspace_marginal_stats_fn_helper(self, cols: tuple, jax_rng: chex.PRNGKey, num_hs_projections):
         # Get categorical columns meta data
-        sizes = []
-        for col in self.domain.get_categorical_cols():
-            sizes.append(self.domain.size(col))
+        dim = len(self.domain.attrs)
 
         cat_cols, numeric_cols = [], []
         for col in cols:
@@ -84,36 +98,53 @@ class Halfspace(Marginals):
             else:
                 numeric_cols.append(col)
 
-        idx = self.domain.get_attribute_indices(cat_cols)
-        dim = len(self.domain.attrs)
-        sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(idx, sizes)]
+        cat_idx = self.domain.get_attribute_indices(cat_cols)
+        sizes = []
+        for col in cat_cols:
+            sizes.append(self.domain.size(col))
+        sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(cat_idx, sizes)]
+        # for i in range(num_hs_projections):
+        #     sizes_jnp.append(jnp.array([-1, 0.0, 1]))
 
-        for i in range(num_hs_projections):
-            sizes_jnp.append(jnp.array([-1, 0.0, 1]))
+        cat_queries = []
+        indices = [self.domain.get_attribute_onehot_indices(att) for att in cat_cols]
+        for tup in itertools.product(*indices):
+            cat_queries.append(tup)
+        cat_queries = jnp.array(cat_queries)
 
 
-        num_attrs_idx = self.domain.get_attribute_indices(numeric_cols)
-        numeric_dim = num_attrs_idx.shape[0]
+        num_idx = self.domain.get_attribute_indices(numeric_cols)
+        numeric_dim = num_idx.shape[0]
+
+        def histogramdd_row_level(row_data):
+            return jnp.histogramdd(row_data, sizes_jnp)[0].flatten()
+        histogramdd_vmap = jax.vmap(histogramdd_row_level, in_axes=(0, ))
 
         def stat_fn(X):
+            n, d = X.shape
+
+            # HS
             rng_h, rng_b = jax.random.split(jax_rng, 2)
-            hs_mat = 2 * (jax.random.uniform(rng_h, shape=(num_hs_projections, numeric_dim)) - 0.5) / jnp.sqrt(numeric_dim)  # h x d
-
+            hs_mat = numeric_dim * 2 * (jax.random.uniform(rng_h, shape=(numeric_dim, num_hs_projections)) - 0.5)   # d x h
+            b =  2 * (jax.random.uniform(rng_b, shape=(1, num_hs_projections)) - 0.5)  # 1 x h
             X = X.reshape((-1, dim))
-            X_cat_proj = X[:, idx]
-            X_num_proj = X[:, num_attrs_idx]  # n x d
+            X_num_proj = X[:, num_idx]  # n x d
+            HS_proj = jnp.dot(X_num_proj, hs_mat)  # n x h
+            above_halfspace = HS_proj - b > 0  # n x 1
 
-            HS_proj = jnp.dot(X_num_proj, hs_mat.T)  # n x h
+            # Cat
+            X_cat_proj = X[:, cat_idx].reshape((n, 1, -1))
+            cat_answers = histogramdd_vmap(X_cat_proj)
+            # cat_answers = jnp.prod(X[:, cat_queries], 2)   # n x m
 
-            X_proj = jnp.concatenate((X_cat_proj, HS_proj), axis=1)
-
-            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
-            return stat
+            answers = jnp.multiply(cat_answers.reshape((n, -1, 1)), above_halfspace.reshape((n, 1, -1))).reshape((n, -1))
+            statistics = answers.sum(0) / X.shape[0]
+            return statistics
 
         return stat_fn, np.sqrt(2)
 
     def get_differentiable_stats_fn_helper(self, kway_attributes):
-        assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
+        # assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
         # For computing differentiable marginal queries
         queries = []
         indices = [self.domain.get_attribute_onehot_indices(att) for att in kway_attributes]
@@ -127,58 +158,7 @@ class Halfspace(Marginals):
             return jnp.prod(X[:, queries], 2).sum(0) / X.shape[0]
 
         return stat_fn, jnp.sqrt(2)
-    ##################################################
-    ## Adaptive statistics
-    ##################################################
-    def private_select_measure_statistic(self, key, rho_per_round, X_sync, state: PrivateMarginalsState):
-        rho_per_round = rho_per_round / 2
 
-        key, key_em = jax.random.split(key, 2)
-        errors = self.get_sync_data_errors(X_sync)
-        max_sensitivity = max(self.sensitivity)
-        worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), max_sensitivity)
-
-        key, key_gaussian = jax.random.split(key, 2)
-        selected_true_stat = self.true_stats[worse_index]
-
-        sensitivity = self.sensitivity[worse_index]
-        sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
-        gau_noise = jax.random.normal(key_gaussian, shape=selected_true_stat.shape) * sigma_gaussian
-
-        selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
-
-        state.add_stats(selected_true_stat, selected_priv_stat, self.marginals_fn[worse_index],
-                        self.row_answer_fn[worse_index],
-                        self.diff_marginals_fn[worse_index] if not self.IS_REAL_VALUED else None)
-
-        return state
-
-    def get_private_statistics(self, key, rho):
-
-        state = PrivateMarginalsState()
-
-        rho_per_stat = rho / len(self.true_stats)
-        for i in range(len(self.true_stats)):
-            true_stat = self.true_stats[i]
-            key, key_gaussian = jax.random.split(key, 2)
-            sensitivity = self.sensitivity[i]
-
-            sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_stat)))
-            gau_noise = jax.random.normal(key_gaussian, shape=true_stat.shape) * sigma_gaussian
-            priv_stat = jnp.clip(true_stat + gau_noise, 0, 1)
-
-            state.add_stats(true_stat, priv_stat, self.marginals_fn[i], self.row_answer_fn[i],
-                            self.diff_marginals_fn[i] if not self.IS_REAL_VALUED else None)
-
-        return state
-
-
-
-def exponential_mechanism(key:jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
-    dist = jax.nn.softmax(2 * eps0 * scores / (2 * sensitivity))
-    cumulative_dist = jnp.cumsum(dist)
-    max_query_idx = jnp.searchsorted(cumulative_dist, jax.random.uniform(key, shape=(1,)))
-    return max_query_idx[0]
 
 
 ######################################################################

@@ -110,7 +110,7 @@ def generate_private_SD(
 
 
     dataset: Dataset
-    dataset = generator.fit(true_stats_noise,  init_X=init_X)
+    dataset = generator.fit(true_stats_noise, init_sync=init_X)
     X_sync = dataset.to_numpy()
 
     elapsed_time = time.time() - stime

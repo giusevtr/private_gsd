@@ -57,7 +57,8 @@ def run_experiments(epsilon=(0.07,0.23,0.52,0.74,1.0,)):
                 key = jax.random.PRNGKey(seed)
                 stime = time.time()
                 sync_data_2 = algorithm.fit_dp_adaptive(key, stat_module=stats_module,
-                                                        rounds=T, epsilon=eps, delta=delta, print_progress=True,tolerance=0.00,start_X=True)
+                                                        rounds=T, epsilon=eps, delta=delta, print_progress=True, tolerance=0.00,
+                                                        start_sync=True)
                 total_time = time.time()-stime
                 errors = stats_module.get_sync_data_errors(sync_data_2.to_numpy())
                 max_error = errors.max()

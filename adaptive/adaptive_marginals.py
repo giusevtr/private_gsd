@@ -99,7 +99,7 @@ def adaptive(get_generator, data, epsilon, seed, delta=1e-5, workload=None, roun
         marginal_queries = Marginals(domain, cliques)
         generator = get_generator(data.domain, marginal_queries, data_size=data_size, seed=seed)
 
-        data_sync = generator.fit(priv_true_stats, init_X=data_sync.to_numpy())
+        data_sync = generator.fit(priv_true_stats, init_sync=data_sync.to_numpy())
 
         sync_ans = data_sync.project(ax).datavector() / data_sync.df.shape[0]
         print(f'final round l1-error = {np.linalg.norm(x - sync_ans, ord=1):.3f}, max-error ={np.max(np.abs(x - sync_ans)):.3f}')
