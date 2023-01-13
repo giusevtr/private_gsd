@@ -9,7 +9,7 @@ from stats import AdaptiveStatisticState
 # @dataclass
 class RelaxedProjection(Generator):
 
-    def __init__(self, domain, data_size,iterations=1000, learning_rate=0.001, stop_loss_time_window=20, print_progress=False):
+    def __init__(self, domain, data_size, iterations=1000, learning_rate=0.001, stop_loss_time_window=20, print_progress=False):
         # super().__init__(domain, stat_module, data_size, seed)
         self.domain = domain
         self.data_size = data_size

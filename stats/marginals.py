@@ -13,6 +13,7 @@ class Marginals:
     marginals_fn: list
     marginals_fn_jit: list
     get_marginals_fn: list
+    get_differentiable_fn: list
     diff_marginals_fn: list
     diff_marginals_fn_jit: list
     sensitivity: list
@@ -237,7 +238,8 @@ class Marginals:
         return stat_fn, jnp.sqrt(2)
 
     def get_differentiable_stats_fn_helper(self, kway_attributes):
-        assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
+
+        assert not self.is_workload_numeric(kway_attributes), "Does not work with real-valued data. Must discretize first."
         # For computing differentiable marginal queries
         queries = []
         indices = [self.domain.get_attribute_onehot_indices(att) for att in kway_attributes]

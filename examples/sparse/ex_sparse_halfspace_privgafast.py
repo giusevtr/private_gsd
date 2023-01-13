@@ -50,7 +50,7 @@ if __name__ == "__main__":
         key = jax.random.PRNGKey(seed)
 
         sync_data = priv_ga.fit_dp(key, stat_module=stats_module,  epsilon=eps, delta=1e-6)
-        plot_sparse(sync_data.to_numpy(), title=f'PrivGA, Halfspaces={stats_module.num_hs}, eps={eps:.2f}', alpha=0.9, s=0.8)
+        plot_sparse(sync_data.to_numpy(), title=f'PrivGA, Halfspaces={stats_module.num_hs_samples}, eps={eps:.2f}', alpha=0.9, s=0.8)
 
         errors = jax.numpy.abs(stats_module.get_true_stats() - stats_module.get_stats_jit(sync_data))
         ave_error = jax.numpy.linalg.norm(errors, ord=1)

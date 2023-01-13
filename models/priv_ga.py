@@ -276,8 +276,7 @@ class PrivGA(Generator):
 
             # Early stop
             best_fitness_total = min(best_fitness_total, best_fitness)
-
-            stop_early = self.early_stop(best_fitness_total)
+            stop_early = t > self.data_size and self.early_stop(t, best_fitness_total)
 
             if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations-2 or stop_early:
                 if self.print_progress:
