@@ -20,12 +20,10 @@ if __name__ == "__main__":
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                     domain_name=f'folktables_datasets/domain/{data_name}-num',  root_path='../../data_files/')
 
-    # Real values must be in [0,1]
-    data, real_cols_range = data.normalize_real_values()
-
     # Create statistics and evaluate
-    # BINS = [2, 4, 8, 16, 32]
-    BINS = [2, 4]
+    BINS = [2, 4, 8, 16, 32]
+    # BINS = [2, 4]
+    print('BINS=', BINS)
     marginal_module, kway = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2, bins=BINS)
     marginal_module.fit(data)
 

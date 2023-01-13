@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 from utils import Dataset, Domain
 from utils.utils_data import Domain
-from stats.private_statistics import PrivateMarginalsState
+# from stats.private_statistics import PrivateMarginalsState
 import numpy as np
 import chex
 
@@ -12,6 +12,7 @@ class Marginals:
     true_stats: list
     marginals_fn: list
     marginals_fn_jit: list
+    get_marginals_fn: list
     diff_marginals_fn: list
     diff_marginals_fn_jit: list
     sensitivity: list
@@ -79,26 +80,38 @@ class Marginals:
         self.marginals_fn_jit = []
         self.diff_marginals_fn = []
         self.diff_marginals_fn_jit = []
+        self.get_marginals_fn = []
         self.sensitivity = []
 
         X = data.to_numpy()
         self.N = X.shape[0]
         self.domain = data.domain
 
+        def get_get_range_func(cols_arg):
+            def fn():
+                return self.get_range_marginal_stats_fn_helper(cols_arg, debug_msg=f'get_marginal_fn {cols_arg}: ')[0]
+            return fn
+        def get_get_cat_func(cols_arg):
+            def fn():
+                return self.get_categorical_marginal_stats_fn_helper(cols_arg)[0]
+            return fn
         for cols in self.kway_combinations:
 
             if self.is_workload_numeric(cols):
-                fn, sensitivity = self.get_range_marginal_stats_fn_helper(cols, debug_msg=f'non-jit {cols}: ')
-                fn_jit = jax.jit(self.get_range_marginal_stats_fn_helper(cols, debug_msg=f'Compiling {cols}:')[0])
-
+                fn, sensitivity = self.get_range_marginal_stats_fn_helper(cols)
+                fn_jit = jax.jit(self.get_range_marginal_stats_fn_helper(cols)[0])
+                get_marginal_fn = get_get_range_func(cols)
             else:
                 fn, sensitivity = self.get_categorical_marginal_stats_fn_helper(cols)
                 fn_jit = jax.jit(self.get_categorical_marginal_stats_fn_helper(cols)[0])
+                get_marginal_fn = get_get_cat_func(cols)
+                # get_marginal_fn = lambda this_cols=cols: self.get_categorical_marginal_stats_fn_helper(this_cols)[0]
 
 
             self.true_stats.append(fn(X))
             self.marginals_fn.append(fn)
             self.marginals_fn_jit.append(fn_jit)
+            self.get_marginals_fn.append(get_marginal_fn)
             self.sensitivity.append(sensitivity / self.N)
 
             if not self.IS_REAL_VALUED:
@@ -167,15 +180,6 @@ class Marginals:
             max_errors.append(error.max())
         return jnp.array(max_errors)
 
-    # def get_sync_data_ave_errors(self, X):
-    #     assert self.true_stats is not None, "Error: must call the fit function"
-    #     max_errors = []
-    #     for i in range(len(self.true_stats)):
-    #         fn = self.marginals_fn[i]
-    #         error = jnp.linalg.norm(self.true_stats[i] - fn(X), ord=1) / self.true_stats[i].shape[0]
-    #         max_errors.append(error)
-    #     return jnp.array(max_errors)
-
     def is_workload_numeric(self, cols):
         for c in cols:
             if c in self.domain.get_numeric_cols():
@@ -199,7 +203,7 @@ class Marginals:
 
         dim = len(self.domain.attrs)
         def stat_fn(X):
-            print(debug_msg, X.shape, end='\n')
+            # print(debug_msg, X.shape, end='\n')
             X = X.reshape((-1, dim))
             X_proj = X[:, idx]
             stats = []
@@ -250,62 +254,11 @@ class Marginals:
             return jnp.prod(X[:, queries], 2).sum(0) / X.shape[0]
 
         return stat_fn, jnp.sqrt(2)
-    ##################################################
-    ## Adaptive statistics
-    ##################################################
-    def private_select_measure_statistic(self, key, rho_per_round, X_sync, state: PrivateMarginalsState):
-        rho_per_round = rho_per_round / 2
-
-        key, key_em = jax.random.split(key, 2)
-        errors = self.get_sync_data_errors(X_sync)
-        max_sensitivity = max(self.sensitivity)
-        worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), max_sensitivity)
-
-        key, key_gaussian = jax.random.split(key, 2)
-        selected_true_stat = self.true_stats[worse_index]
-
-        sensitivity = self.sensitivity[worse_index]
-        sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
-        gau_noise = jax.random.normal(key_gaussian, shape=selected_true_stat.shape) * sigma_gaussian
-
-        selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
-
-        state.add_stats(selected_true_stat, selected_priv_stat, self.marginals_fn[worse_index],
-                        self.marginals_fn_jit[worse_index],
-                        self.diff_marginals_fn[worse_index] if not self.IS_REAL_VALUED else None,
-                        self.diff_marginals_fn_jit[worse_index] if not self.IS_REAL_VALUED else None,
-                        )
-
-        return state
-
-    def get_private_statistics(self, key, rho):
-
-        state = PrivateMarginalsState()
-
-        rho_per_stat = rho / len(self.true_stats)
-        for i in range(len(self.true_stats)):
-            true_stat = self.true_stats[i]
-            key, key_gaussian = jax.random.split(key, 2)
-            sensitivity = self.sensitivity[i]
-
-            sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_stat)))
-            gau_noise = jax.random.normal(key_gaussian, shape=true_stat.shape) * sigma_gaussian
-            priv_stat = jnp.clip(true_stat + gau_noise, 0, 1)
-
-            state.add_stats(true_stat, priv_stat, self.marginals_fn[i], self.marginals_fn_jit[i],
-                            self.diff_marginals_fn[i] if not self.IS_REAL_VALUED else None,
-                            self.diff_marginals_fn_jit[i] if not self.IS_REAL_VALUED else None,
-                            )
-
-        return state
 
 
 
-def exponential_mechanism(key:jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
-    dist = jax.nn.softmax(2 * eps0 * scores / (2 * sensitivity))
-    cumulative_dist = jnp.cumsum(dist)
-    max_query_idx = jnp.searchsorted(cumulative_dist, jax.random.uniform(key, shape=(1,)))
-    return max_query_idx[0]
+
+
 
 
 ######################################################################

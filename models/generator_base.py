@@ -1,6 +1,6 @@
 import jax
 # from stats import PrivateStatistic
-from stats import Marginals, PrivateMarginalsState
+from stats import Marginals, AdaptiveStatisticState
 import time
 from utils import Dataset, Domain
 from utils.cdp2adp import cdp_rho
@@ -35,7 +35,7 @@ class Generator:
 
 
 
-    def fit(self, key: jax.random.PRNGKeyArray, stat_module: PrivateMarginalsState, init_X=None, tolerance:float=0) -> Dataset:
+    def fit(self, key: jax.random.PRNGKeyArray, stat_module: AdaptiveStatisticState, init_X=None, tolerance:float=0) -> Dataset:
         pass
 
     # @staticmethod
@@ -74,22 +74,22 @@ class Generator:
 
         true_stats = stat_module.get_true_stats()
 
-        stat_state = PrivateMarginalsState()
+        adaptive_statistic = AdaptiveStatisticState(stat_module)
         for i in range(1, rounds + 1):
             stime = time.time()
 
             # Select a query with max error using the exponential mechanism and evaluate
             key, subkey_select = jax.random.split(key, 2)
-            stat_state = stat_module.private_select_measure_statistic(subkey_select, rho_per_round, X_sync, stat_state)
+            adaptive_statistic.private_select_measure_statistic(subkey_select, rho_per_round, X_sync)
             # state = stat_module.priv_update(subkey_select, state, rho_per_round, X_sync)
 
 
             key, key_fit = jax.random.split(key, 2)
             dataset: Dataset
             if start_X:
-                sync_dataset = self.fit(key_fit, stat_state, X_sync, tolerance=tolerance)
+                sync_dataset = self.fit(key_fit, adaptive_statistic, X_sync, tolerance=tolerance)
             else:
-                sync_dataset = self.fit(key_fit, stat_state, tolerance=tolerance)
+                sync_dataset = self.fit(key_fit, adaptive_statistic, tolerance=tolerance)
 
             ##### PROJECT STEP
             X_sync = sync_dataset.to_numpy()
@@ -98,19 +98,19 @@ class Generator:
             errors_post_max = stat_module.get_sync_data_errors(X_sync).max()
             errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats_jit(sync_dataset), ord=1)/true_stats.shape[0]
 
-            round_true_max_loss = stat_state.true_loss_inf(X_sync)
-            round_true_ave_loss = stat_state.true_loss_l2(X_sync)
+            round_true_max_loss = adaptive_statistic.true_loss_inf(X_sync)
+            round_true_ave_loss = adaptive_statistic.true_loss_l2(X_sync)
 
-            round_priv_max_loss = stat_state.true_loss_inf(X_sync)
-            round_priv_ave_loss = stat_state.true_loss_l2(X_sync)
+            round_priv_max_loss = adaptive_statistic.true_loss_inf(X_sync)
+            round_priv_ave_loss = adaptive_statistic.true_loss_l2(X_sync)
 
             if print_progress:
-                gaussian_error = jnp.abs(stat_state.get_priv_stats() - stat_state.get_true_stats()).max()
+                gaussian_error = jnp.abs(adaptive_statistic.get_private_statistics() - adaptive_statistic.get_true_statistics()).max()
                 print(f'Epoch {i:03}: Total error(max/avg) is {errors_post_max:.4f}/{errors_post_avg:.7f}.\t ||'
-                      f'\tRound: True error(max/l2) is {stat_state.true_loss_inf(X_sync):.5f}/{stat_state.true_loss_l2(X_sync):.7f}.'
+                      f'\tRound: True error(max/l2) is {adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f}.'
                       # f'\t(true) max error = {stat_state.true_loss_inf(X_sync):.4f}.'
                       # f'\t(true)  l2 error = {stat_state.true_loss_l2(X_sync):.5f}.'
-                      f'\tPriv error(max/l2) is {stat_state.priv_loss_inf(X_sync):.5f}/{stat_state.priv_loss_l2(X_sync):.7f}.'
+                      f'\tPriv error(max/l2) is {adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f}.'
                       f'\tGaussian max error {gaussian_error:.6f}.'
                       f'\tElapsed time = {time.time() - stime:.4f}s')
             if debug_fn is not None:
