@@ -39,8 +39,8 @@ if __name__ == "__main__":
                                  epsilon=1, delta=1e-6, tolerance=0.0, print_progress=False)
     sync_data = Dataset.to_numeric(sync_data_disc, data.domain.get_numeric_cols())
 
-    true_stats = marginal_module.get_true_stats()
-    sync_stats = marginal_module.get_stats(sync_data)
+    true_stats = marginal_module.get_true_statistics()
+    sync_stats = marginal_module.private_statistics_fn(sync_data)
     print(f'RAP: max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
           f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
           f'time = {time.time() - stime:.5f}')

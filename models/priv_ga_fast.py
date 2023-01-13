@@ -5,7 +5,7 @@ XLA_FLAGS=--xla_force_host_platform_device_count=4
 import jax.numpy as jnp
 from models import Generator
 import time
-from stats import PrivateMarginalsState
+from stats import  AdaptiveStatisticState
 from typing import Callable
 import jax
 import chex
@@ -236,13 +236,16 @@ class PrivGAfast(Generator):
         self.print_progress = print_progress
         self.strategy = strategy
 
+        self.CACHE = {}
+
     def __str__(self):
         return f'PrivGAfast'
 
-    def fit(self, key, priv_stat_module: PrivateMarginalsState, init_X=None, tolerance: float = 0.0):
+    def fit(self, key, adaptive_statistic: AdaptiveStatisticState, init_X=None, tolerance: float = 0.0):
         """
         Minimize error between real_stats and sync_stats
         """
+        print(f'startt priv_ga_fast')
 
         init_time = time.time()
         # key = jax.random.PRNGKey(seed)
@@ -250,37 +253,71 @@ class PrivGAfast(Generator):
         if num_devices > 1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
-        get_stats_jax = lambda X: priv_stat_module.get_stats(X)
-        get_stats_jax_vmap = jax.vmap(get_stats_jax, in_axes=(0,))
-        get_stats_jax_vmap = jax.jit(get_stats_jax_vmap)
 
-        self.key, subkey = jax.random.split(key, 2)
-        state = self.strategy.initialize(subkey, get_stats_jax_vmap)
+
+        # elite_fn_list, mate_and_mute_fn_list, mute_onl = []
+        for stat_id in adaptive_statistic.statistics_ids:
+            if stat_id not in self.CACHE:
+                elite_population_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                mate_and_mute_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                mute_only_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                self.CACHE[stat_id] = (jax.jit(jax.vmap(elite_population_fn, in_axes=(0, ))),
+                                       jax.jit(jax.vmap(mate_and_mute_rows_fn, in_axes=(0, ))),
+                                       jax.jit(jax.vmap(mute_only_rows_fn, in_axes=(0, )))
+                                       )
+            # elite_population_fn_jit, mate_and_mute_rows_fn_jit, mute_only_rows_fn_jit = self.CACHE[stat_id]
+
+
+        def elite_population_fn(x):
+            pop_stats = []
+            for stat_id in adaptive_statistic.statistics_ids:
+                elite_population_fn_jit, _, _ = self.CACHE[stat_id]
+                pop_stats.append(elite_population_fn_jit(x))
+            pop_stats_concat = jnp.concatenate(pop_stats, axis=1)
+            return pop_stats_concat
+
+        def mate_and_muta_population_fn(x):
+            pop_stats = []
+            for stat_id in adaptive_statistic.statistics_ids:
+                _, mate_and_mute_rows_fn_jit, _ = self.CACHE[stat_id]
+                pop_stats.append(mate_and_mute_rows_fn_jit(x))
+            pop_stats_concat = jnp.concatenate(pop_stats, axis=1)
+            return pop_stats_concat
+
+        def muta_only_population_fn(x):
+            pop_stats = []
+            for stat_id in adaptive_statistic.statistics_ids:
+                _, _, muta_only_rows_fn_jit = self.CACHE[stat_id]
+                pop_stats.append(muta_only_rows_fn_jit(x))
+            pop_stats_concat = jnp.concatenate(pop_stats, axis=1)
+            return pop_stats_concat
 
 
         # FITNESS
-        priv_stats = priv_stat_module.get_priv_stats()
-        get_stats_for_fitness = lambda X: priv_stat_module.get_stats(X)
-
-        def fitness_fn(init_sync_stat, removed_rows, added_rows):
-            num_rows, d = removed_rows.shape
-            rem_stats = get_stats_for_fitness(removed_rows) * num_rows
-            add_stats = get_stats_for_fitness(added_rows) * num_rows
+        priv_stats = adaptive_statistic.get_private_statistics()
+        def fitness_fn(init_sync_stat, rem_stats, add_stats):
+            # rem_stats = stats_fn_for_fitness(removed_rows) * num_rows
+            # add_stats = stats_fn_for_fitness(added_rows) * num_rows
             upt_sync_stat = init_sync_stat + add_stats - rem_stats
             fitness = jnp.linalg.norm(priv_stats - upt_sync_stat / self.data_size, ord=2)
-            # fitness = jnp.abs(priv_stats - upt_sync_stat/self.data_size).max()
             return fitness, upt_sync_stat
-
-        # fitness_fn = lambda sync_stat: jnp.linalg.norm(priv_stats - sync_stat, ord=2)
         fitness_vmap_fn = jax.vmap(fitness_fn, in_axes=(0, 0, 0))
         fitness_vmap_fn = jax.jit(fitness_vmap_fn)
 
+
+
+        key, subkey = jax.random.split(key, 2)
+        state = self.strategy.initialize(subkey, elite_population_fn)
+        assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
+
         if init_X is not None:
+            # temp_stats = self.data_size * init_population_stats_fn_jit(temp)
+            temp_stats = self.data_size * adaptive_statistic.private_statistics_fn_jit(init_X).reshape((1, -1))
             temp = init_X.reshape((1, init_X.shape[0], init_X.shape[1]))
-            temp_stats = self.data_size * get_stats_jax_vmap(temp)
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             new_archive_stats = jnp.concatenate([temp_stats, state.archive_stats[1:, :]])
             state = state.replace(archive=new_archive, archive_stats=new_archive_stats)
+        assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
 
         self.early_stop_init()  # Initiate time-based early stop system
 
@@ -293,18 +330,28 @@ class PrivGAfast(Generator):
         mutate_only = 0
 
         for t in range(self.num_generations):
-            self.key, ask_subkey = jax.random.split(self.key, 2)
+            # assert jnp.abs(elite_population_fn(
+            #     state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
+
+            key, ask_subkey = jax.random.split(key, 2)
 
             # ASK
             t0 = timer()
             x, a, removed_rows, added_rows, state = self.strategy.ask(ask_subkey, state, mutate_only=mutate_only > 0)
+            _, num_rows, _ = removed_rows.shape
             ask_time += timer() - t0
 
             # FIT
             t0 = timer()
-            fitness, a_updated = fitness_vmap_fn(a, removed_rows, added_rows)
-            # assert jnp.abs(get_stats_jax_vmap(state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
-            fit_time += time.time() - t0
+            if num_rows > 1:
+                removed_stats = num_rows * mate_and_muta_population_fn(removed_rows)
+                added_stats = num_rows * mate_and_muta_population_fn(added_rows)
+            else:
+                removed_stats = num_rows * muta_only_population_fn(removed_rows)
+                added_stats = num_rows * muta_only_population_fn(added_rows)
+
+            fitness, a_updated = fitness_vmap_fn(a, removed_stats, added_stats)
+            fit_time += timer() - t0
 
             # TELL
             t0 = timer()
@@ -333,15 +380,15 @@ class PrivGAfast(Generator):
                     print(f'\t\tStop early at t={t}')
                 stop_early = True
 
-            if last_fitness is None or best_fitness < last_fitness * 0.99 or t > self.num_generations - 2 or stop_early:
+            if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
                 if self.print_progress:
                     X_sync = state.best_member
                     print(f'\tGeneration {t:05}, best_l2_fitness = {best_fitness:.6f}, ', end=' ')
                     print(
-                        f'\t\tprivate (max/l2) error={priv_stat_module.priv_loss_inf(X_sync):.5f}/{priv_stat_module.priv_loss_l2(X_sync):.7f}',
+                        f'\t\tprivate (max/l2) error={adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f}',
                         end='')
                     print(
-                        f'\t\ttrue (max/l2) error={priv_stat_module.true_loss_inf(X_sync):.5f}/{priv_stat_module.true_loss_l2(X_sync):.7f}',
+                        f'\t\ttrue (max/l2) error={adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f}',
                         end='')
                     print(f'\ttime={timer() - init_time:.4f}(s):', end='')
                     print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
@@ -355,7 +402,7 @@ class PrivGAfast(Generator):
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         if self.print_progress:
             print(
-                f'\t\tFinal private max_error={priv_stat_module.priv_loss_inf(X_sync):.3f}, private l2_error={priv_stat_module.priv_loss_l2(X_sync):.6f},',
+                f'\t\tFinal private max_error={adaptive_statistic.private_loss_inf(X_sync):.3f}, private l2_error={adaptive_statistic.private_loss_l2(X_sync):.6f},',
                 end='\n')
 
         return sync_dataset
@@ -385,10 +432,11 @@ def test_jit_ask():
     stime = time.time()
     key = jax.random.PRNGKey(0)
 
-    state = strategy.initialize(key, get_stats_vmap)
+    strategy.initialize(key, get_stats_vmap)
+    print(f'Initialize(1) elapsed time {time.time() - stime:.3f}s')
 
-    # state = strategy.initialize(rng=key)
-    print(f'Initialize elapsed time {time.time() - stime:.3f}s')
+    state = strategy.initialize(key, get_stats_vmap)
+    print(f'Initialize(2) elapsed time {time.time() - stime:.3f}s')
 
     for r in range(rounds):
         stime = time.time()

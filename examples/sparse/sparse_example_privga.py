@@ -86,8 +86,8 @@ if __name__ == "__main__":
                                          print_progress=True, debug_fn=debug_fn)
         erros = stats_module.get_sync_data_errors(sync_data.to_numpy())
 
-        stats = stats_module.get_stats(sync_data)
-        ave_error = jax.numpy.linalg.norm(stats_module.get_true_stats() - stats, ord=1)
+        stats = stats_module.get_stats_jit(sync_data)
+        ave_error = jax.numpy.linalg.norm(stats_module.get_true_statistics() - stats, ord=1)
         print(f'{str(priv_ga)}: max error = {erros.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
 
         df = priv_ga.ADA_DATA

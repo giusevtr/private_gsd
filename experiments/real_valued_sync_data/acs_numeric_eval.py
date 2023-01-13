@@ -37,7 +37,7 @@ if __name__ == "__main__":
                                                                                                         2, 4, 8, 16,
                                                                                                           32])
         stats_module.fit(orig_data_normed)
-        orig_stats = stats_module.get_true_stats()
+        orig_stats = stats_module.get_true_statistics()
 
         print()
         print(data_name)
@@ -61,7 +61,7 @@ if __name__ == "__main__":
                     # sync_data = get_data(sync_data_path,
                     #         domain_name=f'../../data_files/folktables_datasets/domain/{data_name}-num', root_path='.')
 
-                    sync_stats = stats_module.get_stats(sync_data)
+                    sync_stats = stats_module.private_statistics_fn(sync_data)
 
                     max_error = float(jnp.abs(orig_stats - sync_stats).max())
                     l1_error = float(jnp.linalg.norm(orig_stats-sync_stats, ord=1)/orig_stats.shape[0])

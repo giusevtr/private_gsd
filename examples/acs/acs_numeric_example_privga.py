@@ -22,7 +22,6 @@ if __name__ == "__main__":
                     domain_name=f'folktables_datasets/domain/{data_name}-num',  root_path='../../data_files/')
 
     # Real values must be in [0,1]
-    data, real_cols_range = data.normalize_real_values()
 
     # Create statistics and evaluate
     BINS = [2, 4, 8, 16, 32]
@@ -39,7 +38,7 @@ if __name__ == "__main__":
     priv_ga = PrivGA(
         num_generations=100000,
         stop_loss_time_window=50,
-        print_progress=False,
+        print_progress=True,
         strategy=SimpleGAforSyncData(
             domain=data.domain,
             data_size=data_size,
@@ -57,8 +56,8 @@ if __name__ == "__main__":
     sync_data = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS,
                                  epsilon=1, delta=1e-6, tolerance=0.0, print_progress=True)
 
-    true_stats = marginal_module.get_true_stats()
-    sync_stats = marginal_module.get_stats(sync_data)
+    true_stats = marginal_module.get_true_statistics()
+    sync_stats = marginal_module.private_statistics_fn(sync_data)
     print(f'PrivGA: max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
           f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
           f'time = {time.time() - stime:.5f}')

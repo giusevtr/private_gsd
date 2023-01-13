@@ -15,18 +15,10 @@ EPSILON = [0.1]
 SEEDS = [0]
 
 
-
-
 if __name__ == "__main__":
 
-    # rng = np.random.default_rng()
-    # data_np = np.column_stack((rng.uniform(low=0.20, high=0.21, size=(10000, )),
-    #                            rng.uniform(low=0.30, high=0.80, size=(10000, ))))
-    # BINS = 32
     data = get_sparse_dataset(DATA_SIZE=10000)
-    # plot_2d_data(data.to_numpy())
-    # plot_sparse(data.to_numpy(), title='Original sparse')
-    bins = [2, 4, 8, 16, 32, 64]
+    bins = [2, 4, 8, 16]
     stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
                                                                                 bins=bins)
     stats_module.fit(data)
@@ -48,10 +40,6 @@ if __name__ == "__main__":
                      )
     # priv_ga.early_stop_elapsed_time = 40
 
-
-
-    # plot_2d_data(data_np)
-
     def plot_sparse(data_array, alpha=0.9, title='', save_path=None):
         plt.figure(figsize=(5, 5))
         plt.title(title)
@@ -68,11 +56,9 @@ if __name__ == "__main__":
     for eps, seed in itertools.product(EPSILON, SEEDS):
         priv_ga: Generator
 
-
         def debug_fn(t, sync_dataset):
             X = sync_dataset.to_numpy()
             plot_sparse(X, title=f'PrivGA, eps={eps:.2f}, epoch={t:03}')
-
 
         ##############
         ## Non-Regularized
@@ -86,7 +72,7 @@ if __name__ == "__main__":
                                          print_progress=True, debug_fn=debug_fn)
         erros = stats_module.get_sync_data_errors(sync_data.to_numpy())
 
-        stats = stats_module.get_stats(sync_data)
+        stats = stats_module.get_stats_jit(sync_data)
         ave_error = jax.numpy.linalg.norm(stats_module.get_true_stats() - stats, ord=1)
         print(f'{str(priv_ga)}: max error = {erros.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
 

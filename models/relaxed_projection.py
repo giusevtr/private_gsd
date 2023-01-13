@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import optax
 from models import Generator
 from utils import Dataset
-from stats import PrivateMarginalsState
+from stats import AdaptiveStatisticState
 
 
 # @dataclass
@@ -22,13 +22,13 @@ class RelaxedProjection(Generator):
     def __str__(self):
         return f'RP(lr={self.learning_rate:.4f})'
 
-    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
+    def fit(self, key, stat: AdaptiveStatisticState, init_X=None, tolerance=0):
 
         data_dim = self.domain.get_dimension()
 
         # compute_loss = lambda params, sigmoid: optax.l2_loss(stat_fn(params['w'], sigmoid), true_stats)
         softmax_fn = lambda X: Dataset.apply_softmax(self.domain, X)
-        compute_loss = lambda params: jnp.linalg.norm(stat.get_diff_stats(softmax_fn(params['w'])) - stat.get_priv_stats())**2
+        compute_loss = lambda params: jnp.linalg.norm(stat.private_diff_statisitcs_fn(softmax_fn(params['w'])) - stat.get_private_statistics()) ** 2
 
         self.key, subkey = jax.random.split(key, 2)
         self.synthetic_data = softmax_fn(jax.random.uniform(subkey, shape=(self.data_size, data_dim), minval=0, maxval=1))
@@ -55,7 +55,7 @@ class RelaxedProjection(Generator):
 
             best_loss = min(best_loss, loss)
 
-            priv_max_error = stat.priv_diff_loss_inf(softmax_fn(params['w']))
+            priv_max_error = stat.private_diff_loss_inf(softmax_fn(params['w']))
             if last_loss is None or loss < last_loss * 0.95 or t > self.iterations-2 :
                 if self.print_progress :
                     print(f'epoch {t:<3}). Loss={loss}, priv_max_error={priv_max_error}')
@@ -79,9 +79,9 @@ class RelaxedProjection(Generator):
         X_onehot = Dataset.get_sample_onehot(subkey, self.domain, self.synthetic_data, num_samples=30)
 
         if self.print_progress:
-            priv_max_error = stat.priv_diff_loss_inf(self.synthetic_data)
+            priv_max_error = stat.private_diff_loss_inf(self.synthetic_data)
             print(f'Debug1: synthetic_data max error = priv_max_error ={priv_max_error}')
-            priv_max_error = stat.priv_diff_loss_inf(X_onehot)
+            priv_max_error = stat.private_diff_loss_inf(X_onehot)
             print(f'Debug2: X_onehot max error = priv_max_error ={priv_max_error}')
         sync_dataset = Dataset.from_onehot_to_dataset(self.domain, X_onehot)
         return sync_dataset

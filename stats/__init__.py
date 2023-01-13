@@ -1,2 +1,2 @@
 from stats.marginals import Marginals
-from stats.private_statistics import PrivateMarginalsState
+from stats.adaptive_statistic import AdaptiveStatisticState

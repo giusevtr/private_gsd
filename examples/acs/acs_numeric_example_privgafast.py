@@ -20,11 +20,10 @@ if __name__ == "__main__":
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                     domain_name=f'folktables_datasets/domain/{data_name}-num',  root_path='../../data_files/')
 
-    # Real values must be in [0,1]
-    data, real_cols_range = data.normalize_real_values()
-
     # Create statistics and evaluate
     BINS = [2, 4, 8, 16, 32]
+    # BINS = [2, 4]
+    print('BINS=', BINS)
     marginal_module, kway = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2, bins=BINS)
     marginal_module.fit(data)
 
@@ -36,7 +35,7 @@ if __name__ == "__main__":
     data_size = 2000
     priv_ga = PrivGAfast(
         num_generations=100000,
-        print_progress=False,
+        print_progress=True,
         strategy=SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
@@ -55,7 +54,7 @@ if __name__ == "__main__":
                                  epsilon=1.00, delta=1e-6, tolerance=0.0, print_progress=True)
 
     true_stats = marginal_module.get_true_stats()
-    sync_stats = marginal_module.get_stats(sync_data)
+    sync_stats = marginal_module.get_stats_jit(sync_data)
     print(f'PrivGA(fast): max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
           f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
           f'time = {time.time() - stime:.5f}')

@@ -68,8 +68,8 @@ if __name__ == "__main__":
 
             ave_error = private_stats.true_loss_l2(sync_data_2.to_numpy())
             max_error = private_stats.true_loss_inf(sync_data_2.to_numpy())
-            ave_error_priv = private_stats.priv_loss_l2(sync_data_2.to_numpy())
-            max_error_priv = private_stats.priv_loss_inf(sync_data_2.to_numpy())
+            ave_error_priv = private_stats.private_loss_l2(sync_data_2.to_numpy())
+            max_error_priv = private_stats.private_loss_inf(sync_data_2.to_numpy())
             # print(pop, elite, mut, mate, data_size, seed, ':')
             print(f'lr={lr:.7f}, data_size={data_size:<3}, seed={seed}, eps={eps:.2f}', end='\t\t ')
             print(f'RAP: ave_error = {ave_error:.7f}, max_error={max_error:.5f}, ave_error_priv={ave_error_priv:.7f}, max_error_priv={max_error_priv:.5f} time={time.time() - stime:.5f}')

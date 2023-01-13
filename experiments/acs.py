@@ -61,8 +61,8 @@ def run_experiments(epsilon=(0.07,0.23,0.52,0.74,1.0,)):
                 total_time = time.time()-stime
                 errors = stats_module.get_sync_data_errors(sync_data_2.to_numpy())
                 max_error = errors.max()
-                sync_stats = stats_module.get_stats(sync_data_2)
-                l1_error = jnp.mean(jnp.abs(stats_module.get_true_stats() - sync_stats))
+                sync_stats = stats_module.private_statistics_fn(sync_data_2)
+                l1_error = jnp.mean(jnp.abs(stats_module.get_true_statistics() - sync_stats))
                 RESULTS.append(
                     [data_name, str(algorithm), str(stats_module), T, eps, seed, max_error, l1_error, total_time])
                 print(f'{str(algorithm)}: max error = {errors.max():.5f}')

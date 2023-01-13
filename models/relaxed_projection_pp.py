@@ -4,7 +4,7 @@ import optax
 from models import Generator
 from dataclasses import dataclass
 from utils import Dataset, Domain
-from stats import Marginals, PrivateMarginalsState
+from stats import Marginals, AdaptiveStatisticState
 
 @dataclass
 class RelaxedProjectionPP(Generator):
@@ -18,10 +18,13 @@ class RelaxedProjectionPP(Generator):
     def __str__(self):
         return 'RP++'
 
-    def fit(self, key, stat: PrivateMarginalsState, init_X=None, tolerance=0):
+    def fit(self, key, stat: AdaptiveStatisticState, init_X=None, tolerance=0):
         # self.optimizer = optax.adam(lr)
-        stat_fn = stat_module.get_differentiable_stats_fn()
-        target_stats = stat_module.get_private_stats()
+        # stat_fn = stat.get_differentiable_stats_fn()
+        true_stats = stat.get_true_statistics()
+        stat_fn = stat.private_diff_statistics_fn_jit
+        # target_stats = stat_module.get_private_stats()
+        target_stats = stat.get_private_statistics()
         compute_loss = lambda params, sigmoid: jnp.linalg.norm(stat_fn(params['w'], sigmoid) - target_stats)**2
         compute_loss_jit = jax.jit(compute_loss)
         update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)
@@ -31,14 +34,14 @@ class RelaxedProjectionPP(Generator):
         best_sync = None
         for lr in self.learning_rate:
             key, key2 = jax.random.split(key, 2)
-            sync = self.fit_help(key2, stat_module.domain, compute_loss_jit, update_fn_jit, lr)
+            sync = self.fit_help(key2, stat.STAT_MODULE.domain, compute_loss_jit, update_fn_jit, lr)
             loss = jnp.linalg.norm(true_stats - stat_fn(sync, 10000))
             if best_sync is None or loss < min_loss:
                 best_sync = jnp.copy(sync)
                 min_loss = loss
 
         # Dataset.from_onehot_to_dataset(self.domain, best_sync)
-        return Dataset.from_onehot_to_dataset(stat_module.domain, best_sync)
+        return Dataset.from_onehot_to_dataset(stat.STAT_MODULE.domain, best_sync)
 
     def fit_help(self, key, domain: Domain, compute_loss_jit, update_fn_jit, lr):
         data_dim = domain.get_dimension()
