@@ -203,7 +203,7 @@ class Marginals:
 
         dim = len(self.domain.attrs)
         def stat_fn(X):
-            # print(debug_msg, X.shape, end='\n')
+            print(debug_msg, end='')
             X = X.reshape((-1, dim))
             X_proj = X[:, idx]
             stats = []
