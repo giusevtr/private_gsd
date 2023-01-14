@@ -56,8 +56,8 @@ if __name__ == "__main__":
     sync_data = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS,
                                  epsilon=1, delta=1e-6, tolerance=0.0, print_progress=True)
 
-    true_stats = marginal_module.get_true_statistics()
-    sync_stats = marginal_module.private_statistics_fn(sync_data)
+    true_stats = marginal_module.get_true_stats()
+    sync_stats = marginal_module.get_stats_jit(sync_data)
     print(f'PrivGA: max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
           f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
           f'time = {time.time() - stime:.5f}')

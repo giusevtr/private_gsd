@@ -21,17 +21,36 @@ class Generator:
         self.last_time: float = time.time()
         self.last_error = 10000000
         self.start_time = time.time()
-
-    def early_stop(self, error):
-        current_time = time.time()
-        stop_early = False
-        if current_time - self.last_time > self.early_stop_elapsed_time:
-            loss_change = jnp.abs(error - self.last_error) / self.last_error
-            if loss_change < 0.001:
-                stop_early = True
-            self.last_time = current_time
+        self.last_update_iteration = 0
+    def early_stop(self, t, error):
+        if self.last_update_iteration == 0:
             self.last_error = error
+            self.last_update_iteration = t
+            return False
+
+        stop_early = False
+        loss_change = (self.last_error - error) / self.last_error
+        iterations_increase = (t - self.last_update_iteration) / self.last_update_iteration
+        if loss_change > 0.001:
+            # print(f'iterations_increase={iterations_increase:.6f}')
+            self.last_error = error
+            self.last_update_iteration = t
+
+        if iterations_increase > 0.1:
+            stop_early = True
+            self.last_error = error
+            self.last_update_iteration = t
         return stop_early
+    # def early_stop(self, t, error):
+    #     current_time = time.time()
+    #     stop_early = False
+    #     if current_time - self.last_time > self.early_stop_elapsed_time:
+    #         loss_change = jnp.abs(error - self.last_error) / self.last_error
+    #         if loss_change < 0.001:
+    #             stop_early = True
+    #         self.last_time = current_time
+    #         self.last_error = error
+    #     return stop_early
 
     def fit(self, key: jax.random.PRNGKeyArray, stat: AdaptiveStatisticState, init_sync: chex.Array = None,
             tolerance: float = 0) -> Dataset:

@@ -246,8 +246,6 @@ class PrivGAfast(Generator):
         if num_devices > 1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
-
-
         # elite_fn_list, mate_and_mute_fn_list, mute_onl = []
         for stat_id in adaptive_statistic.statistics_ids:
             if stat_id not in self.CACHE:
@@ -331,6 +329,8 @@ class PrivGAfast(Generator):
 
         mutate_only = 0
 
+        # last_generation_update = 0
+        # last_fitness_update
         for t in range(self.num_generations):
 
             key, ask_subkey = jax.random.split(key, 2)
@@ -373,34 +373,45 @@ class PrivGAfast(Generator):
             # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)
 
-            stop_early = False
-            if mutate_only == 0 and self.early_stop(best_fitness_total) and t > 0:
-                # If early stop is hit for the first type then set a flag to begin mutate only
-                if self.print_progress:
-                    print(f'\t\tSwitching to mutate only at t={t}')
-                mutate_only = mutate_only + 1
-            elif mutate_only == 1:
-                # if this is the first round where mutate_only is turned on then do nothing
-                # This allows time for the jax.jit function to compile
-                self.early_stop(best_fitness_total)  # Call this function to reset the time
-                mutate_only = mutate_only + 1
-            elif mutate_only == 2 and self.early_stop(best_fitness_total):
-                # if early stop is hit a second time then halt
-                if self.print_progress:
-                    print(f'\t\tStop early at t={t}')
-                stop_early = True
+
+            if t > self.data_size:
+                if self.early_stop(t, best_fitness_total):
+                    if self.print_progress:
+                        if mutate_only == 0: print(f'\t\tSwitching to mutate only at t={t}')
+                        elif mutate_only == 1: print(f'\t\tStop early at t={t}')
+                    mutate_only += 1
+            stop_early = mutate_only >= 2
+            # stop_early = False
+            # if t < 50:
+            #     # Reset early stop timer at generation 0 to allow compile time
+            #     self.early_stop(t, best_fitness_total)  # Call this function to reset the time
+            # elif mutate_only == 0 and self.early_stop(best_fitness_total) and t > 0:
+            #     # If early stop is hit for the first type then set a flag to begin mutate only
+            #     if self.print_progress:
+            #         print(f'\t\tSwitching to mutate only at t={t}')
+            #     mutate_only = mutate_only + 1
+            # elif mutate_only == 1:
+            #     # if this is the first round where mutate_only is turned on then do nothing
+            #     # This allows time for the jax.jit function to compile
+            #     self.early_stop(best_fitness_total)  # Call this function to reset the time
+            #     mutate_only = mutate_only + 1
+            # elif mutate_only == 2 and self.early_stop(best_fitness_total):
+            #     # if early stop is hit a second time then halt
+            #     if self.print_progress:
+            #         print(f'\t\tStop early at t={t}')
+            #     stop_early = True
 
             if last_fitness is None or best_fitness < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
                 if self.print_progress:
                     X_sync = state.best_member
-                    print(f'\tGeneration {t:05}, best_l2_fitness = {best_fitness:.6f}, ', end=' ')
-                    print(
-                        f'\t\tprivate (max/l2) error={adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f}',
-                        end='')
-                    print(
-                        f'\t\ttrue (max/l2) error={adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f}',
-                        end='')
-                    print(f'\ttime={timer() - init_time:.4f}(s):', end='')
+                    gau_error = jnp.abs(adaptive_statistic.get_true_statistics() - adaptive_statistic.get_private_statistics())
+                    gau_max = gau_error.max()
+                    gau_avg = jnp.linalg.norm(gau_error, ord=2) / gau_error.shape[0]
+                    print(f'\tGen {t:05}, fitness={best_fitness:.6f}, ', end=' ')
+                    print(f'\tprivate error(max/l2)=({adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f})',end='')
+                    print(f'\ttrue error=({adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f})',end='')
+                    print(f'\tgau error=({gau_max:.5f}/{gau_avg:.7f})',end='')
+                    print(f'\t|time={timer() - init_time:.4f}(s):', end='')
                     print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
                     print()
                 last_fitness = best_fitness

@@ -1,6 +1,8 @@
+import chex
 import jax
 import jax.numpy as jnp
 import optax
+from typing import Callable
 from models import Generator
 from dataclasses import dataclass
 from utils import Dataset, Domain
@@ -15,17 +17,58 @@ class RelaxedProjectionPP(Generator):
     print_progress: bool = False
     early_stop_percent: float = 0.001
 
+    def __init__(self, domain, data_size, iterations=1000, learning_rate=(0.001,), stop_loss_time_window=20, print_progress=False):
+        # super().__init__(domain, stat_module, data_size, seed)
+        self.domain = domain
+        self.data_size = data_size
+        self.iterations = iterations
+        self.learning_rate = learning_rate
+        self.early_stop_percent = 0.001
+        self.stop_loss_time_window = stop_loss_time_window
+        self.print_progress = print_progress
+        self.CACHE = {}
+
     def __str__(self):
         return 'RP++'
 
-    def fit(self, key, stat: AdaptiveStatisticState, init_sync=None, tolerance=0):
+    def fit(self, key, adaptive_statistic: AdaptiveStatisticState, init_sync=None, tolerance=0):
         # self.optimizer = optax.adam(lr)
         # stat_fn = stat.get_differentiable_stats_fn()
-        true_stats = stat.get_true_statistics()
-        stat_fn = stat.private_diff_statistics_fn_jit
+
+
+
+        update_functions = []
+        for stat_id in adaptive_statistic.statistics_ids:
+            if stat_id not in self.CACHE:
+                # elite_population_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                # mate_and_mute_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                # mute_only_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                # self.CACHE[stat_id] = ((jax.vmap(elite_population_fn, in_axes=(0, ))),
+                #                        jax.jit(jax.vmap(mate_and_mute_rows_fn, in_axes=(0, ))),
+                #                        jax.jit(jax.vmap(mute_only_rows_fn, in_axes=(0, )))
+                #                        )
+
+                diff_stat_fn = adaptive_statistic.STAT_MODULE.get_differentiable_fn[stat_id]
+                target_stats = adaptive_statistic.STAT_MODULE.true_stats[stat_id]
+                compute_loss = lambda params, sigmoid: jnp.linalg.norm(
+                    diff_stat_fn(params['w'], sigmoid) - target_stats) ** 2
+
+                update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)
+                update_fn_jit = jax.jit(update_fn)
+
+                self.CACHE[stat_id] = update_fn_jit
+
+        def update_fn(params, sigmoid, state):
+            pass
+
+        train_diff_fn: Callable
+
+        true_stats = adaptive_statistic.get_true_statistics()
+        # stat_fn = stat.private_diff_statistics_fn_jit
         # target_stats = stat_module.get_private_stats()
-        target_stats = stat.get_private_statistics()
-        compute_loss = lambda params, sigmoid: jnp.linalg.norm(stat_fn(params['w'], sigmoid) - target_stats)**2
+        target_stats = adaptive_statistic.get_private_statistics()
+
+        compute_loss = lambda params, sigmoid: jnp.linalg.norm(train_diff_fn(params['w'], sigmoid) - target_stats)**2
         compute_loss_jit = jax.jit(compute_loss)
         update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)
         update_fn_jit = jax.jit(update_fn)
