@@ -4,7 +4,6 @@ from models import PrivGAfast, SimpleGAforSyncDataFast
 from stats import Marginals
 from utils.utils_data import get_data
 from utils.utils_data import Dataset
-
 import time
 
 
@@ -18,20 +17,19 @@ if __name__ == "__main__":
     state = 'CA'
     data_name = f'folktables_2018_{task}_{state}'
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
-                    domain_name=f'folktables_datasets/domain/{data_name}-num',  root_path='../../data_files/')
+                    domain_name=f'folktables_datasets/domain/{data_name}-cat',  root_path='../../data_files/')
 
+    cat_cols = ['COW', 'RELP',  'RAC1P', 'SCHL']
+    data = data.project(cat_cols)
     # Create statistics and evaluate
-    BINS = [2, 4, 8, 16, 32]
-    # BINS = [2, 4]
-    print('BINS=', BINS)
-    marginal_module, kway = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=0, k_real=2, bins=BINS)
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
     marginal_module.fit(data)
 
     print(f'Workloads = {len(marginal_module.true_stats)}')
 
-    ########
-    # PrivGA
-    ########
+    ##########
+    # PrivGA #
+    ##########
     data_size = 2000
     priv_ga = PrivGAfast(
         num_generations=100000,
@@ -40,14 +38,14 @@ if __name__ == "__main__":
             domain=data.domain,
             data_size=data_size,
             population_size=100,
-            elite_size=20,
+            elite_size=5,
             muta_rate=1,
-            mate_rate=1
+            mate_rate=0
         )
     )
 
     # Generate differentially private synthetic data with ADAPTIVE mechanism
-    key = jax.random.PRNGKey(0)
+    key = jax.random.PRNGKey(2)
     stime = time.time()
 
     sync_data = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS, start_sync=True,

@@ -8,15 +8,17 @@ import matplotlib.pyplot as plt
 ERROR_TYPE = 'max error'
 # ERROR_TYPE = 'l1 error'
 
+task = 'mobility'
 ##################################################
 # Process PrivGA data
-df0 = pd.read_csv('param_results/folktables_2018_income_CA/PrivGA/privga_params_0.csv', )
-df1 = pd.read_csv('param_results/folktables_2018_income_CA/PrivGA/privga_params_1.csv', )
-df2 = pd.read_csv('param_results/folktables_2018_income_CA/PrivGA/privga_params_2.csv', )
+df0 = pd.read_csv(f'param_results/folktables_2018_{task}_CA/PrivGA/privga_params_0.csv', )
+df1 = pd.read_csv(f'param_results/folktables_2018_{task}_CA/PrivGA/privga_params_1.csv', )
+df2 = pd.read_csv(f'param_results/folktables_2018_{task}_CA/PrivGA/privga_params_2.csv', )
 
 
 df = pd.concat([df0, df1, df2])
 df['pop'] = df['pop'].astype(str)
+df['mate'] = df['mate'].astype(str)
 # df['mut'] = 10 * df['mut']
 df['mut'] = df['mut'].astype(str)
 # df['mut'] = 10 * df['mut']
@@ -33,8 +35,9 @@ df = df[df['eps'] == eps]
 
 print(df)
 
-g = sns.relplot(data=df, x='time', y='max_error', hue='pop', style='data_size',
-                size='mut',
+g = sns.relplot(data=df, x='time', y='max_error',
+                hue='mate', style='data_size',
+                # size='mate',
                 sizes={'1': 50, '5': 100},
             #     col='data_size',
             # row='pop',

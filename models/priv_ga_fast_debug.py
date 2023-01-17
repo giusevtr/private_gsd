@@ -227,6 +227,23 @@ def get_mutate_mating_fn(mate_rate: int, muta_rate: int, random_numbers):
 ######################################################################
 
 
+# from stats.halfspaces import
+def get_regularization_stat_fn(domain: Domain, regu_get_fn) -> Tuple[chex.Array, Callable, Callable, Callable]:
+    # workload_one_way = [(col,) for col in domain.attrs]
+    # marginals = Marginals(domain, workload_one_way, bins=[16])
+    random_dataset = Dataset.synthetic(domain, N=300, seed=0)
+    # marginals.fit(random_dataset)
+
+    regu_fn = regu_get_fn()
+    regu_stats = regu_fn(random_dataset.to_numpy())
+
+    elite_reg_fn = jax.jit(jax.vmap(regu_get_fn(), in_axes=(0,)))
+    pop_reg1_fn = jax.jit(jax.vmap(regu_get_fn(), in_axes=(0,)))
+    pop_reg2_fn = jax.jit(jax.vmap(regu_get_fn(), in_axes=(0,)))
+
+    return regu_stats, elite_reg_fn, pop_reg1_fn, pop_reg2_fn
+
+
 # @dataclass
 class PrivGAfast(Generator):
 
@@ -234,12 +251,18 @@ class PrivGAfast(Generator):
                  num_generations,
                  strategy: SimpleGAforSyncDataFast,
                  print_progress=False,
+                 regu_get_fn=None
                  ):
         self.domain = strategy.domain
         self.data_size = strategy.data_size
         self.num_generations = num_generations
         self.print_progress = print_progress
         self.strategy = strategy
+
+        # regu_fn = jax.jit(stats_module.get_stats_jax)
+        # rand_data = Dataset.synthetic(data.domain, N=1000, seed=0)
+        # regu_stats = regu_fn(rand_data.to_numpy())
+        self.reg_stats, self.elite_reg_fn, self.pop_regu1_fn, self.pop_regu2_fn = get_regularization_stat_fn(self.domain, regu_get_fn)
 
         self.CACHE = {}
 
@@ -257,6 +280,7 @@ class PrivGAfast(Generator):
         if num_devices > 1:
             print(f'************ {num_devices}  devices found. Using parallelization. ************')
 
+        epoch = len(adaptive_statistic.statistics_ids)
         def get_total_max_error(X):
             sync_stats = adaptive_statistic.STAT_MODULE.get_stats_jax_jit(X)
             max_error = jnp.abs(adaptive_statistic.STAT_MODULE.get_true_stats() - sync_stats).max()
@@ -301,6 +325,16 @@ class PrivGAfast(Generator):
             pop_stats_concat = jnp.concatenate(pop_stats, axis=1)
             return pop_stats_concat
 
+
+        def regularization_fn(elite_reg_stats, elite_ids, rem_stats, add_stats):
+            _, num_queries = elite_reg_stats.shape
+            init_sync_stat = elite_reg_stats[elite_ids]
+            upt_reg_stat = init_sync_stat + add_stats - rem_stats
+            regularization = jnp.linalg.norm(self.reg_stats - upt_reg_stat/self.data_size, ord=2) / (num_queries * self.data_size)
+            return regularization, upt_reg_stat
+        regularization_vmap_fn = jax.vmap(regularization_fn, in_axes=(None, 0, 0, 0))
+        regularization_vmap_fn = jax.jit(regularization_vmap_fn)
+
         # FITNESS
         priv_stats = adaptive_statistic.get_private_statistics()
 
@@ -325,6 +359,7 @@ class PrivGAfast(Generator):
 
         # Init slite statistics here
         elite_stats = self.data_size * elite_population_fn(state.archive)
+        elite_regu_stats = self.data_size * self.elite_reg_fn(state.archive)
 
         @jax.jit
         def tell_elite_stats(a, old_elite_stats, new_elite_idx):
@@ -348,7 +383,11 @@ class PrivGAfast(Generator):
 
         mutate_only = 0
 
-
+        # last_generation_update = 0
+        # last_fitness_update
+        total_errors_list = []
+        true_train_errors_list = []
+        priv_train_errors_list = []
         for t in range(self.num_generations):
 
             key, ask_subkey = jax.random.split(key, 2)
@@ -366,11 +405,21 @@ class PrivGAfast(Generator):
                 removed_stats = num_rows * mate_and_muta_population_fn(removed_rows)
                 added_stats = num_rows * mate_and_muta_population_fn(added_rows)
 
+                removed_reg_stats = num_rows * self.pop_regu1_fn(removed_rows)
+                added_reg_stats = num_rows * self.pop_regu1_fn(added_rows)
             else:
                 removed_stats = num_rows * muta_only_population_fn(removed_rows)
                 added_stats = num_rows * muta_only_population_fn(added_rows)
 
+                removed_reg_stats = num_rows * self.pop_regu2_fn(removed_rows)
+                added_reg_stats = num_rows * self.pop_regu2_fn(added_rows)
+
             fitness, a = fitness_vmap_fn(elite_stats, elite_ids, removed_stats, added_stats)
+
+            regularization_score, a_regu = regularization_vmap_fn(
+                elite_regu_stats, elite_ids, removed_reg_stats, added_reg_stats)
+            fitness = fitness + regularization_score
+            # fitness = fitness
 
 
             fit_time += timer() - t0
@@ -379,11 +428,13 @@ class PrivGAfast(Generator):
             t0 = timer()
             state, new_elite_idx = self.strategy.tell(x, fitness, state)
             elite_stats = tell_elite_stats(a, elite_stats, new_elite_idx)
+            elite_regu_stats = tell_elite_regu_stats(a_regu, elite_regu_stats, new_elite_idx)
 
             tell_time += timer() - t0
 
             best_pop_idx = fitness.argmin()
             best_fitness = fitness[best_pop_idx]
+            best_regu_score = regularization_score[best_pop_idx]
 
             # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)
@@ -398,6 +449,13 @@ class PrivGAfast(Generator):
             stop_early = mutate_only >= 2
 
 
+            X_sync = state.best_member
+            if t % 10 == 0:
+                total_errors_list.append(get_total_max_error(X_sync))
+                priv_train_errors_list.append(adaptive_statistic.private_loss_inf(X_sync))
+                true_train_errors_list.append(adaptive_statistic.true_loss_inf(X_sync))
+                # print(f'\t\t\tg={t:<7}, fitness={best_fitness_total:.5f}, total={total_errors_list[-1]:.5f}, priv_train={priv_train_errors_list[-1]:.5f}, '
+                #     f'true_train_errors_list={true_train_errors_list[-1]:.5f},\tmutate_only={mutate_only>0}')
             if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
                 if self.print_progress:
                     X_sync = state.best_member
@@ -405,6 +463,7 @@ class PrivGAfast(Generator):
                     gau_max = gau_error.max()
                     gau_avg = jnp.linalg.norm(gau_error, ord=2) / gau_error.shape[0]
                     print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
+                    print(f'\tregu score={best_regu_score:.6f}, ', end=' ')
                     print(f'\tprivate error(max/l2)=({adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f})',end='')
                     print(f'\ttrue error=({adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f})',end='')
                     print(f'\tgau error=({gau_max:.5f}/{gau_avg:.7f})',end='')
@@ -415,6 +474,14 @@ class PrivGAfast(Generator):
 
             if stop_early:
                 break
+
+        iters = list(np.arange(len(total_errors_list)))
+        plt.title(f'epoch={epoch}, mate_rate={self.strategy.mate_rate}')
+        plt.plot(iters, total_errors_list, linewidth=3, label='total max error')
+        plt.plot(iters, true_train_errors_list, alpha=0.7, linewidth=3, label='true train')
+        plt.plot(iters, priv_train_errors_list, alpha=0.7, linewidth=3, label='priv train')
+        plt.legend()
+        plt.show()
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
