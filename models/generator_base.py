@@ -9,21 +9,28 @@ import numpy as np
 import jax.numpy as jnp
 import pandas as pd
 from typing import Callable
-
+import matplotlib.pyplot as plt
 
 class Generator:
     data_size: int
     early_stop_elapsed_time = 1
     last_time: float = None
     last_error: float = None
+    loss_change_threshold: float = 0.001
 
     def early_stop_init(self):
         self.last_time: float = time.time()
         self.last_error = 10000000
         self.start_time = time.time()
         self.last_update_iteration = 0
+
     def early_stop(self, t, error):
-        if self.last_update_iteration == 0:
+        """
+        :param t: current iteration
+        :param error: the error on this iteration
+        :return:
+        """
+        if self.last_update_iteration == 0:  # If it's the first time don't halt
             self.last_error = error
             self.last_update_iteration = t
             return False
@@ -31,16 +38,18 @@ class Generator:
         stop_early = False
         loss_change = (self.last_error - error) / self.last_error
         iterations_increase = (t - self.last_update_iteration) / self.last_update_iteration
-        if loss_change > 0.001:
-            # print(f'iterations_increase={iterations_increase:.6f}')
+        if loss_change > self.loss_change_threshold:
+            # If the loss improves same the iteration and the error
             self.last_error = error
             self.last_update_iteration = t
 
         if iterations_increase > 0.1:
+            # If the iterations have increased by more than 10% since the last improvement then halt
             stop_early = True
             self.last_error = error
             self.last_update_iteration = t
         return stop_early
+
     # def early_stop(self, t, error):
     #     current_time = time.time()
     #     stop_early = False
@@ -73,7 +82,7 @@ class Generator:
     def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds,
                         epsilon: float, delta: float,
                         tolerance: float =0,
-                        start_sync=False,
+                        start_sync=True,
                         print_progress=False,
                         debug_fn: Callable = None):
         rho = cdp_rho(epsilon, delta)
@@ -109,6 +118,11 @@ class Generator:
 
         adaptive_statistic = AdaptiveStatisticState(stat_module)
         for i in range(1, rounds + 1):
+            if i < rounds:
+                self.loss_change_threshold = 0.01
+            else:
+                self.loss_change_threshold = 0.002
+
             stime = time.time()
 
             # Select a query with max error using the exponential mechanism and evaluate

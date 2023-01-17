@@ -17,6 +17,7 @@ class Marginals:
     diff_marginals_fn: list
     diff_marginals_fn_jit: list
     sensitivity: list
+    N: int
 
     def __init__(self, domain, kway_combinations, bins=(32,)):
         self.domain = domain
@@ -32,7 +33,7 @@ class Marginals:
     @staticmethod
     def get_all_kway_combinations(domain, k, bins=(32,)):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
-        return Marginals(domain, kway_combinations, bins=bins)
+        return Marginals(domain, kway_combinations, bins=bins), kway_combinations
 
     @staticmethod
     def get_all_kway_mixed_combinations_v1(domain, k, bins=(32,)):
@@ -232,7 +233,7 @@ class Marginals:
         def stat_fn(x):
             x = x.reshape((-1, dim))
             X_proj = x[:, idx]
-            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten()
+            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / x.shape[0]
             return stat
 
         return stat_fn, jnp.sqrt(2)

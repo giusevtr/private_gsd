@@ -32,22 +32,10 @@ class RelaxedProjectionPP(Generator):
         return 'RP++'
 
     def fit(self, key, adaptive_statistic: AdaptiveStatisticState, init_sync=None, tolerance=0):
-        # self.optimizer = optax.adam(lr)
-        # stat_fn = stat.get_differentiable_stats_fn()
-
-
 
         update_functions = []
         for stat_id in adaptive_statistic.statistics_ids:
             if stat_id not in self.CACHE:
-                # elite_population_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
-                # mate_and_mute_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
-                # mute_only_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
-                # self.CACHE[stat_id] = ((jax.vmap(elite_population_fn, in_axes=(0, ))),
-                #                        jax.jit(jax.vmap(mate_and_mute_rows_fn, in_axes=(0, ))),
-                #                        jax.jit(jax.vmap(mute_only_rows_fn, in_axes=(0, )))
-                #                        )
-
                 diff_stat_fn = adaptive_statistic.STAT_MODULE.get_differentiable_fn[stat_id]
                 target_stats = adaptive_statistic.STAT_MODULE.true_stats[stat_id]
                 compute_loss = lambda params, sigmoid: jnp.linalg.norm(
@@ -58,10 +46,17 @@ class RelaxedProjectionPP(Generator):
 
                 self.CACHE[stat_id] = update_fn_jit
 
-        def update_fn(params, sigmoid, state):
-            pass
+            update_functions.append(self.CACHE[stat_id])
 
-        train_diff_fn: Callable
+        def update_fn(params, sigmoid, opt_state):
+            updates_list = []
+            for upt_jit in update_functions:
+                updates, opt_state = upt_jit(params, sigmoid, opt_state)
+                updates_list.append(updates)
+            for upt in updates_list:
+                params = optax.apply_updates(params, upt)
+            return params, opt_state
+
 
         true_stats = adaptive_statistic.get_true_statistics()
         # stat_fn = stat.private_diff_statistics_fn_jit
@@ -77,7 +72,7 @@ class RelaxedProjectionPP(Generator):
         best_sync = None
         for lr in self.learning_rate:
             key, key2 = jax.random.split(key, 2)
-            sync = self.fit_help(key2, stat.STAT_MODULE.domain, compute_loss_jit, update_fn_jit, lr)
+            sync = self.fit_help(key2, self.domain, compute_loss_jit, update_fn_jit, lr)
             loss = jnp.linalg.norm(true_stats - stat_fn(sync, 10000))
             if best_sync is None or loss < min_loss:
                 best_sync = jnp.copy(sync)
