@@ -250,7 +250,7 @@ class Marginals:
         # queries_split = jnp.array_split(self.queries, 10)
 
         # @jax.jit
-        def stat_fn(X):
+        def stat_fn(X, sigmoid):
             return jnp.prod(X[:, queries], 2).sum(0) / X.shape[0]
 
         return stat_fn, jnp.sqrt(2)

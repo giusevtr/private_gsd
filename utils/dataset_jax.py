@@ -223,7 +223,8 @@ class Dataset:
                 X_col = jax.nn.softmax(x=logits, axis=1)
                 X_softmax.append(X_col)
             else:
-                X_softmax.append(logits)
+                logits_clipped = jnp.clip(logits, a_min=0, a_max=1)
+                X_softmax.append(logits_clipped)
 
 
         X_softmax = jnp.concatenate(X_softmax, axis=1)

@@ -61,21 +61,21 @@ class Generator:
     #         self.last_error = error
     #     return stop_early
 
-    def fit(self, key: jax.random.PRNGKeyArray, stat: AdaptiveStatisticState, init_sync: chex.Array = None,
+    def fit(self, key: jax.random.PRNGKeyArray, stat: AdaptiveStatisticState, init_data: Dataset = None,
             tolerance: float = 0) -> Dataset:
         pass
 
     def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, epsilon: float, delta: float,
-               init_sync: chex.Array = None, tolerance: float = 0) -> Dataset:
+               init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         rho = cdp_rho(epsilon, delta)
-        return self.fit_zcdp(key, stat_module, rho, init_sync, tolerance )
+        return self.fit_zcdp(key, stat_module, rho, init_data, tolerance )
 
     def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rho: float,
-                 init_sync: chex.Array = None, tolerance: float=0) -> Dataset:
+                 init_data: Dataset = None, tolerance: float=0) -> Dataset:
         key_stats, key_fit = jax.random.split(key)
         stat = AdaptiveStatisticState(stat_module)
         stat.private_measure_all_statistics(key_stats, rho)
-        return self.fit(key_fit, stat, init_sync, tolerance)
+        return self.fit(key_fit, stat, init_data, tolerance)
 
     # @staticmethod
     # def default_debug_fn(X):
@@ -97,9 +97,10 @@ class Generator:
         domain = stat_module.domain
 
         key, key_init = jax.random.split(key, 2)
-        X_sync = Dataset.synthetic_jax_rng(domain, N=self.data_size, rng=key_init)
-        # data_init = Dataset.synthetic(domain, N=self.data_size, rng=key_init)
-        sync_dataset = None
+        # X_sync = Dataset.synthetic_jax_rng(domain, N=self.data_size, rng=key_init)
+        init_seed = int(jax.random.randint(key_init, minval=0, maxval=2**20, shape=(1,))[0])
+        sync_dataset = Dataset.synthetic(domain, N=self.data_size, seed=init_seed)
+        # sync_dataset = None
 
 
         # true_answers = prefix_fn(data.to_numpy())
@@ -119,13 +120,14 @@ class Generator:
         adaptive_statistic = AdaptiveStatisticState(stat_module)
         for i in range(1, rounds + 1):
             if i < rounds:
-                self.loss_change_threshold = 0.01
+                self.loss_change_threshold = 0.001
             else:
-                self.loss_change_threshold = 0.002
+                self.loss_change_threshold = 0.001
 
             stime = time.time()
 
             # Select a query with max error using the exponential mechanism and evaluate
+            X_sync = sync_dataset.to_numpy()
             key, subkey_select = jax.random.split(key, 2)
             adaptive_statistic.private_select_measure_statistic(subkey_select, rho_per_round, X_sync)
             # state = stat_module.priv_update(subkey_select, state, rho_per_round, X_sync)
@@ -134,7 +136,7 @@ class Generator:
             key, key_fit = jax.random.split(key, 2)
             dataset: Dataset
             if start_sync:
-                sync_dataset = self.fit(key_fit, adaptive_statistic, X_sync, tolerance=tolerance)
+                sync_dataset = self.fit(key_fit, adaptive_statistic, sync_dataset, tolerance=tolerance)
             else:
                 sync_dataset = self.fit(key_fit, adaptive_statistic, tolerance=tolerance)
 

@@ -51,7 +51,7 @@ if __name__ == "__main__":
     stime = time.time()
 
     sync_data = priv_ga.fit_dp_adaptive(key, stat_module=marginal_module, rounds=ROUNDS, start_sync=True,
-                                        epsilon=1.00, delta=1e-6, tolerance=0.0, print_progress=True)
+                                        epsilon=1.00, delta=1e-6, print_progress=True)
 
     true_stats = marginal_module.get_true_stats()
     sync_stats = marginal_module.get_stats_jit(sync_data)

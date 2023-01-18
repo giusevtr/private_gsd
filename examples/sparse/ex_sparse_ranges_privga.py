@@ -1,7 +1,8 @@
 import itertools
 import jax
-from models import Generator, PrivGA, SimpleGAforSyncData
-from stats import Marginals
+import jax.numpy as jnp
+from models import Generator, PrivGAfast, SimpleGAforSyncDataFast
+from stats import Marginals, Halfspace
 from toy_datasets.sparse import get_sparse_dataset
 import matplotlib.pyplot as plt
 import time
@@ -10,7 +11,7 @@ from plot import plot_sparse
 
 PRINT_PROGRESS = True
 ROUNDS = 1
-EPSILON = [0.1]
+EPSILON = [1]
 # EPSILON = [1]
 SEEDS = [0]
 
@@ -25,25 +26,33 @@ if __name__ == "__main__":
     # BINS = 32
     data = get_sparse_dataset(DATA_SIZE=10000)
     # plot_2d_data(data.to_numpy())
-    plot_sparse(data.to_numpy(), title='Original sparse')
-    bins = [2, 4, 8, 16, 32, 64]
+    # plot_sparse(data.to_numpy(), title='Original sparse')
+    bins = [2, 4, 8, 16, 32]
 
     stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
                                                                                 bins=bins)
     stats_module.fit(data)
     print(f'workloads = ', len(stats_module.true_stats))
+
+
+    # Eval stats
+    key_hs = jax.random.PRNGKey(1)
+    hs_stats_module, _ = Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=key_hs,
+                                                                           random_hs=1000)
+    hs_stats_module.fit(data)
+
+
     data_size = 2000
-    strategy = SimpleGAforSyncData(
+    strategy = SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
             population_size=100,
-            elite_size=10,
+            elite_size=5,
             muta_rate=1,
-            mate_rate=10
+            mate_rate=1
         )
-    priv_ga = PrivGA(
-                    num_generations=10000,
-                    stop_loss_time_window=50,
+    priv_ga = PrivGAfast(
+                    num_generations=100000,
                     print_progress=True,
                     strategy=strategy,
                      )
@@ -87,8 +96,15 @@ if __name__ == "__main__":
         erros = stats_module.get_sync_data_errors(sync_data.to_numpy())
 
         stats = stats_module.get_stats_jit(sync_data)
-        ave_error = jax.numpy.linalg.norm(stats_module.get_true_statistics() - stats, ord=1)
-        print(f'{str(priv_ga)}: max error = {erros.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
+        ave_error = jax.numpy.linalg.norm(stats_module.get_true_stats() - stats, ord=1)
+        print(f'{str(priv_ga)}, Range-Marginal: max error = {erros.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
+
+
+        # hs_stats_module = stats_module.get_stats_jit(sync_data)
+        hs_errors = jnp.abs(hs_stats_module.get_true_stats() - hs_stats_module.get_stats_jit(sync_data))
+        hs_ave_error = jax.numpy.linalg.norm(hs_errors, ord=1)
+        print(f'{str(priv_ga)}, Halfspaces: max error = {hs_errors.max():.4f}, ave_error={hs_ave_error:.6f}')
+
 
         df = priv_ga.ADA_DATA
         df['algo'] = str(priv_ga)

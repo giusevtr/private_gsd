@@ -22,13 +22,13 @@ class RelaxedProjection(Generator):
     def __str__(self):
         return f'RP(lr={self.learning_rate:.4f})'
 
-    def fit(self, key, stat: AdaptiveStatisticState, init_sync=None, tolerance=0):
+    def fit(self, key, stat: AdaptiveStatisticState, init_data: Dataset=None, tolerance=0):
 
         data_dim = self.domain.get_dimension()
 
         # compute_loss = lambda params, sigmoid: optax.l2_loss(stat_fn(params['w'], sigmoid), true_stats)
         softmax_fn = lambda X: Dataset.apply_softmax(self.domain, X)
-        compute_loss = lambda params: jnp.linalg.norm(stat.private_diff_statisitcs_fn(softmax_fn(params['w'])) - stat.get_private_statistics()) ** 2
+        compute_loss = lambda params: jnp.linalg.norm(stat.private_diff_statistics_fn(softmax_fn(params['w'])) - stat.get_private_statistics()) ** 2
 
         self.key, subkey = jax.random.split(key, 2)
         self.synthetic_data = softmax_fn(jax.random.uniform(subkey, shape=(self.data_size, data_dim), minval=0, maxval=1))
@@ -55,21 +55,18 @@ class RelaxedProjection(Generator):
 
             best_loss = min(best_loss, loss)
 
-            priv_max_error = stat.private_diff_loss_inf(softmax_fn(params['w']))
             if last_loss is None or loss < last_loss * 0.95 or t > self.iterations-2 :
-                if self.print_progress :
-                    print(f'epoch {t:<3}). Loss={loss}, priv_max_error={priv_max_error}')
+                if self.print_progress:
+                    priv_max_error = stat.private_diff_loss_inf(softmax_fn(params['w']))
+                    print(f'epoch {t:<5}). Loss={loss:.6f}, priv_max_error={priv_max_error:.5f}')
                 last_loss = loss
 
-            if priv_max_error < tolerance:
-                if self.print_progress:
-                    print(f'Eary stop at {t}')
-                break
 
-            if self.early_stop(best_loss):
-                if self.print_progress:
-                    print(f'\tStop early at {t}')
-                break
+            if t > 50:
+                if self.early_stop(t, best_loss):
+                    if self.print_progress:
+                        print(f'\tStop early at {t}')
+                    break
 
 
         params['w'] = softmax_fn(params['w'])

@@ -25,7 +25,7 @@ class AdaptiveStatisticState:
 
         true_stat = self.STAT_MODULE.true_stats[stat_id]
         marginal_fn = self.STAT_MODULE.marginals_fn_jit[stat_id]
-        self.NUM_STATS += true_stat.shape[0]
+        # self.NUM_STATS += true_stat.shape[0]
         self.statistics_ids.append(stat_id)
         self.private_statistics.append(priv_stat)
         self.statistic_fn_jit_dict[stat_id] = {}
@@ -83,11 +83,11 @@ class AdaptiveStatisticState:
     def private_statistics_fn_jit(self, X):
         return jnp.concatenate([self.STAT_MODULE.marginals_fn_jit[i](X) for i in self.statistics_ids])
 
-    def private_diff_statisitcs_fn(self, X):
-        return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn[i](X) for i in self.statistics_ids])
+    def private_diff_statistics_fn(self, X, sigmoid=None):
+        return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn[i](X, sigmoid) for i in self.statistics_ids])
 
-    def private_diff_statistics_fn_jit(self, X):
-        return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn_jit[i](X) for i in self.statistics_ids])
+    def private_diff_statistics_fn_jit(self, X, sigmoid=None):
+        return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn_jit[i](X, sigmoid) for i in self.statistics_ids])
 
     def true_loss_inf(self, X):
         true_stats_concat = self.get_true_statistics()
