@@ -23,10 +23,9 @@ if __name__ == "__main__":
     data_name = f'folktables_2018_{task}_{state}'
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                     domain_name=f'folktables_datasets/domain/{data_name}-mixed',  root_path='../../data_files/')
-
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
-    hs_module, kway = Halfspace.get_kway_random_halfspaces(data.domain, k=1, random_hs=2000, rng=key)
+    hs_module, kway = Halfspace.get_kway_random_halfspaces(data.domain, k=1, random_hs=10000, rng=key)
     hs_module.fit(data)
 
     print(f'Workloads = {len(hs_module.true_stats)}')
