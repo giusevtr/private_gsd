@@ -42,8 +42,14 @@ class RelaxedProjectionPP(Generator):
         else:
             init_sync = init_data.to_onehot()
 
+        diff_stat_fn_list = []
+        for stat_id in adaptive_statistic.statistics_ids:
+            diff_data_fn = adaptive_statistic.STAT_MODULE.get_diff_stat_fn(stat_id)
+            diff_stat_fn_list.append(diff_data_fn)
+        def stat_fn(X, sigmoid):
+            return jnp.concatenate([diff_stat(X, sigmoid) for diff_stat in diff_stat_fn_list])
 
-        stat_fn = adaptive_statistic.private_diff_statistics_fn_jit
+        # stat_fn = adaptive_statistic.private_diff_statistics_fn_jit
         true_stats = adaptive_statistic.get_private_statistics()
         # compute_real_loss = lambda params: jnp.linalg.norm(adaptive_statistic.private_statistics_fn(softmax_fn(params['w'])) - true_stats)**2
         # compute_real_loss_jit = jax.jit(compute_real_loss)

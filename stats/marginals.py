@@ -135,29 +135,46 @@ class Marginals:
     def get_true_stat(self, i):
         return self.true_stats[i]
 
-    def get_stat_fn(self, i):
-        i = int(i)
-        cols = self.kway_combinations[i]
+    def get_stat_fn(self, stat_ids: list):
+        stat_fn_list = []
+        for i in stat_ids:
+            i = int(i)
+            cols = self.kway_combinations[i]
 
-        if self.is_workload_numeric(cols):
-            return self.get_range_marginal_stats_fn_helper(cols)[0]
-        else:
-            return self.get_categorical_marginal_stats_fn_helper(cols)[0]
+            if self.is_workload_numeric(cols):
+                stat_fn_list.append(self.get_range_marginal_stats_fn_helper(cols)[0])
+            else:
+                stat_fn_list.append(self.get_categorical_marginal_stats_fn_helper(cols)[0])
 
-    def get_diff_stat_fn(self, i):
+        def stat_fn(X):
+            stats = jnp.concatenate([fn(X) for fn in stat_fn_list])
+            return stats
+        return stat_fn
+
+    def get_diff_stat_fn(self, stat_ids: list):
         # cols, marginal_id, hs_sample_id = self.halfspace_map[i]
         # hs_keys_args = self.halfspace_keys[hs_sample_id]
         # fn = lambda: self.get_diff_halfspace_fn_helper(cols, hs_keys_args)
         # return fn
-        i = int(i)
-        cols = self.kway_combinations[i]
-        assert not self.is_workload_numeric(cols), "Only supports discrete data."
+        # i = int(i)
+        # cols = self.kway_combinations[i]
+        # assert not self.is_workload_numeric(cols), "Only supports discrete data."
+        #
+        # # if self.is_workload_numeric(cols):
+        # #     return self.get_categorical_marginal_stats_fn_helper(cols)[0]
+        # # else:
+        # #     return self.get_range_marginal_stats_fn_helper(cols)[0]
+        # return self.get_differentiable_stats_fn_helper(cols)[0]
+        stat_fn_list = []
+        for i in stat_ids:
+            i = int(i)
+            cols = self.kway_combinations[i]
+            stat_fn_list.append(self.get_differentiable_stats_fn_helper(cols)[0])
 
-        # if self.is_workload_numeric(cols):
-        #     return self.get_categorical_marginal_stats_fn_helper(cols)[0]
-        # else:
-        #     return self.get_range_marginal_stats_fn_helper(cols)[0]
-        return self.get_differentiable_stats_fn_helper(cols)[0]
+        def stat_fn(X, sigmoid):
+            stats = jnp.concatenate([fn(X, sigmoid) for fn in stat_fn_list])
+            return stats
+        return stat_fn
 
     def get_true_stats(self):
         assert self.true_stats is not None, "Error: must call the fit function"
