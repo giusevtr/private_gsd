@@ -1,7 +1,8 @@
 import itertools
 import jax
+import jax.numpy as jnp
 from models import Generator, RelaxedProjection
-from stats import Marginals
+from stats import Marginals, Halfspace
 from toy_datasets.sparse import get_sparse_dataset
 import matplotlib.pyplot as plt
 import time
@@ -21,10 +22,19 @@ if __name__ == "__main__":
     #                            rng.uniform(low=0.30, high=0.80, size=(10000, ))))
 
     BINS = 16
-    bins = [2, 4, 8, 16]
+    bins = [2, 4, 8, 16, 32]
 
-    learning_rate = 0.1
+    learning_rate = 0.3
     data = get_sparse_dataset(DATA_SIZE=10000)
+
+
+    key_hs = jax.random.PRNGKey(0)
+    halfspace_stats_module, _ = Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=key_hs,
+                                                                           random_hs=1000)
+    halfspace_stats_module.fit(data)
+
+
+
     eval_stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
                                                                                 bins=bins)
     print(kway_combinations)
@@ -36,7 +46,8 @@ if __name__ == "__main__":
     train_stats_module = Marginals(data_disc.domain, kway_combinations)
     train_stats_module.fit(data_disc)
 
-    rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=5000, learning_rate=learning_rate, print_progress=True)
+    rap = RelaxedProjection(domain=data_disc.domain, data_size=1000, iterations=5000,
+                            learning_rate=learning_rate, print_progress=True)
 
     plot_sparse(data.to_numpy(), title='Original sparse')
 
@@ -56,17 +67,24 @@ if __name__ == "__main__":
         stime = time.time()
 
         key = jax.random.PRNGKey(seed)
-        sync_data = rap.fit_dp_adaptive(key, stat_module=train_stats_module, rounds=ROUNDS, epsilon=eps, delta=1e-6,
-                                            tolerance=0.0,
-                                         print_progress=True, debug_fn=debug_fn)
+        sync_data = rap.fit_dp_adaptive(key, stat_module=train_stats_module,
+                                        rounds=ROUNDS,
+                                        epsilon=eps, delta=1e-6,
+                                        tolerance=0.0,
+                                        print_progress=True,
+                                        debug_fn=debug_fn)
 
         numeric_data = Dataset.to_numeric(sync_data, numeric_features)
         errors = eval_stats_module.get_sync_data_errors(numeric_data.to_numpy())
 
-        stats = eval_stats_module.private_statistics_fn(numeric_data)
-        ave_error = jax.numpy.linalg.norm(eval_stats_module.get_true_statistics() - stats, ord=1)
-        print(f'RAP: max error={errors.max():.5f}, ave_error={ave_error:.6f} time={time.time() - stime:.4f}')
+        stats = eval_stats_module.get_stats_jit(numeric_data)
+        ave_error = jax.numpy.linalg.norm(eval_stats_module.get_true_stats() - stats, ord=1)
+        print(f'RAP. Marginals: max error={errors.max():.5f}, ave_error={ave_error:.6f} time={time.time() - stime:.4f}')
 
+
+        # Halfspace error
+        hs_error = jnp.abs(halfspace_stats_module.get_true_stats() - halfspace_stats_module.get_stats_jit(sync_data))
+        print(f'RAP: Halfspace: max error={hs_error.max():.5f}, ave_error={jnp.linalg.norm(hs_error):.6f}')
         df = rap.ADA_DATA
         df['algo'] = 'RAP'
         df['eps'] = eps

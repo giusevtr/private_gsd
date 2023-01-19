@@ -34,11 +34,13 @@ class Halfspace(Marginals):
         return f'Halfspaces'
 
     @staticmethod
-    def get_kway_random_halfspaces(domain: Domain, k: int, rng:chex.PRNGKey,
+    def get_kway_random_halfspaces(domain: Domain,
+                                   k: int,
+                                   rng:chex.PRNGKey,
                                    hs_workloads: int = 1,
                                    random_hs: int = 500):
         kway_combinations = []
-        for cols in itertools.combinations(domain.attrs, k):
+        for cols in itertools.combinations(domain.get_categorical_cols(), k):
             count_real = 0
             for c in list(cols):
                 count_real += 1 * (c in domain.get_numeric_cols())
@@ -72,7 +74,12 @@ class Halfspace(Marginals):
             return lambda: self.get_categorical_marginal_stats_fn_helper(cols_arg)[0]
 
         rng = self.rng
+        self.HS = {}
         for cols in self.kway_combinations:
+
+
+
+
             if self.is_workload_numeric(cols):
                 for _ in range(self.num_hs_workloads):
                     rng, rng_sub = jax.random.split(rng)

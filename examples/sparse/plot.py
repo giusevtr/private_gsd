@@ -7,8 +7,8 @@ def plot_sparse(data_array, alpha=0.5, s=0.1, title='', save_path=None):
     plt.figure(figsize=(5, 5))
     plt.title(title)
     plt.scatter(data_array[:, 0], data_array[:, 1], c=data_array[:, 2].astype(int), alpha=alpha, s=s)
-    plt.xlim(0, 1)
-    plt.ylim(0, 1)
+    plt.xlim(-0.1, 1.1)
+    plt.ylim(-0.1, 1.1)
     if save_path is None:
         plt.show()
     else:
