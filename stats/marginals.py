@@ -132,6 +132,33 @@ class Marginals:
     def get_dataset_size(self):
         return self.N
 
+    def get_true_stat(self, i):
+        return self.true_stats[i]
+
+    def get_stat_fn(self, i):
+        i = int(i)
+        cols = self.kway_combinations[i]
+
+        if self.is_workload_numeric(cols):
+            return self.get_range_marginal_stats_fn_helper(cols)[0]
+        else:
+            return self.get_categorical_marginal_stats_fn_helper(cols)[0]
+
+    def get_diff_stat_fn(self, i):
+        # cols, marginal_id, hs_sample_id = self.halfspace_map[i]
+        # hs_keys_args = self.halfspace_keys[hs_sample_id]
+        # fn = lambda: self.get_diff_halfspace_fn_helper(cols, hs_keys_args)
+        # return fn
+        i = int(i)
+        cols = self.kway_combinations[i]
+        assert not self.is_workload_numeric(cols), "Only supports discrete data."
+
+        # if self.is_workload_numeric(cols):
+        #     return self.get_categorical_marginal_stats_fn_helper(cols)[0]
+        # else:
+        #     return self.get_range_marginal_stats_fn_helper(cols)[0]
+        return self.get_differentiable_stats_fn_helper(cols)[0]
+
     def get_true_stats(self):
         assert self.true_stats is not None, "Error: must call the fit function"
         return jnp.concatenate(self.true_stats)

@@ -2,6 +2,7 @@ import itertools
 import jax
 from models import Generator, PrivGAfast, SimpleGAforSyncDataFast
 from stats import Halfspace
+from stats.halfspaces_v3 import Halfspace3
 from toy_datasets.sparse import get_sparse_dataset
 import matplotlib.pyplot as plt
 import time
@@ -19,7 +20,7 @@ if __name__ == "__main__":
 
     data = get_sparse_dataset(DATA_SIZE=10000)
     key_hs = jax.random.PRNGKey(0)
-    stats_module, kway_combinations = Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=key_hs,
+    stats_module, kway_combinations = Halfspace3.get_kway_random_halfspaces(data.domain, k=1, rng=key_hs,
                                                                            random_hs=1000)
     stats_module.fit(data)
     print(f'workloads = ', len(stats_module.true_stats))

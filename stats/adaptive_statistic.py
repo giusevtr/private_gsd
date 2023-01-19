@@ -8,9 +8,16 @@ from stats import Marginals
 class AdaptiveStatisticState:
     statistics_ids: list
     private_statistics: list
+    private_stat_fn: list
+    private_stat_fn_jit: list
+    private_diff_stat_fn_jit: list
+
     def __init__(self, statistic_module: Marginals):
         self.statistics_ids = []
         self.private_statistics = []
+        self.private_stat_fn = []
+        self.private_stat_fn_jit = []
+        self.private_diff_stat_fn_jit = []
         self.statistic_fn_jit_dict = {}
 
         self.INFO = {}
@@ -23,20 +30,23 @@ class AdaptiveStatisticState:
     def add_stats(self, stat_id, priv_stat):
         stat_id = int(stat_id)
 
-        true_stat = self.STAT_MODULE.true_stats[stat_id]
-        marginal_fn = self.STAT_MODULE.marginals_fn_jit[stat_id]
+        true_stat = self.STAT_MODULE.get_true_stat(stat_id)
+        # marginal_fn = self.STAT_MODULE.marginals_fn_jit[stat_id]
+        # marginal_fn = jax.jit(self.STAT_MODULE.get_stat_fn(stat_id))
         # self.NUM_STATS += true_stat.shape[0]
         self.statistics_ids.append(stat_id)
         self.private_statistics.append(priv_stat)
+        self.private_stat_fn.append(self.STAT_MODULE.get_stat_fn(stat_id))
+        self.private_stat_fn_jit.append(jax.jit(self.STAT_MODULE.get_stat_fn(stat_id)))
+        # self.private_diff_stat_fn_jit.append(jax.jit(self.STAT_MODULE.get_diff_stat_fn(stat_id)))
         self.statistic_fn_jit_dict[stat_id] = {}
 
         # priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2) / priv_stat.shape[0]
-        priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2)
-        priv_loss_fn_jit = jax.jit(priv_loss_fn)
-        self.priv_loss_l2_fn_jit_list.append(priv_loss_fn_jit)
-
-        priv_population_loss_fn_jit_vmap = jax.vmap(priv_loss_fn_jit, in_axes=(0, ))
-        self.priv_population_l2_loss_fn_list.append(jax.jit(priv_population_loss_fn_jit_vmap))
+        # priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2)
+        # priv_loss_fn_jit = jax.jit(priv_loss_fn)
+        # self.priv_loss_l2_fn_jit_list.append(priv_loss_fn_jit)
+        # priv_population_loss_fn_jit_vmap = jax.vmap(priv_loss_fn_jit, in_axes=(0, ))
+        # self.priv_population_l2_loss_fn_list.append(jax.jit(priv_population_loss_fn_jit_vmap))
 
     def private_select_measure_statistic(self, key: chex.PRNGKey, rho_per_round: float, sync_data_mat: chex.Array):
         rho_per_round = rho_per_round / 2
@@ -48,7 +58,8 @@ class AdaptiveStatisticState:
         worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), 1 / STAT.N)
 
         key, key_gaussian = jax.random.split(key, 2)
-        selected_true_stat = STAT.true_stats[worse_index]
+        # selected_true_stat = STAT.true_stats[worse_index]
+        selected_true_stat = STAT.get_true_stat(worse_index)
 
         sensitivity = STAT.sensitivity[worse_index]
         sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
@@ -72,22 +83,23 @@ class AdaptiveStatisticState:
             self.add_stats(stat_id, selected_priv_stat)
 
     def get_true_statistics(self):
-        return jnp.concatenate([self.STAT_MODULE.true_stats[i] for i in self.statistics_ids])
+        return jnp.concatenate([self.STAT_MODULE.get_true_stat(i) for i in self.statistics_ids])
 
     def get_private_statistics(self):
         return jnp.concatenate(self.private_statistics)
 
     def private_statistics_fn(self, X):
-        return jnp.concatenate([self.STAT_MODULE.marginals_fn[i](X) for i in self.statistics_ids])
+        return jnp.concatenate([stat_fn(X) for stat_fn in self.private_stat_fn])
 
     def private_statistics_fn_jit(self, X):
-        return jnp.concatenate([self.STAT_MODULE.marginals_fn_jit[i](X) for i in self.statistics_ids])
+        return jnp.concatenate([stat_fn_jit(X) for stat_fn_jit in self.private_stat_fn_jit])
 
-    def private_diff_statistics_fn(self, X, sigmoid=None):
-        return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn[i](X, sigmoid) for i in self.statistics_ids])
+    # def private_diff_statistics_fn(self, X, sigmoid=None):
+    #     return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn[i](X, sigmoid) for i in self.statistics_ids])
 
-    def private_diff_statistics_fn_jit(self, X, sigmoid=None):
-        return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn_jit[i](X, sigmoid) for i in self.statistics_ids])
+    # def private_diff_statistics_fn_jit(self, X, sigmoid=None):
+    #     return jnp.concatenate([diff_stat_fn_jit(X, sigmoid) for diff_stat_fn_jit in self.private_diff_stat_fn_jit])
+        # return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn_jit[i](X, sigmoid) for i in self.statistics_ids])
 
     def true_loss_inf(self, X):
         true_stats_concat = self.get_true_statistics()

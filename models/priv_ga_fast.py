@@ -268,9 +268,15 @@ class PrivGAfast(Generator):
         # elite_fn_list, mate_and_mute_fn_list, mute_onl = []
         for stat_id in adaptive_statistic.statistics_ids:
             if stat_id not in self.CACHE:
-                elite_population_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
-                mate_and_mute_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
-                mute_only_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                # elite_population_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                # mate_and_mute_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+                # mute_only_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
+
+                elite_population_fn = adaptive_statistic.STAT_MODULE.get_stat_fn(stat_id)
+                mate_and_mute_rows_fn = adaptive_statistic.STAT_MODULE.get_stat_fn(stat_id)
+                mute_only_rows_fn = adaptive_statistic.STAT_MODULE.get_stat_fn(stat_id)
+
+
                 self.CACHE[stat_id] = ((jax.vmap(elite_population_fn, in_axes=(0, ))),
                                        jax.jit(jax.vmap(mate_and_mute_rows_fn, in_axes=(0, ))),
                                        jax.jit(jax.vmap(mute_only_rows_fn, in_axes=(0, )))

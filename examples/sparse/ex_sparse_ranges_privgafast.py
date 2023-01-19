@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     data = get_sparse_dataset(DATA_SIZE=10000)
 
-    bins = [2, 4, 8, 16, 32, 64]
+    bins = [2, 4, 8, 16, 32]
     stats_module, kway_combinations = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
                                                                                 bins=bins)
     stats_module.fit(data)
