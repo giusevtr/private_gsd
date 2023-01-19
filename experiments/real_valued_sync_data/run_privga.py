@@ -4,17 +4,17 @@ import numpy as np
 import pandas as pd
 from folktables import ACSDataSource, ACSEmployment
 from utils import Dataset, Domain, DataTransformer
-from models import Generator, PrivGA, SimpleGAforSyncData, RelaxedProjection
+from models import Generator, PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjection
 from stats import Marginals
 from utils.utils_data import get_data
 from experiments.experiment import run_experiments
 import os
 import jax
-EPSILON = (1.0,)
+EPSILON = (0.07,0.23,0.52,0.74,1.0,)
 # EPSILON = (0.01, )
-SEEDS = [0, 1, 2]
+SEEDS = [0]
 # adaptive_rounds = (1, 4, 8, 16)
-adaptive_rounds = (50,)
+adaptive_rounds = (10,20,30,40,50,60)
 
 if __name__ == "__main__":
     # df = folktables.col_range
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # tasks = ['income']
     # tasks = [ 'mobility', 'travel']
     states = ['CA']
-
+    print("test111:",SEEDS[0])
     for task, state in itertools.product(tasks, states):
         data_name = f'folktables_2018_{task}_{state}'
         data = get_data(f'folktables_datasets/{data_name}-mixed-train',
@@ -38,16 +38,15 @@ if __name__ == "__main__":
 
         stats_module.fit(data)
         print(f'Workloads = {len(stats_module.true_stats)}')
-        privga = PrivGA(
-            num_generations=50000,
-            stop_loss_time_window=100,
+        privga = PrivGAfast(
+            num_generations=500000,
             print_progress=True,
-            strategy=SimpleGAforSyncData(domain=data.domain,
-                                         population_size=200,
+            strategy=SimpleGAforSyncDataFast(domain=data.domain,
+                                         population_size=1000,
                                          elite_size=2,
-                                         data_size=5000,
+                                         data_size=2000,
                                          muta_rate=1,
-                                         mate_rate=20))
+                                         mate_rate=1))
 
         run_experiments(data=data,  algorithm=privga, stats_module=stats_module, epsilon=EPSILON,
                         adaptive_rounds=adaptive_rounds,

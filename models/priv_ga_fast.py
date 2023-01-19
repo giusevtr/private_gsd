@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from models import Generator
 import time
-from stats import  AdaptiveStatisticState
+from stats import AdaptiveStatisticState
 from typing import Callable
 import jax
 import chex
@@ -78,7 +78,8 @@ class SimpleGAforSyncDataFast:
 
         rng1, rng2 = jax.random.split(rng, 2)
         random_numbers = jax.random.permutation(rng1, self.data_size, independent=True)
-        mute_mate = get_mutate_mating_fn(mate_rate=self.mate_rate, muta_rate=self.muta_rate, random_numbers=random_numbers)
+        mute_mate = get_mutate_mating_fn(mate_rate=self.mate_rate, muta_rate=self.muta_rate,
+                                         random_numbers=random_numbers)
         self.mate_mutate_vmap = jax.jit(jax.vmap(mute_mate, in_axes=(0, 0, 0, 0)))
 
         random_numbers2 = jax.random.permutation(rng2, self.data_size, independent=True)
@@ -200,7 +201,7 @@ def get_mutate_mating_fn(mate_rate: int, muta_rate: int, random_numbers):
         temp = jax.random.randint(rng_temp, minval=0, maxval=2, shape=new_rows.shape)
         # temp = jnp.ones(shape=new_rows.shape)
 
-        added_rows_mate = temp * new_rows + (1-temp) * removed_rows_mate
+        added_rows_mate = temp * new_rows + (1 - temp) * removed_rows_mate
 
         X = X1.at[remove_rows_idx].set(added_rows_mate)
 
@@ -268,14 +269,14 @@ class PrivGAfast(Generator):
                 elite_population_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
                 mate_and_mute_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
                 mute_only_rows_fn = adaptive_statistic.STAT_MODULE.get_marginals_fn[stat_id]()
-                self.CACHE[stat_id] = ((jax.vmap(elite_population_fn, in_axes=(0, ))),
-                                       jax.jit(jax.vmap(mate_and_mute_rows_fn, in_axes=(0, ))),
-                                       jax.jit(jax.vmap(mute_only_rows_fn, in_axes=(0, )))
+                self.CACHE[stat_id] = ((jax.vmap(elite_population_fn, in_axes=(0,))),
+                                       jax.jit(jax.vmap(mate_and_mute_rows_fn, in_axes=(0,))),
+                                       jax.jit(jax.vmap(mute_only_rows_fn, in_axes=(0,)))
                                        )
             # elite_population_fn_jit, mate_and_mute_rows_fn_jit, mute_only_rows_fn_jit = self.CACHE[stat_id]
 
-        debug_fn = lambda X : adaptive_statistic.private_statistics_fn(X)
-        debug_fn_vmap = jax.vmap(debug_fn, in_axes=(0, ))
+        debug_fn = lambda X: adaptive_statistic.private_statistics_fn(X)
+        debug_fn_vmap = jax.vmap(debug_fn, in_axes=(0,))
 
         def elite_population_fn(x):
             pop_stats = []
@@ -307,12 +308,11 @@ class PrivGAfast(Generator):
         def fitness_fn(elite_stats, elite_ids, rem_stats, add_stats):
             init_sync_stat = elite_stats[elite_ids]
             upt_sync_stat = init_sync_stat + add_stats - rem_stats
-            fitness = jnp.linalg.norm(priv_stats - upt_sync_stat/ self.data_size, ord=2)
+            fitness = jnp.linalg.norm(priv_stats - upt_sync_stat / self.data_size, ord=2)
             return fitness, upt_sync_stat
+
         fitness_vmap_fn = jax.vmap(fitness_fn, in_axes=(None, 0, 0, 0))
         fitness_vmap_fn = jax.jit(fitness_vmap_fn)
-
-
 
         key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
@@ -348,7 +348,6 @@ class PrivGAfast(Generator):
 
         mutate_only = 0
 
-
         for t in range(self.num_generations):
 
             key, ask_subkey = jax.random.split(key, 2)
@@ -372,7 +371,6 @@ class PrivGAfast(Generator):
 
             fitness, a = fitness_vmap_fn(elite_stats, elite_ids, removed_stats, added_stats)
 
-
             fit_time += timer() - t0
 
             # TELL
@@ -388,26 +386,31 @@ class PrivGAfast(Generator):
             # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)
 
-
-            if t > self.data_size:
+            if t > 0.25 * self.data_size:
                 if self.early_stop(t, best_fitness_total):
                     if self.print_progress:
-                        if mutate_only == 0: print(f'\t\tSwitching to mutate only at t={t}')
-                        elif mutate_only == 1: print(f'\t\tStop early at t={t}')
+                        if mutate_only == 0:
+                            print(f'\t\tSwitching to mutate only at t={t}')
+                        elif mutate_only == 1:
+                            print(f'\t\tStop early at t={t}')
                     mutate_only += 2
             stop_early = mutate_only >= 2
-
 
             if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
                 if self.print_progress:
                     X_sync = state.best_member
-                    gau_error = jnp.abs(adaptive_statistic.get_true_statistics() - adaptive_statistic.get_private_statistics())
+                    gau_error = jnp.abs(
+                        adaptive_statistic.get_true_statistics() - adaptive_statistic.get_private_statistics())
                     gau_max = gau_error.max()
                     gau_avg = jnp.linalg.norm(gau_error, ord=2) / gau_error.shape[0]
                     print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
-                    print(f'\tprivate error(max/l2)=({adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f})',end='')
-                    print(f'\ttrue error=({adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f})',end='')
-                    print(f'\tgau error=({gau_max:.5f}/{gau_avg:.7f})',end='')
+                    print(
+                        f'\tprivate error(max/l2)=({adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f})',
+                        end='')
+                    print(
+                        f'\ttrue error=({adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f})',
+                        end='')
+                    print(f'\tgau error=({gau_max:.5f}/{gau_avg:.7f})', end='')
                     print(f'\t|time={timer() - init_time:.4f}(s):', end='')
                     print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
                     print()
