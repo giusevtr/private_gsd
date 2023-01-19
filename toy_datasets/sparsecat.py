@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.datasets import  make_blobs
 from utils import Dataset, Domain
-from visualize.plot_low_dim_data import plot_2d_data
 import matplotlib.pyplot as plt
 
 

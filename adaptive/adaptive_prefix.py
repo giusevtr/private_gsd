@@ -1,24 +1,18 @@
 import jax.random
-import matplotlib.pyplot as plt
 import numpy as np
-import sys, os
-import itertools
+import os
 
 import pandas as pd
 
 # from mbi import Dataset, GraphicalModel, FactoredInference
-from utils import Dataset, Domain
+from utils import Dataset
 from scipy.special import softmax
-from scipy import sparse
 # from cdp2adp import cdp_rho
 from utils.cdp2adp import  cdp_rho
-import argparse
-from utils.utils_data import get_data
 from stats_v2 import TwoWayPrefix
-from models import Generator
 import jax.numpy as jnp
-from models_v2 import PrivGA, RelaxedProjectionPP
-from visualize.plot_low_dim_data import plot_2d_data
+from models_v2 import PrivGA
+from utils.plot_low_dim_data import plot_2d_data
 
 
 def worst_approximated(workload_answers, data_sync: Dataset, workload, eps, penalty=True):
@@ -131,7 +125,7 @@ def adaptive(generator, prefix_queries: TwoWayPrefix, data, epsilon, rounds, see
     return data_sync,  df
 
 
-from toy_datasets.sparse import get_sparse_1d_dataset, get_sparse_dataset
+from toy_datasets.sparse import get_sparse_dataset
 if __name__ == "__main__":
 
     # data = get_data('adult', 'adult-mini', root_path='../data_files/')
