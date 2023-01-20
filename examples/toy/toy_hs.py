@@ -100,9 +100,9 @@ if __name__ == "__main__":
         #     print_progress=True)
 
         hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0),
-                                                                   random_hs=500)
+                                                                   random_hs=10000)
         eval_hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1),
-                                                                   random_hs=500)
+                                                                   random_hs=10000)
         # ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
         #                                                                   bins=[2, 4, 8, 16, 32, 64])
         run_toy_example(algo, data,

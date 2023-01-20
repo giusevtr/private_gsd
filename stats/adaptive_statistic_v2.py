@@ -33,7 +33,8 @@ class AdaptiveStatisticState:
 
         # Need to sort by stat_id to maintain consistency
         # self.statistics_ids.sort()
-        self.private_statistics.sort()
+        sort_fn = lambda tup: tup[0]
+        self.private_statistics.sort(key=sort_fn)
         self.statistic_fn_jit_dict[stat_id] = {}
 
 
