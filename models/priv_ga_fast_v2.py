@@ -417,7 +417,7 @@ class PrivGAfast(Generator):
             best_fitness_total = min(best_fitness_total, best_fitness)
 
 
-            if t > int(self.data_size):
+            if t > int(0.25*self.data_size):
                 if self.early_stop(t, best_fitness_total):
                     if self.print_progress:
                         if mutate_only == 0: print(f'\t\tSwitching to mutate only at t={t}')
