@@ -125,20 +125,22 @@ class Halfspace4(Marginals):
 
     def get_stat_fn(self, stat_ids: list):
 
+        # stat_position = {}
+        stat_fn_list = []
         hs_keys_maps = {}
-        for i in stat_ids:
-            i = int(i)
-            marginal_id, hs_sample_id = self.halfspace_map[i]
+        for pos, stat_id in enumerate(stat_ids):
+            stat_id = int(stat_id)
+            marginal_id, hs_sample_id = self.halfspace_map[stat_id]
             if marginal_id not in hs_keys_maps:
                 hs_keys_maps[marginal_id] = []
             hs_keys_maps[marginal_id].append(hs_sample_id)
 
-        stat_fn_list = []
         for marginal_id in hs_keys_maps:
             cols = self.kway_combinations[marginal_id]
             hs_keys_ids = jnp.array(hs_keys_maps[marginal_id])
             hs_keys = self.halfspace_keys[hs_keys_ids].reshape(hs_keys_ids.shape[0], -1)
             stat_fn_list.append(self.get_halfspace_stats_fn_helper(cols, hs_keys))
+            # stat_fn_list[st]
 
         def stat_fn(X):
             stats = jnp.concatenate([fn(X) for fn in stat_fn_list])
@@ -344,21 +346,21 @@ def test_get_max_errors():
 def test_hs():
 
     print('debug')
-    cols = ['A', 'B', 'C', 'D', 'E']
-    domain = Domain(cols, [2, 2, 1, 1, 1])
+    cols = ['A', 'B', 'C', 'D', 'E', 'F']
+    domain = Domain(cols, [2, 5, 2, 1, 1, 1])
 
     A = pd.DataFrame(np.array([
-        [0, 0, 0.0, 0.1, 0.0],
-        [0, 0, 0.2, 0.3, 0.0],
-        [0, 1, 0.8, 0.9, 0.0],
-        [0, 1, 0.1, 0.0, 0.0],
+        [0, 0, 1, 0.0, 0.1, 0.0],
+        [0, 2, 1, 0.2, 0.3, 0.0],
+        [0, 3, 1, 0.8, 0.9, 0.0],
+        [0, 1, 1, 0.1, 0.0, 0.0],
         # [0, 1, 0.1, 0.0, 0.1],
     ]), columns=cols)
     data = Dataset(A, domain=domain)
 
     rand_data = Dataset.synthetic(domain, N=10, seed=0)
 
-    cols = [('A',), ]
+    cols = [('A',), ('B',), ('C', )]
 
     num_random_halfspaces = 13
     workloads = len(cols) * num_random_halfspaces + num_random_halfspaces
@@ -369,8 +371,8 @@ def test_hs():
 
     stat_fn = stat_mod.get_stat_fn(list(jnp.arange(stat_mod.get_num_queries())))
     diff_stat_fn = stat_mod.get_diff_stat_fn(list(jnp.arange(stat_mod.get_num_queries())))
-    print(stat_mod.get_true_stats())
-    print(stat_fn(data.to_numpy()))
+    # print(stat_mod.get_true_stats())
+    # print(stat_fn(data.to_numpy()))
 
     # print(f'diff stats:')
     # print(diff_stat_fn(data.to_onehot(), 1000))
@@ -381,11 +383,23 @@ def test_hs():
     # print(f'max error = {errors.max()}')
 
 
+    print(f'num queries={stat_mod.get_num_queries()}')
 
     for qid in range(stat_mod.get_num_queries()):
         stat_fn = stat_mod.get_stat_fn([qid])
         stat = stat_mod.get_true_stat([qid])
-        print(stat - stat_fn(data.to_numpy()))
+        diff = jnp.abs(stat - stat_fn(data.to_numpy()))
+        assert diff.max() < 0.01
+
+    np.random.seed(1)
+    temp = np.arange(stat_mod.get_num_queries())
+    np.random.shuffle(temp)
+    ids = list(temp)
+    print(ids)
+    for i in range(1, 4):
+        stat_fn1 = stat_mod.get_stat_fn(ids[:i])
+        print(stat_fn1(data.to_numpy()), f'\t\t\t\t ids[:{i:<3}]={ids[:i]}:')
+        print()
 
 def test_fit_runtime():
 

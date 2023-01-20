@@ -66,9 +66,6 @@ if __name__ == "__main__":
     data = get_data(f'{data_name}-mixed-train',
                     domain_name=f'domain/{data_name}-mixed',  root_path='../../data_files/folktables_datasets_real')
 
-
-
-
     algo = PrivGAfast(
         num_generations=100000,
         strategy=SimpleGAforSyncDataFast(

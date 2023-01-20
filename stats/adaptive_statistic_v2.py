@@ -28,24 +28,13 @@ class AdaptiveStatisticState:
 
     def add_stats(self, stat_id, priv_stat):
         stat_id = int(stat_id)
-
-        # true_stat = self.STAT_MODULE.get_true_stat(stat_id)
-        # marginal_fn = self.STAT_MODULE.marginals_fn_jit[stat_id]
-        # marginal_fn = jax.jit(self.STAT_MODULE.get_stat_fn(stat_id))
-        # self.NUM_STATS += true_stat.shape[0]
         self.statistics_ids.append(stat_id)
-        self.private_statistics.append(priv_stat)
-        # self.private_stat_fn.append(self.STAT_MODULE.get_stat_fn(stat_id))
-        # self.private_stat_fn_jit.append(jax.jit(self.STAT_MODULE.get_stat_fn(stat_id)))
-        # self.private_diff_stat_fn_jit.append(jax.jit(self.STAT_MODULE.get_diff_stat_fn(stat_id)))
-        self.statistic_fn_jit_dict[stat_id] = {}
+        self.private_statistics.append((stat_id, priv_stat))
 
-        # priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2) / priv_stat.shape[0]
-        # priv_loss_fn = lambda X: jnp.linalg.norm(priv_stat - marginal_fn(X), ord=2)
-        # priv_loss_fn_jit = jax.jit(priv_loss_fn)
-        # self.priv_loss_l2_fn_jit_list.append(priv_loss_fn_jit)
-        # priv_population_loss_fn_jit_vmap = jax.vmap(priv_loss_fn_jit, in_axes=(0, ))
-        # self.priv_population_l2_loss_fn_list.append(jax.jit(priv_population_loss_fn_jit_vmap))
+        # Need to sort by stat_id to maintain consistency
+        self.statistics_ids.sort()
+        self.private_statistics.sort()
+        self.statistic_fn_jit_dict[stat_id] = {}
 
     def private_select_measure_statistic(self, key: chex.PRNGKey, rho_per_round: float, sync_data_mat: chex.Array,
                                          sample_num=1):
@@ -90,15 +79,15 @@ class AdaptiveStatisticState:
         return self.STAT_MODULE.get_true_stat(self.statistics_ids)
 
     def get_private_statistics(self):
-        return jnp.concatenate(self.private_statistics)
+        return jnp.concatenate([priv_stat[1] for priv_stat in self.private_statistics])
 
-    def private_statistics_fn(self, X):
+    # def private_statistics_fn(self, X):
         # return self.STAT_MODULE.get_stats(X, self.statistics_ids)
-        return jnp.concatenate([stat_fn(X) for stat_fn in self.private_stat_fn])
+        # return jnp.concatenate([stat_fn(X) for stat_fn in self.private_stat_fn])
         # return jnp.concatenate([stat_fn(X) for stat_fn in self.private_stat_fn])
 
-    def private_statistics_fn_jit(self, X):
-        return jnp.concatenate([stat_fn_jit(X) for stat_fn_jit in self.private_stat_fn_jit])
+    # def private_statistics_fn_jit(self, X):
+    #     return jnp.concatenate([stat_fn_jit(X) for stat_fn_jit in self.private_stat_fn_jit])
 
     # def private_diff_statistics_fn(self, X, sigmoid=None):
     #     return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn[i](X, sigmoid) for i in self.statistics_ids])
@@ -107,33 +96,33 @@ class AdaptiveStatisticState:
     #     return jnp.concatenate([diff_stat_fn_jit(X, sigmoid) for diff_stat_fn_jit in self.private_diff_stat_fn_jit])
     # return jnp.concatenate([self.STAT_MODULE.diff_marginals_fn_jit[i](X, sigmoid) for i in self.statistics_ids])
 
-    def true_loss_inf(self, X):
-        true_stats_concat = self.get_true_statistics()
-        sync_stats_concat = self.private_statistics_fn_jit(X)
-        return jnp.abs(true_stats_concat - sync_stats_concat).max()
+    # def true_loss_inf(self, X):
+    #     true_stats_concat = self.get_true_statistics()
+    #     sync_stats_concat = self.private_statistics_fn_jit(X)
+    #     return jnp.abs(true_stats_concat - sync_stats_concat).max()
 
-    def true_loss_l2(self, X):
-        true_stats_concat = self.get_true_statistics()
-        sync_stats_concat = self.private_statistics_fn_jit(X)
-        return jnp.linalg.norm(true_stats_concat - sync_stats_concat, ord=2) / true_stats_concat.shape[0]
+    # def true_loss_l2(self, X):
+    #     true_stats_concat = self.get_true_statistics()
+    #     sync_stats_concat = self.private_statistics_fn_jit(X)
+    #     return jnp.linalg.norm(true_stats_concat - sync_stats_concat, ord=2) / true_stats_concat.shape[0]
 
-    def private_loss_inf(self, X):
-        priv_stats_concat = self.get_private_statistics()
-        sync_stats_concat = self.private_statistics_fn_jit(X)
-        return jnp.abs(priv_stats_concat - sync_stats_concat).max()
+    # def private_loss_inf(self, X):
+    #     priv_stats_concat = self.get_private_statistics()
+    #     sync_stats_concat = self.private_statistics_fn_jit(X)
+    #     return jnp.abs(priv_stats_concat - sync_stats_concat).max()
 
-    def private_loss_l2(self, X):
-        priv_stats_concat = self.get_private_statistics()
-        sync_stats_concat = self.private_statistics_fn_jit(X)
-        return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) / priv_stats_concat.shape[0]
+    # def private_loss_l2(self, X):
+    #     priv_stats_concat = self.get_private_statistics()
+    #     sync_stats_concat = self.private_statistics_fn_jit(X)
+    #     return jnp.linalg.norm(priv_stats_concat - sync_stats_concat, ord=2) / priv_stats_concat.shape[0]
 
-    def private_population_l2_loss_fn_jit(self, X_pop):
-        loss = None
-        for jit_fn in self.priv_population_l2_loss_fn_list:
-            this_loss = jit_fn(X_pop)
-            loss = this_loss if loss is None else loss + this_loss
-        # return loss / self.NUM_STATS if loss is not None else 0
-        return loss if loss is not None else 0
+    # def private_population_l2_loss_fn_jit(self, X_pop):
+    #     loss = None
+    #     for jit_fn in self.priv_population_l2_loss_fn_list:
+    #         this_loss = jit_fn(X_pop)
+    #         loss = this_loss if loss is None else loss + this_loss
+    #     # return loss / self.NUM_STATS if loss is not None else 0
+    #     return loss if loss is not None else 0
 
     # def private_diff_loss_inf(self, X_oh):
     #     priv_stats_concat = self.get_private_statistics()
