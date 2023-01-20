@@ -1,17 +1,12 @@
 import itertools
 
-import folktables
-import numpy as np
 import pandas as pd
-from folktables import ACSDataSource, ACSEmployment
-from utils import Dataset, Domain, DataTransformer
 import jax.numpy as jnp
 from models_v2 import Generator, PrivGA, RelaxedProjectionPP
 from stats_v2 import TwoWayPrefix
-from utils.utils_data import get_data
-import sys, os
+import os
 import jax
-from visualize.plot_low_dim_data import plot_2d_data
+from utils.plot_low_dim_data import plot_2d_data
 from toy_datasets.sparse import get_sparse_dataset
 import matplotlib.pyplot as plt
 import seaborn as sns

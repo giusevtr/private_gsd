@@ -89,11 +89,26 @@ class Halfspace3(Marginals):
         self.halfspace_map = {}
         query_id = 0
         for cols in cat_combinations:
-            print(cols)
-        # for idx in self.marginal_idx:
             halfspace_fn_vmap = self.get_halfspace_marginal_stats_fn_helper(cols, self.halfspace_keys)
             diff_halfspace_fn_vmap = self.get_diff_halfspace_fn_helper(cols, self.halfspace_keys)
-            hs_stats = halfspace_fn_vmap(data.to_numpy())
+
+
+            # Compute stats on orginal data
+            X = data.to_numpy()
+            total_num_rows = X.shape[0]
+            if total_num_rows <= 2000:
+                hs_stats = halfspace_fn_vmap(X)
+            else:
+                num_splits = total_num_rows // 2000
+                X_split = jnp.array_split(data.to_numpy(), num_splits)
+                stat_sum = None
+                for i in range(num_splits):
+                    X_i = X_split[i]
+                    num_rows = X_i.shape[0]
+                    temp_stats = num_rows * halfspace_fn_vmap(X_i)
+                    stat_sum = temp_stats if stat_sum is None else stat_sum + temp_stats
+                hs_stats = stat_sum / total_num_rows
+
             self.halfpaces_stats.append(hs_stats)
             self.halfpaces_fn.append(halfspace_fn_vmap)
             self.halfpaces_fn_jit.append(jax.jit(halfspace_fn_vmap))
@@ -185,7 +200,6 @@ class Halfspace3(Marginals):
             above_halfspace = (HS_proj > 0).astype(int)  # n x h
 
             # answers = jnp.multiply(cat_answers.reshape((n, -1, 1)), above_halfspace.reshape((n, 1, -1))).reshape((n, -1))
-            print(cat_answers.shape,above_halfspace.shape)
             answers = cat_answers * above_halfspace
             return answers
 
@@ -193,6 +207,7 @@ class Halfspace3(Marginals):
         stat_fn_vmap = jax.vmap(row_stat_fn_vmap, in_axes=(0, None))  # Iterates over rows
 
         if num_hs_queries == 1:
+            # if X.shape[0]> 2000:
             def stat_fn_vmap2(X):
                 answers = stat_fn_vmap(X, keys)
                 return (answers.sum(0) / X.shape[0]).reshape(-1)
@@ -369,12 +384,12 @@ def test_fit_runtime():
     cols_names = [f'f{i}' for i in range(20)]
     cols_sizes = [3 for _ in range(10)] + [1 for _ in range(10)]
     domain = Domain(cols_names, cols_sizes)
-    data = Dataset.synthetic(domain, N=10000, seed=0)
+    data = Dataset.synthetic(domain, N=10007, seed=0)
     rand_data = Dataset.synthetic(domain, N=1000, seed=0)
 
     t0 = time.time()
     key = jax.random.PRNGKey(0)
-    stat_mod, _ = Halfspace3.get_kway_random_halfspaces(domain, k=1, rng=key, random_hs=10000)
+    stat_mod, _ = Halfspace3.get_kway_random_halfspaces(domain, k=1, rng=key, random_hs=10003)
     stat_mod.fit(data)
     t1 = time.time()
     print(f'fit time = {t1 - t0:.5f}')
