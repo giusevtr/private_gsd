@@ -1,3 +1,5 @@
+import time
+
 import chex
 import jax.numpy as jnp
 import jax
@@ -52,7 +54,7 @@ class AdaptiveStatisticState:
 
         key, key_em = jax.random.split(key, 2)
         errors = STAT.get_sync_data_errors(sync_data_mat)
-        max_sensitivity = max(self.STAT_MODULE.sensitivity)
+        # max_sensitivity = max(self.STAT_MODULE.sensitivity)
         worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), 1 / STAT.N)
 
         key, key_gaussian = jax.random.split(key, 2)

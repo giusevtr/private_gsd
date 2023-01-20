@@ -118,15 +118,15 @@ class Halfspace3(Marginals):
                 self.halfspace_map[query_id] = (cols, len(self.halfpaces_stats)-1, hs_sample_id)
                 query_id = query_id + 1
 
-                # get_hs_fn = getter_fn(cols, self.halfspace_keys[i,:].reshape(1, -1))
-                # get_hs_fn_diff = getter_fn_diff(cols, self.halfspace_keys[i,:].reshape(1, -1))
-                #
-                # self.true_stats.append(hs_stats[i])
+                # get_hs_fn = getter_fn(cols, self.halfspace_keys[hs_sample_id,:].reshape(1, -1))
+                # get_hs_fn_diff = getter_fn_diff(cols, self.halfspace_keys[hs_sample_id,:].reshape(1, -1))
+
+                # self.true_stats.append(hs_stats[hs_sample_id])
                 # self.marginals_fn.append(get_hs_fn())
                 # self.marginals_fn_jit.append(jax.jit(get_hs_fn()))
-                # self.get_marginals_fn.append(get_hs_fn)
+                # # self.get_marginals_fn.append(get_hs_fn)
                 self.sensitivity.append(jnp.sqrt(2) / self.N)
-                #
+                # #
                 # self.diff_marginals_fn.append(get_hs_fn_diff())
                 # self.diff_marginals_fn_jit.append(jax.jit(get_hs_fn_diff()))
                 # self.get_differentiable_fn.append(get_hs_fn_diff)
