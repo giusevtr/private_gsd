@@ -51,7 +51,7 @@ def run_toy_example(algo,
 
     if adaptive:
         sync_data = algo.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6,
-                                        rounds=rounds, print_progress=True, debug_fn=debug_fn)
+                                        rounds=rounds, print_progress=True, debug_fn=debug_fn, num_sample=10)
     else:
         sync_data = algo.fit_dp(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6)
 
@@ -81,31 +81,33 @@ if __name__ == "__main__":
         data = DATASETS[data_name]
 
 
-        # algo = PrivGAfast(
-        #     num_generations=100000,
-        #     strategy=SimpleGAforSyncDataFast(
-        #         domain=data.domain,
-        #         data_size=500,
-        #         population_size=100,
-        #         elite_size=5,
-        #         muta_rate=1,
-        #         mate_rate=1,
-        #     ),
-        #     print_progress=False)
+        algo = PrivGAfast(
+            num_generations=100000,
+            strategy=SimpleGAforSyncDataFast(
+                domain=data.domain,
+                data_size=500,
+                population_size=100,
+                elite_size=5,
+                muta_rate=1,
+                mate_rate=1,
+            ),
+            print_progress=False)
 
-        algo = RelaxedProjectionPP(
-            domain=data.domain,
-            data_size=500,
-            learning_rate=(0.0001,),
-            print_progress=True)
+        # algo = RelaxedProjectionPP(
+        #     domain=data.domain,
+        #     data_size=500,
+        #     learning_rate=(0.0001,),
+        #     print_progress=True)
 
         hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0),
                                                                    random_hs=500)
-        ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
-                                                                          bins=[2, 4, 8, 16, 32, 64])
+        eval_hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1),
+                                                                   random_hs=500)
+        # ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
+        #                                                                   bins=[2, 4, 8, 16, 32, 64])
         run_toy_example(algo, data,
                         stats_module=hs_stats_module,
-                        evaluate_stat_module=ranges_stat_module,
+                        evaluate_stat_module=eval_hs_stats_module,
                         epsilon=1,
-                        rounds=40,
+                        rounds=30,
                         adaptive=True)

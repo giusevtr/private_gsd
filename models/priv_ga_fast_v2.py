@@ -320,10 +320,10 @@ class PrivGAfast(Generator):
         gau_max = gau_error.max()
         gau_avg = jnp.linalg.norm(gau_error, ord=2) / gau_error.shape[0]
 
-        stat_fn = jax.jit(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids))
-        elite_population_fn = jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, ))
-        population1_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, )))
-        population2_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, )))
+        stat_fn = jax.jit(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()))
+        elite_population_fn = jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0, ))
+        population1_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0, )))
+        population2_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0, )))
 
         @jax.jit
         def true_loss(X_arg):

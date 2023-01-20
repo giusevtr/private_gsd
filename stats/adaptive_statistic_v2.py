@@ -7,14 +7,14 @@ from stats import Marginals
 
 
 class AdaptiveStatisticState:
-    statistics_ids: list
+    # statistics_ids: list
     private_statistics: list
     private_stat_fn: list
     private_stat_fn_jit: list
     private_diff_stat_fn_jit: list
 
     def __init__(self, statistic_module: Marginals):
-        self.statistics_ids = []
+        # self.statistics_ids = []
         self.private_statistics = []
         self.private_stat_fn = []
         self.private_stat_fn_jit = []
@@ -28,13 +28,14 @@ class AdaptiveStatisticState:
 
     def add_stats(self, stat_id, priv_stat):
         stat_id = int(stat_id)
-        self.statistics_ids.append(stat_id)
+        # self.statistics_ids.append(stat_id)
         self.private_statistics.append((stat_id, priv_stat))
 
         # Need to sort by stat_id to maintain consistency
-        self.statistics_ids.sort()
+        # self.statistics_ids.sort()
         self.private_statistics.sort()
         self.statistic_fn_jit_dict[stat_id] = {}
+
 
     def private_select_measure_statistic(self, key: chex.PRNGKey, rho_per_round: float, sync_data_mat: chex.Array,
                                          sample_num=1):
@@ -74,9 +75,14 @@ class AdaptiveStatisticState:
             selected_priv_stat = jnp.clip(selected_true_stat + gau_noise, 0, 1)
             self.add_stats(stat_id, selected_priv_stat)
 
+
+
     def get_true_statistics(self):
         # return jnp.concatenate([self.STAT_MODULE.get_true_stat(i) for i in self.statistics_ids])
-        return self.STAT_MODULE.get_true_stat(self.statistics_ids)
+        return self.STAT_MODULE.get_true_stat(self.get_statistics_ids())
+
+    def get_statistics_ids(self):
+        return [tup[0] for tup in self.private_statistics ]
 
     def get_private_statistics(self):
         return jnp.concatenate([priv_stat[1] for priv_stat in self.private_statistics])

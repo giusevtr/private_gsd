@@ -32,7 +32,9 @@ def run_toy_example(algo,
     print(f'Saving in {folder}')
     os.makedirs(folder, exist_ok=True)
     def debug_fn(t, tempdata):
-        pass
+        path = f'sync/sync_data_{t}.csv'
+        print(f'Saving {path}')
+        tempdata.df.to_csv(path, index=False)
 
 
 
@@ -43,11 +45,11 @@ def run_toy_example(algo,
 
     if adaptive:
         sync_data = algo.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6,
-                                        rounds=rounds, print_progress=True, debug_fn=debug_fn)
+                                        rounds=rounds, print_progress=True, num_sample=10, debug_fn=debug_fn)
     else:
         sync_data = algo.fit_dp(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6)
+        debug_fn(1, sync_data)
 
-    debug_fn(1, sync_data)
     errors = jax.numpy.abs(stats_module.get_true_stats() - stats_module.get_stats_jit(sync_data))
     ave_error = jax.numpy.linalg.norm(errors, ord=1)/errors.shape[0]
     print(f'{str(algo)}: Train max error = {errors.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
@@ -61,8 +63,7 @@ def run_toy_example(algo,
 
 
 if __name__ == "__main__":
-    state = 'CA'
-    data_name = f'folktables_2018_real_{state}'
+    data_name = f'folktables_2018_real_CA'
     data = get_data(f'{data_name}-mixed-train',
                     domain_name=f'domain/{data_name}-mixed',  root_path='../../data_files/folktables_datasets_real')
 
@@ -85,12 +86,13 @@ if __name__ == "__main__":
     #     print_progress=True)
 
     hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0),
-                                                               random_hs=20000)
-    ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
-                                                                      bins=[2, 4, 8, 16, 32, 64])
+                                                               random_hs=20000,
+                                                               )
+    # ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
+    #                                                                   bins=[2, 4, 8, 16, 32, 64])
     run_toy_example(algo, data,
                     stats_module=hs_stats_module,
-                    evaluate_stat_module=ranges_stat_module,
+                    evaluate_stat_module=hs_stats_module,
                     epsilon=1,
-                    rounds=50,
+                    rounds=30,
                     adaptive=True)
