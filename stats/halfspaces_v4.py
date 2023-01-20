@@ -65,10 +65,10 @@ class Halfspace4(Marginals):
         # def get_get_cat_func(cols_arg):
         #     return lambda: self.get_categorical_marginal_stats_fn_helper(cols_arg)[0]
 
-        self.marginal_idx = []
-        for cols in self.kway_combinations:
-            self.marginal_idx.append(self.domain.get_attribute_indices(cols))
-        self.marginal_idx.append((dim, ))
+        # self.marginal_idx = []
+        # for cols in self.kway_combinations:
+        #     self.marginal_idx.append(self.domain.get_attribute_indices(cols))
+        # self.marginal_idx.append((dim, ))
 
         self.halfspace_keys = jax.random.split(self.rng, self.num_hs_samples)
         self.halfpaces_stats = []
@@ -76,11 +76,11 @@ class Halfspace4(Marginals):
         self.halfpaces_fn_jit = []
         self.halfpaces_fn_diff_jit = []
 
-        cat_combinations = self.kway_combinations + [[]]
+        # self.kway_combinations = self.kway_combinations + [[]]
 
         self.halfspace_map = {}
         query_id = 0
-        for cols in cat_combinations:
+        for marginal_id, cols in enumerate(self.kway_combinations):
             halfspace_fn_vmap = self.get_halfspace_stats_fn_helper(cols, self.halfspace_keys)
             diff_halfspace_fn_vmap = self.get_diff_halfspace_fn_helper(cols, self.halfspace_keys)
 
@@ -107,34 +107,37 @@ class Halfspace4(Marginals):
             self.halfpaces_fn_diff_jit.append(jax.jit(diff_halfspace_fn_vmap,))
 
             for hs_sample_id in range(self.num_hs_samples):
-                self.halfspace_map[query_id] = (cols, len(self.halfpaces_stats)-1, hs_sample_id)
+                self.halfspace_map[query_id] = (marginal_id, hs_sample_id)
                 query_id = query_id + 1
                 self.sensitivity.append(jnp.sqrt(2) / self.N)
 
     def get_num_queries(self):
         return len(self.sensitivity)
 
-    def get_true_stat(self, i):
-        i = int(i)
-        cols, marginal_id, hs_sample_id = self.halfspace_map[i]
-        temp_hs_stats = self.halfpaces_stats[marginal_id].reshape((self.num_hs_samples, -1))
-        return temp_hs_stats[hs_sample_id]
+    def get_true_stat(self, stat_ids: list):
+        stats = []
+        for i in stat_ids:
+            i = int(i)
+            marginal_id, hs_sample_id = self.halfspace_map[i]
+            temp_hs_stats = self.halfpaces_stats[marginal_id].reshape((self.num_hs_samples, -1))[hs_sample_id]
+            stats.append(temp_hs_stats)
+        return jnp.concatenate(stats)
 
     def get_stat_fn(self, stat_ids: list):
 
         hs_keys_maps = {}
         for i in stat_ids:
             i = int(i)
-            cols, marginal_id, hs_sample_id = self.halfspace_map[i]
-            cols = tuple(cols)
-            if cols not in hs_keys_maps:
-                hs_keys_maps[cols] = []
-            hs_keys_maps[cols].append(hs_sample_id)
+            marginal_id, hs_sample_id = self.halfspace_map[i]
+            if marginal_id not in hs_keys_maps:
+                hs_keys_maps[marginal_id] = []
+            hs_keys_maps[marginal_id].append(hs_sample_id)
 
         stat_fn_list = []
-        for cols in hs_keys_maps:
-            hs_keys_ids = jnp.array(hs_keys_maps[cols])
-            hs_keys = self.halfspace_keys[hs_keys_ids,:].reshape(hs_keys_ids.shape[0], -1)
+        for marginal_id in hs_keys_maps:
+            cols = self.kway_combinations[marginal_id]
+            hs_keys_ids = jnp.array(hs_keys_maps[marginal_id])
+            hs_keys = self.halfspace_keys[hs_keys_ids].reshape(hs_keys_ids.shape[0], -1)
             stat_fn_list.append(self.get_halfspace_stats_fn_helper(cols, hs_keys))
 
         def stat_fn(X):
@@ -143,20 +146,19 @@ class Halfspace4(Marginals):
         return stat_fn
 
     def get_diff_stat_fn(self, stat_ids: list):
-
         hs_keys_maps = {}
         for i in stat_ids:
             i = int(i)
-            cols, marginal_id, hs_sample_id = self.halfspace_map[i]
-            cols = tuple(cols)
-            if cols not in hs_keys_maps:
-                hs_keys_maps[cols] = []
-            hs_keys_maps[cols].append(hs_sample_id)
+            marginal_id, hs_sample_id = self.halfspace_map[i]
+            if marginal_id not in hs_keys_maps:
+                hs_keys_maps[marginal_id] = []
+            hs_keys_maps[marginal_id].append(hs_sample_id)
 
         stat_fn_list = []
-        for cols in hs_keys_maps:
-            hs_keys_ids = jnp.array(hs_keys_maps[cols])
-            hs_keys = self.halfspace_keys[hs_keys_ids, :].reshape(hs_keys_ids.shape[0], -1)
+        for marginal_id in hs_keys_maps:
+            cols = self.kway_combinations[marginal_id]
+            hs_keys_ids = jnp.array(hs_keys_maps[marginal_id])
+            hs_keys = self.halfspace_keys[hs_keys_ids].reshape(hs_keys_ids.shape[0], -1)
             stat_fn_list.append(self.get_diff_halfspace_fn_helper(cols, hs_keys))
 
         def stat_fn(X, sigmoid):
@@ -164,6 +166,18 @@ class Halfspace4(Marginals):
             return stats
 
         return stat_fn
+
+    def get_sync_data_errors(self, X):
+        assert self.true_stats is not None, "Error: must call the fit function"
+        max_errors = []
+        for i in range(len(self.halfpaces_stats)):
+            fn_jit = self.halfpaces_fn_jit[i]
+            sync_stat = fn_jit(X).reshape((self.num_hs_samples, -1))
+            true_stat = self.halfpaces_stats[i].reshape((self.num_hs_samples, -1))
+            max_error = jnp.abs(true_stat - sync_stat).max(axis=1)
+            max_errors.append(max_error)
+        max_errors_jax = jnp.concatenate(max_errors)
+        return max_errors_jax
 
 
     # @jax.jit
@@ -204,6 +218,8 @@ class Halfspace4(Marginals):
             # HS
             rng_h, rng_b = jax.random.split(key, 2)
             hs_mat = 2 * (jax.random.uniform(rng_h, shape=(numeric_dim, )) - 0.5) / numeric_dim  # d x h
+            # hs_mat = hs_mat / hs_mat.sum()
+            # hs_mat = hs_mat / numeric_dim
             b = jax.random.normal(rng_b, shape=(1, ))  # 1 x h
             x_row_num_proj = x_row[num_idx]  # n x d
             HS_proj = jnp.dot(x_row_num_proj, hs_mat) - b  # n x h
@@ -232,18 +248,12 @@ class Halfspace4(Marginals):
         for col in cols:
             if col in self.domain.get_categorical_cols():
                 cat_cols.append(col)
-
-        # assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
         # For computing differentiable marginal queries
         cat_queries = []
         indices = [self.domain.get_attribute_onehot_indices(att) for att in cat_cols] + [jnp.array([-1])]
-        # indices = jnp.concatenate((indices, jnp.array([-1]).astype(int))).astype(int)
         for tup in itertools.product(*indices):
             cat_queries.append(tup)
         cat_queries = jnp.array(cat_queries)
-        # queries_split = jnp.array_split(self.queries, 10)
-
-        # num_idx = self.domain.get_attribute_onehot_indices(numeric_cols)
         numeric_cols = self.domain.get_numeric_cols()
         num_idx = jnp.array([self.domain.get_attribute_onehot_indices(att) for att in numeric_cols]).flatten()
 
@@ -251,21 +261,14 @@ class Halfspace4(Marginals):
         def stat_fn(X, sigmoid, key):
             n, d = X.shape
             X = jnp.column_stack((X, jnp.ones(n).astype(int)))
-
             cat_answers = jnp.prod(X[:, cat_queries], 2)
-
             # Compute halfspace answers
             rng_h, rng_b = jax.random.split(key, 2)
             hs_mat = 2 * (jax.random.uniform(rng_h, shape=(numeric_dim,)) - 0.5) / numeric_dim  # d x h
             b = jax.random.normal(rng_b, shape=(1,))  # 1 x h
-            # X = X.reshape((-1, dim))
             X_num_proj = X[:, num_idx]  # n x d
             HS_proj = jnp.dot(X_num_proj, hs_mat) - b # n x h
             above_halfspace = jax.nn.sigmoid(sigmoid * HS_proj) # n x h
-            # print('HS_proj\n', HS_proj)
-            # print('above_halfspace\n', above_halfspace)
-            # print(f'cat_answers\n', cat_answers)
-
             diff_answers = jnp.multiply(cat_answers.reshape((n, -1, 1)), above_halfspace.reshape((n, 1, -1))).reshape((n, -1))
             diff_statistics = diff_answers.sum(0) / X.shape[0]
 
@@ -310,17 +313,6 @@ class Halfspace4(Marginals):
             stats.append(stat_fn_diff_jit(X, sigmoid).flatten())
         return jnp.concatenate(stats)
 
-    def get_sync_data_errors(self, X):
-        assert self.true_stats is not None, "Error: must call the fit function"
-        max_errors = []
-        for i in range(len(self.halfpaces_stats)):
-            fn_jit = self.halfpaces_fn_jit[i]
-            sync_stat = fn_jit(X).reshape((self.num_hs_samples, -1))
-            true_stat = self.halfpaces_stats[i].reshape((self.num_hs_samples, -1))
-            max_error = jnp.abs(true_stat - sync_stat).max(axis=1)
-            max_errors.append(max_error)
-        max_errors_jax = jnp.concatenate(max_errors)
-        return max_errors_jax
 
 
 ######################################################################
@@ -345,7 +337,7 @@ def test_get_max_errors():
 
     cols = ('A', )
     key = jax.random.PRNGKey(0)
-    stat_mod = Halfspace3(domain, kway_combinations=[cols], rng=key, num_random_halfspaces=3)
+    stat_mod = Halfspace4(domain, kway_combinations=[cols], rng=key, num_random_halfspaces=3)
     stat_mod.fit(data)
 
 
@@ -360,12 +352,13 @@ def test_hs():
         [0, 0, 0.2, 0.3, 0.0],
         [0, 1, 0.8, 0.9, 0.0],
         [0, 1, 0.1, 0.0, 0.0],
+        # [0, 1, 0.1, 0.0, 0.1],
     ]), columns=cols)
     data = Dataset(A, domain=domain)
 
     rand_data = Dataset.synthetic(domain, N=10, seed=0)
 
-    cols = [('A',), ('B', )]
+    cols = [('A',), ]
 
     num_random_halfspaces = 13
     workloads = len(cols) * num_random_halfspaces + num_random_halfspaces
@@ -379,10 +372,20 @@ def test_hs():
     print(stat_mod.get_true_stats())
     print(stat_fn(data.to_numpy()))
 
-    print(jnp.abs(stat_fn(data.to_numpy()) - diff_stat_fn(data.to_numpy(), 1000)).max())
+    # print(f'diff stats:')
+    # print(diff_stat_fn(data.to_onehot(), 1000))
+    # print('diff error = ', jnp.abs(stat_fn(data.to_numpy()) - diff_stat_fn(data.to_onehot(), 1000)).max())
+    #
+    # errors = stat_mod.get_sync_data_errors(data.to_numpy())
+    # assert errors.shape[0] == workloads, f'errors.shape[0] = {errors.shape[0]}, workloads = {workloads}'
+    # print(f'max error = {errors.max()}')
 
-    errors = stat_mod.get_sync_data_errors(rand_data.to_numpy())
-    assert errors.shape[0] == workloads, f'errors.shape[0] = {errors.shape[0]}, workloads = {workloads}'
+
+
+    for qid in range(stat_mod.get_num_queries()):
+        stat_fn = stat_mod.get_stat_fn([qid])
+        stat = stat_mod.get_true_stat([qid])
+        print(stat - stat_fn(data.to_numpy()))
 
 def test_fit_runtime():
 
@@ -395,7 +398,7 @@ def test_fit_runtime():
 
     t0 = time.time()
     key = jax.random.PRNGKey(0)
-    stat_mod, _ = Halfspace3.get_kway_random_halfspaces(domain, k=1, rng=key, random_hs=10003)
+    stat_mod, _ = Halfspace4.get_kway_random_halfspaces(domain, k=1, rng=key, random_hs=10003)
     stat_mod.fit(data)
     t1 = time.time()
     print(f'fit time = {t1 - t0:.5f}')

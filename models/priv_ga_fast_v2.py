@@ -319,11 +319,11 @@ class PrivGAfast(Generator):
         gau_error = jnp.abs(adaptive_statistic.get_true_statistics() - adaptive_statistic.get_private_statistics())
         gau_max = gau_error.max()
         gau_avg = jnp.linalg.norm(gau_error, ord=2) / gau_error.shape[0]
-        stat_fn = jax.jit(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids))
 
-        elite_population_fn =           jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, ))
-        population_fn =                 jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, )))
-        muta_only_population_fn =       jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, )))
+        stat_fn = jax.jit(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids))
+        elite_population_fn = jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, ))
+        population1_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, )))
+        population2_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids), in_axes=(0, )))
 
         @jax.jit
         def true_loss(X_arg):
@@ -356,10 +356,10 @@ class PrivGAfast(Generator):
             temp = init_sync.reshape((1, init_sync.shape[0], init_sync.shape[1]))
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             state = state.replace(archive=new_archive)
-        # assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - state.archive_stats).max() < 1, f'archive stats error'
 
         # Init slite statistics here
         elite_stats = self.data_size * elite_population_fn(state.archive)
+        # assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - elite_stats).max() < 1, f'archive stats error'
 
         @jax.jit
         def tell_elite_stats(a, old_elite_stats, new_elite_idx):
@@ -392,12 +392,12 @@ class PrivGAfast(Generator):
             # FIT
             t0 = timer()
             if num_rows > 1:
-                removed_stats = num_rows * population_fn(removed_rows)
-                added_stats = num_rows * population_fn(added_rows)
+                removed_stats = num_rows * population1_fn(removed_rows)
+                added_stats = num_rows * population1_fn(added_rows)
 
             else:
-                removed_stats = num_rows * muta_only_population_fn(removed_rows)
-                added_stats = num_rows * muta_only_population_fn(added_rows)
+                removed_stats = num_rows * population2_fn(removed_rows)
+                added_stats = num_rows * population2_fn(added_rows)
 
             fitness, a = fitness_vmap_fn(elite_stats, elite_ids, removed_stats, added_stats)
 
@@ -407,7 +407,7 @@ class PrivGAfast(Generator):
             t0 = timer()
             state, new_elite_idx = self.strategy.tell(x, fitness, state)
             elite_stats = tell_elite_stats(a, elite_stats, new_elite_idx)
-
+            # assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - elite_stats).max() < 1, f'archive stats error'
             tell_time += timer() - t0
 
             best_pop_idx = fitness.argmin()

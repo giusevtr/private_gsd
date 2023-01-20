@@ -12,7 +12,7 @@ import time
 from utils.plot_low_dim_data import plot_2d_data
 
 
-def run_toy_example(data, debug_fn):
+def run_toy_example(algo, data, debug_fn):
     rounds = 40
     epsilon = 1.0
     seed = 0

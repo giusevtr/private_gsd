@@ -140,13 +140,14 @@ class Generator:
             else:
                 sync_dataset = self.fit(key_fit, adaptive_statistic, tolerance=tolerance)
 
-            ##### PROJECT STEP
-            X_sync = sync_dataset.to_numpy()
 
 
 
 
             if print_progress:
+                ##### PROJECT STEP
+                X_sync = sync_dataset.to_numpy()
+
                 # Get errors for debugging
                 errors_post_max = stat_module.get_sync_data_errors(X_sync).max()
                 errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats_jit(sync_dataset), ord=1)/true_stats.shape[0]

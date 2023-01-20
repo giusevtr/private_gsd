@@ -132,8 +132,12 @@ class Marginals:
     def get_dataset_size(self):
         return self.N
 
-    def get_true_stat(self, i):
-        return self.true_stats[i]
+    def get_true_stat(self, stat_ids: list):
+        stats = []
+        for i in stat_ids:
+            i = int(i)
+            stats.append(self.true_stats[i])
+        return jnp.concatenate(stats)
 
     def get_stat_fn(self, stat_ids: list):
         stat_fn_list = []

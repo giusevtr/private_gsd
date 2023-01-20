@@ -57,7 +57,7 @@ class AdaptiveStatisticState:
 
         key, key_gaussian = jax.random.split(key, 2)
         # selected_true_stat = STAT.true_stats[worse_index]
-        selected_true_stat = STAT.get_true_stat(worse_index)
+        selected_true_stat = STAT.get_true_stat([worse_index])
 
         sensitivity = STAT.sensitivity[worse_index]
         sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
@@ -73,7 +73,7 @@ class AdaptiveStatisticState:
         for stat_id in range(m):
             key, key_gaussian = jax.random.split(key, 2)
             # selected_true_stat = STAT.true_stats[stat_id]
-            selected_true_stat = STAT.get_true_stat(stat_id)
+            selected_true_stat = STAT.get_true_stat([stat_id])
             sensitivity = STAT.sensitivity[stat_id]
 
             sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_marginal)))
@@ -82,7 +82,8 @@ class AdaptiveStatisticState:
             self.add_stats(stat_id, selected_priv_stat)
 
     def get_true_statistics(self):
-        return jnp.concatenate([self.STAT_MODULE.get_true_stat(i) for i in self.statistics_ids])
+        # return jnp.concatenate([self.STAT_MODULE.get_true_stat(i) for i in self.statistics_ids])
+        return self.STAT_MODULE.get_true_stat(self.statistics_ids)
 
     def get_private_statistics(self):
         return jnp.concatenate(self.private_statistics)
