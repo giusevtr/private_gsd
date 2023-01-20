@@ -49,20 +49,20 @@ class AdaptiveStatisticState:
 
     def private_select_measure_statistic(self, key: chex.PRNGKey, rho_per_round: float, sync_data_mat: chex.Array,
                                          sample_num=1):
-        rho_per_round = rho_per_round / 2 * sample_num
+        rho_per_round = rho_per_round / 2
         STAT = self.STAT_MODULE
 
         errors = STAT.get_sync_data_errors(sync_data_mat)
         # max_sensitivity = max(self.STAT_MODULE.sensitivity)
-        for i in range(sample_num):
-            key, key_em = jax.random.split(key, 2)
-            worse_index = exponential_mechanism(key_em, errors, jnp.sqrt(2 * rho_per_round), 1 / STAT.N)
-
+        key, key_g = jax.random.split(key, 2)
+        rs = np.random.RandomState(key_g)
+        noise = rs.gumbel(scale=(sample_num / (np.sqrt(2 * rho_per_round) * STAT.N)), size=errors.shape)
+        noise = jnp.array(noise)
+        errors_noise = errors + noise
+        top_k_indices = (-errors_noise).argsort()[:sample_num]
+        for worse_index in top_k_indices:
             key, key_gaussian = jax.random.split(key, 2)
-            # selected_true_stat = STAT.true_stats[worse_index]
             selected_true_stat = STAT.get_true_stat([worse_index])
-            errors = errors.at[worse_index].set(0)
-
             sensitivity = STAT.sensitivity[worse_index]
             sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_round)))
             gau_noise = jax.random.normal(key_gaussian, shape=selected_true_stat.shape) * sigma_gaussian
