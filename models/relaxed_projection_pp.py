@@ -42,13 +42,22 @@ class RelaxedProjectionPP(Generator):
         else:
             init_sync = init_data.to_onehot()
 
+        # diff_stat_fn_list = []
+        # for stat_id in adaptive_statistic.statistics_ids:
+        #     diff_data_fn = adaptive_statistic.STAT_MODULE.get_diff_stat_fn(stat_id)
+        #     diff_stat_fn_list.append(diff_data_fn)
+        # def stat_fn(X, sigmoid):
+        #     return jnp.concatenate([diff_stat(X, sigmoid) for diff_stat in diff_stat_fn_list])
+        stat_fn = jax.jit(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.statistics_ids))
+        diff_stat_fn = adaptive_statistic.STAT_MODULE.get_diff_stat_fn(adaptive_statistic.statistics_ids)
 
-        stat_fn = adaptive_statistic.private_diff_statistics_fn_jit
-        true_stats = adaptive_statistic.get_private_statistics()
+
+        # stat_fn = adaptive_statistic.private_diff_statistics_fn_jit
+        target_stats = adaptive_statistic.get_private_statistics()
         # compute_real_loss = lambda params: jnp.linalg.norm(adaptive_statistic.private_statistics_fn(softmax_fn(params['w'])) - true_stats)**2
         # compute_real_loss_jit = jax.jit(compute_real_loss)
 
-        compute_loss = lambda params, sigmoid: jnp.linalg.norm(stat_fn(softmax_fn(params['w']), sigmoid) - true_stats)**2
+        compute_loss = lambda params, sigmoid: jnp.linalg.norm(diff_stat_fn(softmax_fn(params['w']), sigmoid) - target_stats)**2
         compute_loss_jit = jax.jit(compute_loss)
         update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)
         update_fn_jit = jax.jit(update_fn)
@@ -59,7 +68,7 @@ class RelaxedProjectionPP(Generator):
             key, key2 = jax.random.split(key, 2)
             params = self.fit_help(compute_loss_jit, update_fn_jit, init_sync.copy(), lr)
             sync = softmax_fn(params['w'])
-            loss = jnp.linalg.norm(true_stats - adaptive_statistic.private_statistics_fn_jit(sync))
+            loss = jnp.linalg.norm(target_stats - stat_fn(sync))
             if best_sync is None or loss < min_loss:
                 best_sync = jnp.copy(sync)
                 min_loss = loss
@@ -82,23 +91,23 @@ class RelaxedProjectionPP(Generator):
         opt_state = self.optimizer.init(params)
 
 
-        best_loss = 1000
+        best_loss = compute_loss_jit(params, 1024)
         self.early_stop_init()
-        for t in range(self.iterations):
-            for sigmoid in [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]:
-                loss = compute_loss_jit(params, 1024)
+        for sigmoid in [ 8, 16, 32, 64, 128, 256, 512, 1024]:
+            for t in range(800):
+                # loss = compute_loss_jit(params, sigmoid)
                 updates, opt_state = update_fn_jit(params, sigmoid, opt_state)
                 params = optax.apply_updates(params, updates)
 
-                if self.print_progress:
-                    if loss < best_loss * 0.9:
-                        print(f'sigmoid {sigmoid:<5}, round {t:<3}: loss = {loss:.6f}')
-                        best_loss = loss
+            if self.print_progress:
+                total_loss = compute_loss_jit(params, 1024)
+                print(f'sigmoid {sigmoid:<5}, loss = {total_loss:.6f}, last loss = {best_loss:.6f}')
+                best_loss = total_loss
 
-                if loss < 1e-4 or (t > 30 and self.early_stop(t, loss)):
-                    if self.print_progress:
-                        print(f'\tEary stop at {t}. loss={loss:.5}')
-                    t = self.iterations
-                    break
+                # if loss < 1e-4 or (t > 20 and self.early_stop(t, loss)):
+                #     if self.print_progress:
+                #         print(f'\tEary stop at {t}. loss={loss:.5}')
+                #     t = self.iterations
+                #     break
         return params
 
