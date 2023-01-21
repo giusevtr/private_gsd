@@ -166,7 +166,7 @@ class Generator:
                       # f'\t(true) max error = {jnp.abs(true_stats - sync_stats).max():.4f}.'
                       # f'\t(true)  l2 error = {stat_state.true_loss_l2(X_sync):.5f}.'
                       f'\tGaussian error(max/l2) is {gau_error.max():.5f}/{gau_error.mean():.7f}.'
-                      f'\tElapsed time(fit/select)={fit_time:.4f}/{select_time:.4f}')
+                      f'\tElapsed time(fit/select)={fit_time:>7.3f}/{select_time:.3f}')
             if debug_fn is not None:
                 debug_fn(i, sync_dataset)
             # ADA_DATA['round init error'].append(initial_max_error)

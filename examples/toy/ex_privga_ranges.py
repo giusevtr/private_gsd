@@ -4,7 +4,7 @@ import os
 import jax
 from models import Generator, PrivGAfast, SimpleGAforSyncDataFast
 from stats import Halfspace
-from stats.halfspaces_v4 import Halfspace4, Marginals
+from stats.halfspaces import Halfspace, Marginals
 from toy_datasets.circles import get_circles_dataset
 from toy_datasets.moons import get_moons_dataset
 import matplotlib.pyplot as plt

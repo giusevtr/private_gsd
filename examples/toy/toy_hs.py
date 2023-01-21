@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 from models import Generator, PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjectionPP
 from stats import Halfspace, Prefix
-from stats.halfspaces_v4 import Halfspace4, Marginals
+from stats.halfspaces import Halfspace, Marginals
 from toy_datasets.circles import get_circles_dataset
 from toy_datasets.moons import get_moons_dataset
 from toy_datasets.sparse import get_sparse_dataset
