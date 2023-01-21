@@ -3,4 +3,5 @@ from stats.adaptive_statistic_v2 import AdaptiveStatisticState
 
 from stats.halfspaces_v2 import Halfspace
 from stats.halfspaces_v3 import Halfspace3
+from stats.prefix import Prefix
 from stats.marginals_prefix import MarginalsPrefix

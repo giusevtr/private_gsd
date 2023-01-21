@@ -4,7 +4,7 @@ import os
 import jax
 import jax.numpy as jnp
 from models import Generator, PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjectionPP
-from stats import Halfspace
+from stats import Halfspace, Prefix
 from stats.halfspaces_v4 import Halfspace4, Marginals
 from toy_datasets.circles import get_circles_dataset
 from toy_datasets.moons import get_moons_dataset
@@ -22,7 +22,14 @@ def run_toy_example(algo,
                     seed=0,
                     random_hs=1000,
                     rounds=30,
+                    num_sample=5,
                     adaptive=False):
+
+    print(f'Running {algo} with epsilon={epsilon}, train module is {stats_module} and evaluation module is {evaluate_stat_module}')
+    if adaptive:
+        print(f'Adaptive with {rounds} and {num_sample} samples.')
+    else:
+        print('Non-adaptive')
 
     stats_module.fit(data)
     evaluate_stat_module.fit(data)
@@ -32,14 +39,16 @@ def run_toy_example(algo,
     os.makedirs(folder, exist_ok=True)
     def debug_fn(t, tempdata):
         X = tempdata.to_numpy()
-        train_error = jnp.abs(stats_module.get_true_stats() - stats_module.get_stats_jax_jit(X)).max()
-        eval_error = jnp.abs(evaluate_stat_module.get_true_stats() - evaluate_stat_module.get_stats_jax_jit(X)).max()
+        train_error = jnp.abs(stats_module.get_true_stats() - stats_module.get_stats_jax_jit(X))
+        eval_error = jnp.abs(evaluate_stat_module.get_true_stats() - evaluate_stat_module.get_stats_jax_jit(X))
         if t == 0:
             save_path = f'{folder}/{data_name}_original.png'
         else:
             save_path = f'{folder}/img_{t:04}.png'
 
-        plot_2d_data(tempdata.to_numpy(), title=f'epoch={t}:\nTrain error = {train_error:.3f}, Eval error={eval_error:.3f}', alpha=0.9, save_path=save_path)
+        plot_2d_data(tempdata.to_numpy(), title=f'epoch={t}:\nTrain error = '
+                                                f'{train_error.max():.3f}/{train_error.mean():.5f},'
+                                                f' Eval errors={eval_error.max():.3f}/{eval_error.mean():.5f}', alpha=0.9, save_path=save_path)
 
 
 
@@ -51,7 +60,7 @@ def run_toy_example(algo,
 
     if adaptive:
         sync_data = algo.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6,
-                                        rounds=rounds, print_progress=True, debug_fn=debug_fn, num_sample=10)
+                                        rounds=rounds, print_progress=True, debug_fn=debug_fn, num_sample=num_sample)
     else:
         sync_data = algo.fit_dp(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6)
 
@@ -80,34 +89,24 @@ if __name__ == "__main__":
     for data_name in DATASETS:
         data = DATASETS[data_name]
 
+        algo = PrivGAfast(num_generations=100000, strategy=SimpleGAforSyncDataFast(
+                domain=data.domain, data_size=500, population_size=100, elite_size=5, muta_rate=1, mate_rate=1,
+            ), print_progress=False)
 
-        algo = PrivGAfast(
-            num_generations=100000,
-            strategy=SimpleGAforSyncDataFast(
-                domain=data.domain,
-                data_size=500,
-                population_size=100,
-                elite_size=5,
-                muta_rate=1,
-                mate_rate=1,
-            ),
-            print_progress=False)
+        # algo = RelaxedProjectionPP(domain=data.domain, data_size=2000, learning_rate=(0.01, ), print_progress=True)
 
-        # algo = RelaxedProjectionPP(
-        #     domain=data.domain,
-        #     data_size=500,
-        #     learning_rate=(0.0001,),
-        #     print_progress=True)
+        # stats_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])
 
-        hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0),
-                                                                   random_hs=10000)
-        eval_hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1),
-                                                                   random_hs=10000)
-        # ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
-        #                                                                   bins=[2, 4, 8, 16, 32, 64])
+        # train_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=1000)
+        # eval_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1), random_hs=20000)
+
+        train_stats_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=1000)
+        eval_stats_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(1), random_prefixes=2000)
+
         run_toy_example(algo, data,
-                        stats_module=hs_stats_module,
-                        evaluate_stat_module=eval_hs_stats_module,
-                        epsilon=1,
-                        rounds=30,
-                        adaptive=True)
+                        stats_module=train_stats_module,
+                        evaluate_stat_module=eval_stats_module,
+                        epsilon=10,
+                        rounds=1,
+                        num_sample=50,
+                        adaptive=False)

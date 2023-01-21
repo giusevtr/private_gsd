@@ -219,10 +219,8 @@ class Halfspace4(Marginals):
 
             # HS
             rng_h, rng_b = jax.random.split(key, 2)
-            hs_mat = 2 * (jax.random.uniform(rng_h, shape=(numeric_dim, )) - 0.5) / numeric_dim  # d x h
-            # hs_mat = hs_mat / hs_mat.sum()
-            # hs_mat = hs_mat / numeric_dim
-            b = jax.random.normal(rng_b, shape=(1, ))  # 1 x h
+            hs_mat = (jax.random.normal(rng_h, shape=(numeric_dim,))) / jnp.sqrt(numeric_dim)  # d x h
+            b = jax.random.normal(rng_b, shape=(1,))  # 1 x h
             x_row_num_proj = x_row[num_idx]  # n x d
             HS_proj = jnp.dot(x_row_num_proj, hs_mat) - b  # n x h
             above_halfspace = (HS_proj > 0).astype(int)  # n x h
@@ -258,15 +256,15 @@ class Halfspace4(Marginals):
         cat_queries = jnp.array(cat_queries)
         numeric_cols = self.domain.get_numeric_cols()
         num_idx = jnp.array([self.domain.get_attribute_onehot_indices(att) for att in numeric_cols]).flatten()
-
         numeric_dim = num_idx.shape[0]
+
         def stat_fn(X, sigmoid, key):
             n, d = X.shape
             X = jnp.column_stack((X, jnp.ones(n).astype(int)))
             cat_answers = jnp.prod(X[:, cat_queries], 2)
             # Compute halfspace answers
             rng_h, rng_b = jax.random.split(key, 2)
-            hs_mat = 2 * (jax.random.uniform(rng_h, shape=(numeric_dim,)) - 0.5) / numeric_dim  # d x h
+            hs_mat = (jax.random.normal(rng_h, shape=(numeric_dim,))) / jnp.sqrt(numeric_dim)  # d x h
             b = jax.random.normal(rng_b, shape=(1,))  # 1 x h
             X_num_proj = X[:, num_idx]  # n x d
             HS_proj = jnp.dot(X_num_proj, hs_mat) - b # n x h

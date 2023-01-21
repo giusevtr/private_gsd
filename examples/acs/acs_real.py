@@ -4,7 +4,7 @@ import os
 import jax
 import jax.numpy as jnp
 from models import Generator, PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjectionPP
-from stats import Halfspace
+from stats import Halfspace, Prefix
 from stats.halfspaces_v4 import Halfspace4, Marginals
 from toy_datasets.circles import get_circles_dataset
 from toy_datasets.moons import get_moons_dataset
@@ -21,8 +21,8 @@ def run_toy_example(algo,
                     evaluate_stat_module,
                     epsilon=1.00,
                     seed=0,
-                    random_hs=1000,
                     rounds=30,
+                    num_sample=10,
                     adaptive=False):
 
     stats_module.fit(data)
@@ -45,7 +45,7 @@ def run_toy_example(algo,
 
     if adaptive:
         sync_data = algo.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6,
-                                        rounds=rounds, print_progress=True, num_sample=10, debug_fn=debug_fn)
+                                        rounds=rounds, print_progress=True, num_sample=num_sample, debug_fn=debug_fn)
     else:
         sync_data = algo.fit_dp(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6)
         debug_fn(1, sync_data)
@@ -67,32 +67,42 @@ if __name__ == "__main__":
     data = get_data(f'{data_name}-mixed-train',
                     domain_name=f'domain/{data_name}-mixed',  root_path='../../data_files/folktables_datasets_real')
 
-    algo = PrivGAfast(
-        num_generations=100000,
-        strategy=SimpleGAforSyncDataFast(
-            domain=data.domain,
-            data_size=2000,
-            population_size=100,
-            elite_size=5,
-            muta_rate=1,
-            mate_rate=1,
-        ),
-        print_progress=True)
-
-    # algo = RelaxedProjectionPP(
-    #     domain=data.domain,
-    #     data_size=500,
-    #     learning_rate=(0.0001,),
+    # algo = PrivGAfast(
+    #     num_generations=100000,
+    #     strategy=SimpleGAforSyncDataFast(
+    #         domain=data.domain,
+    #         data_size=2000,
+    #         population_size=100,
+    #         elite_size=5,
+    #         muta_rate=1,
+    #         mate_rate=1,
+    #     ),
     #     print_progress=True)
 
-    hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0),
-                                                               random_hs=20000,
-                                                               )
+    algo = RelaxedProjectionPP(
+        domain=data.domain,
+        data_size=500,
+        learning_rate=(0.001,),
+        print_progress=True)
+
+    # hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0),
+    #                                                            random_hs=20000,
+    #                                                            )
+    # hs_stats_module_eval, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1),
+    #                                                            random_hs=2000,
+    #                                                            )
     # ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
     #                                                                   bins=[2, 4, 8, 16, 32, 64])
+
+
+    train_prefix_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=1000)
+    eval_prefix_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(1), random_prefixes=20000)
+
+
     run_toy_example(algo, data,
-                    stats_module=hs_stats_module,
-                    evaluate_stat_module=hs_stats_module,
+                    stats_module=train_prefix_module,
+                    evaluate_stat_module=eval_prefix_module,
                     epsilon=1,
-                    rounds=30,
+                    rounds=10,
+                    num_sample=10,
                     adaptive=True)

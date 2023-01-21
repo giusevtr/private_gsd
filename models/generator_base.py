@@ -144,16 +144,24 @@ class Generator:
                 ##### PROJECT STEP
                 X_sync = sync_dataset.to_numpy()
 
+                # Round results
+                priv_stats = adaptive_statistic.get_private_statistics()
+                selected_true_stats = stat_module.get_true_stat(adaptive_statistic.get_statistics_ids())
+                stat_fn = stat_module.get_stat_fn(adaptive_statistic.get_statistics_ids())
+                sync_stats = stat_fn(X_sync)
+                round_errors = jnp.abs(selected_true_stats-sync_stats)
+                gau_error = jnp.abs(selected_true_stats - priv_stats)
+
                 # Get errors for debugging
-                errors_post_max = stat_module.get_sync_data_errors(X_sync).max()
-                errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats_jit(sync_dataset), ord=1) / \
-                                  true_stats.shape[0]
-                print(f'Epoch {i:03}: Total error(max/avg) is {errors_post_max:.4f}/{errors_post_avg:.7f}.\t ||'
-                      # f'\tRound: True error(max/l2) is {adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f}.'
-                      # f'\t(true) max error = {stat_state.true_loss_inf(X_sync):.4f}.'
+                all_true_stats = stat_module.get_true_stats()
+                all_sync_stats = stat_module.get_stats_jax_jit(X_sync)
+                all_errors = jnp.abs(all_true_stats - all_sync_stats)
+
+                print(f'Epoch {i:03}: Total error(max/avg) is {all_errors.max():.4f}/{all_errors.mean():.7f}.\t ||'
+                      f'\tRound: True error(max/l2) is {round_errors.max():.5f}/{round_errors.mean():.7f}.'
+                      # f'\t(true) max error = {jnp.abs(true_stats - sync_stats).max():.4f}.'
                       # f'\t(true)  l2 error = {stat_state.true_loss_l2(X_sync):.5f}.'
-                      # f'\tPriv error(max/l2) is {adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f}.'
-                      # f'\tGaussian max error {gaussian_error:.6f}.'
+                      f'\tGaussian error(max/l2) is {gau_error.max():.5f}/{gau_error.mean():.7f}.'
                       f'\tElapsed time = {time.time() - stime:.4f}s')
             if debug_fn is not None:
                 debug_fn(i, sync_dataset)

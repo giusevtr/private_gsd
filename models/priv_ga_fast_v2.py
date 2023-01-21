@@ -8,23 +8,14 @@ import numpy as np
 from models import Generator
 import time
 from stats import  AdaptiveStatisticState
-from typing import Callable
 import jax
 import chex
 from flax import struct
-from utils import Dataset, Domain
+from utils import Dataset, Domain, timer
 from functools import partial
 from typing import Tuple
 from evosax.utils import get_best_fitness_member
 from stats import Marginals
-
-
-def timer(last_time=None, msg=None):
-    now = time.time()
-    if msg is not None and last_time is not None:
-        print(f'{msg} {now - last_time:.5f}')
-    return now
-
 
 @struct.dataclass
 class EvoState:
@@ -78,11 +69,11 @@ class SimpleGAforSyncDataFast:
 
         rng1, rng2 = jax.random.split(rng, 2)
         random_numbers = jax.random.permutation(rng1, self.data_size, independent=True)
-        mute_mate = get_mutate_mating_fn(mate_rate=self.mate_rate, muta_rate=self.muta_rate, random_numbers=random_numbers)
+        mute_mate = get_mutate_mating_fn(self.domain, mate_rate=self.mate_rate, muta_rate=self.muta_rate, random_numbers=random_numbers)
         self.mate_mutate_vmap = jax.jit(jax.vmap(mute_mate, in_axes=(0, 0, 0, 0)))
 
         random_numbers2 = jax.random.permutation(rng2, self.data_size, independent=True)
-        muta_only = get_mutate_mating_fn(mate_rate=0, muta_rate=1, random_numbers=random_numbers2)
+        muta_only = get_mutate_mating_fn(self.domain, mate_rate=0, muta_rate=1, random_numbers=random_numbers2)
         self.muta_only_vmap = jax.jit(jax.vmap(muta_only, in_axes=(0, 0, 0, 0)))
 
         return state
@@ -172,10 +163,12 @@ class SimpleGAforSyncDataFast:
         ), idx
 
 
-def get_mutate_mating_fn(mate_rate: int, muta_rate: int, random_numbers):
+def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_numbers):
     # muta_rate = 1
 
-    numeric_idx=jnp.array([0, 1])
+    # numeric_idx=jnp.array([0, 1])
+    numeric_idx = domain.get_attribute_indices(domain.get_numeric_cols())
+
     def mute_and_mate(
             rng: chex.PRNGKey, X1: chex.Array, elite_rows: chex.Array, initialization
     ) -> Tuple[chex.Array, chex.Array, chex.Array]:
