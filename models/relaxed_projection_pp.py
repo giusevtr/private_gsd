@@ -103,30 +103,29 @@ class RelaxedProjectionPP(Generator):
 
         self.early_stop_init()
         best_loss = compute_loss_jit(params, 1024)
-        loss_hist = []
         iters = 0
         t0 = timer()
         t1 = timer()
-        for i in range(25):
-            sigmoid = i ** 2
-        # for sigmoid in [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]:
-        # for sigmoid in [64, 128]:
+        loss_hist = []
+        for i in range(11):
+            # sigmoid = i ** 2
+            sigmoid = 2 ** i
+            if self.print_progress: print(f'sigmoid={sigmoid}:')
             for t in range(1000):
                 iters += 1
                 loss = compute_loss_jit(params, 1024)
                 loss_hist.append(loss)
                 updates, opt_state = update_fn_jit(params, sigmoid, opt_state)
                 params = optax.apply_updates(params, updates)
-                if (iters > stop_early and loss >= 0.999 * loss_hist[-stop_early]):
+                if (t > stop_early and len(loss_hist)>10 and loss >= 0.999 * loss_hist[-10]):
                     if self.print_progress:
-                        t0 = timer(t0, 't={t:<5} sigmoid={sigmoid:<5}| total_loss={total_loss:<8.5f}. time=')
-                        print(f'Stop early at {t} for sigmoid = {sigmoid}')
+                        t0 = timer(t0, f'Stop early at {t} for sigmoid = {sigmoid} current loss={loss:.5f}. time=')
                     break
 
                 if self.print_progress:
                     total_loss = compute_loss_jit(params, 1024)
                     if total_loss < 0.97 * best_loss:
-                        t1 = timer(t1,'t={t:<5} sigmoid={sigmoid:<5}| total_loss={total_loss:<8.5f}. time=')
+                        t1 = timer(t1, f't={t:<5} sigmoid={sigmoid:<5}| total_loss={total_loss:<8.5f}. time=')
                         best_loss = total_loss
 
         return params

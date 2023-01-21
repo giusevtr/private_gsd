@@ -52,7 +52,7 @@ class AdaptiveStatisticState:
         key, key_g = jax.random.split(key, 2)
         rs = np.random.RandomState(key_g)
         # Computing Gumbel noise scale based on: https://differentialprivacy.org/one-shot-top-k/
-        noise = rs.gumbel(scale=((np.pi / np.sqrt(6)) * np.sqrt(sample_num) / (np.sqrt(2 * rho_per_round) * STAT.N)), size=errors.shape)
+        noise = rs.gumbel(scale=(np.sqrt(sample_num) / (np.sqrt(2 * rho_per_round) * STAT.N)), size=errors.shape)
         noise = jnp.array(noise)
         errors_noise = errors + noise
         errors_noise = errors_noise.at[selected_stats].set(-100000)

@@ -89,24 +89,24 @@ if __name__ == "__main__":
     for data_name in DATASETS:
         data = DATASETS[data_name]
 
-        algo = PrivGAfast(num_generations=100000, strategy=SimpleGAforSyncDataFast(
-                domain=data.domain, data_size=500, population_size=100, elite_size=5, muta_rate=1, mate_rate=1,
-            ), print_progress=False)
+        # algo = PrivGAfast(num_generations=100000, strategy=SimpleGAforSyncDataFast(
+        #         domain=data.domain, data_size=500, population_size=100, elite_size=5, muta_rate=1, mate_rate=1,
+        #     ), print_progress=False)
 
-        # algo = RelaxedProjectionPP(domain=data.domain, data_size=2000, learning_rate=(0.01, ), print_progress=True)
+        algo = RelaxedProjectionPP(domain=data.domain, data_size=2000, learning_rate=(0.01, ), print_progress=False)
 
         # stats_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])
 
-        # train_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=1000)
-        # eval_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1), random_hs=20000)
+        train_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=20000)
+        eval_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1), random_hs=20000)
 
-        train_stats_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=1000)
-        eval_stats_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(1), random_prefixes=2000)
+        # train_stats_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=1000)
+        # eval_stats_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(1), random_prefixes=2000)
 
         run_toy_example(algo, data,
                         stats_module=train_stats_module,
                         evaluate_stat_module=eval_stats_module,
                         epsilon=10,
-                        rounds=1,
-                        num_sample=50,
-                        adaptive=False)
+                        rounds=10,
+                        num_sample=30,
+                        adaptive=True)
