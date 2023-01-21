@@ -81,22 +81,18 @@ if __name__ == "__main__":
 
     algo = RelaxedProjectionPP(
         domain=data.domain,
-        data_size=500,
-        learning_rate=(0.001,),
-        print_progress=True)
+        data_size=1000,
+        learning_rate=(0.01,),
+        print_progress=False)
 
-    # hs_stats_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0),
-    #                                                            random_hs=20000,
-    #                                                            )
-    # hs_stats_module_eval, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1),
-    #                                                            random_hs=2000,
-    #                                                            )
+    train_prefix_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0),random_hs=20000)
+    eval_prefix_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1),random_hs=2000,)
     # ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
     #                                                                   bins=[2, 4, 8, 16, 32, 64])
 
 
-    train_prefix_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=1000)
-    eval_prefix_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(1), random_prefixes=20000)
+    # train_prefix_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=1000)
+    # eval_prefix_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(1), random_prefixes=20000)
 
 
     run_toy_example(algo, data,
@@ -104,5 +100,5 @@ if __name__ == "__main__":
                     evaluate_stat_module=eval_prefix_module,
                     epsilon=1,
                     rounds=10,
-                    num_sample=10,
+                    num_sample=30,
                     adaptive=True)
