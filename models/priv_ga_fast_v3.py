@@ -190,7 +190,7 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
         add_rows_idx = jax.random.randint(rng3, minval=0, maxval=elite_rows.shape[0], shape=(mate_rate,))
 
         new_rows = elite_rows[add_rows_idx]
-        noise = jax.random.normal(rng_normal, shape=(new_rows.shape[0], numeric_idx.shape[0])) * 0.01
+        noise = jax.random.normal(rng_normal, shape=(new_rows.shape[0], numeric_idx.shape[0])) * 0.03
         new_rows = new_rows.at[:, numeric_idx].add(noise)
         new_rows = new_rows.at[:, numeric_idx].set(jnp.clip(new_rows[:, numeric_idx], 0, 1))
 
@@ -340,10 +340,8 @@ class PrivGAfast(Generator):
         fitness_vmap_fn = jax.vmap(fitness_fn, in_axes=(None, 0, 0, 0))
         fitness_vmap_fn = jax.jit(fitness_vmap_fn)
 
-        if self.print_progress: timer(init_time, '\tSetup time = ')
 
 
-        t_init = timer()
         key, subkey = jax.random.split(key, 2)
         state = self.strategy.initialize(subkey)
 
@@ -352,13 +350,9 @@ class PrivGAfast(Generator):
             temp = init_sync.reshape((1, init_sync.shape[0], init_sync.shape[1]))
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             state = state.replace(archive=new_archive)
-        if self.print_progress: timer(t_init, '\tInit strategy time = ')
 
         # Init slite statistics here
-
-        t_elite = timer()
         elite_stats = self.data_size * elite_population_fn(state.archive)
-        if self.print_progress: timer(t_elite, '\tElite population statistics time = ')
         # assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - elite_stats).max() < 1, f'archive stats error'
 
         @jax.jit
@@ -374,13 +368,16 @@ class PrivGAfast(Generator):
         fit_time = 0
         tell_time = 0
         last_fitness = None
+
         mutate_only = 0
+
 
         for t in range(self.num_generations):
 
+            key, ask_subkey = jax.random.split(key, 2)
+
             # ASK
             t0 = timer()
-            key, ask_subkey = jax.random.split(key, 2)
             x, elite_ids, removed_rows, added_rows, state = self.strategy.ask(ask_subkey, state,
                                                                               mutate_only=mutate_only > 0)
             _, num_rows, _ = removed_rows.shape
@@ -404,9 +401,11 @@ class PrivGAfast(Generator):
             t0 = timer()
             state, new_elite_idx = self.strategy.tell(x, fitness, state)
             elite_stats = tell_elite_stats(a, elite_stats, new_elite_idx)
+            # assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - elite_stats).max() < 1, f'archive stats error'
+            tell_time += timer() - t0
+
             best_pop_idx = fitness.argmin()
             best_fitness = fitness[best_pop_idx]
-            tell_time += timer() - t0
 
             # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)
@@ -426,7 +425,6 @@ class PrivGAfast(Generator):
 
             if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
                 if self.print_progress:
-                    elapsed_time = timer() - init_time
                     X_sync = state.best_member
 
                     print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
@@ -435,7 +433,7 @@ class PrivGAfast(Generator):
                     t_inf, t_avg = true_loss(X_sync)
                     print(f'\ttrue error=({t_inf:.5f}/{t_avg:.7f})',end='')
                     print(f'\tgau error=({gau_max:.5f}/{gau_avg:.7f})',end='')
-                    print(f'\t|time={elapsed_time:.4f}(s):', end='')
+                    print(f'\t|time={timer() - init_time:.4f}(s):', end='')
                     print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
                     print()
                 last_fitness = best_fitness_total

@@ -3,7 +3,7 @@ import jax
 # from stats import PrivateStatistic
 from stats import Marginals, AdaptiveStatisticState
 import time
-from utils import Dataset, Domain
+from utils import Dataset, Domain, timer
 from utils.cdp2adp import cdp_rho
 import numpy as np
 import jax.numpy as jnp
@@ -121,24 +121,28 @@ class Generator:
         adaptive_statistic = AdaptiveStatisticState(stat_module)
         for i in range(1, rounds + 1):
             if i < rounds:
-                self.loss_change_threshold = 0.001
+                self.loss_change_threshold = 0.01
             else:
                 self.loss_change_threshold = 0.001
 
-            stime = time.time()
+            stime = timer()
 
             # Select a query with max error using the exponential mechanism and evaluate
+            select_time = timer()
             X_sync = sync_dataset.to_numpy()
             key, subkey_select = jax.random.split(key, 2)
             adaptive_statistic.private_select_measure_statistic(subkey_select, rho_per_round, X_sync, num_sample)
+            select_time = timer() - select_time
             # state = stat_module.priv_update(subkey_select, state, rho_per_round, X_sync)
 
+            fit_time = timer()
             key, key_fit = jax.random.split(key, 2)
             dataset: Dataset
             if start_sync:
                 sync_dataset = self.fit(key_fit, adaptive_statistic, sync_dataset, tolerance=tolerance)
             else:
                 sync_dataset = self.fit(key_fit, adaptive_statistic, tolerance=tolerance)
+            fit_time = timer() - fit_time
 
             if print_progress:
                 ##### PROJECT STEP
@@ -162,7 +166,7 @@ class Generator:
                       # f'\t(true) max error = {jnp.abs(true_stats - sync_stats).max():.4f}.'
                       # f'\t(true)  l2 error = {stat_state.true_loss_l2(X_sync):.5f}.'
                       f'\tGaussian error(max/l2) is {gau_error.max():.5f}/{gau_error.mean():.7f}.'
-                      f'\tElapsed time = {time.time() - stime:.4f}s')
+                      f'\tElapsed time(fit/select)={fit_time:.4f}/{select_time:.4f}')
             if debug_fn is not None:
                 debug_fn(i, sync_dataset)
             # ADA_DATA['round init error'].append(initial_max_error)

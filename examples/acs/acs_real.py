@@ -23,12 +23,15 @@ def run_acs_example(algo,
                     seed=0,
                     rounds=30,
                     num_sample=10,
-                    adaptive=False,
-                    save_path='sync'):
-
+                    adaptive=False):
+    print(f'Running {algo} with epsilon={epsilon}, train module is {stats_module} and evaluation module is {evaluate_stat_module}')
+    if adaptive:
+        print(f'Adaptive with {rounds} rounds and {num_sample} samples.')
+    else:
+        print('Non-adaptive')
     stats_module.fit(data)
     evaluate_stat_module.fit(data)
-    folder = f'images/{str(algo)}/{stats_module}/{data_name}/{epsilon:.2f}/{rounds}'
+    folder = f'sync_data/{str(algo)}/{stats_module}/{data_name}/{epsilon:.2f}/{rounds}'
     print(f'Saving in {folder}')
     os.makedirs(folder, exist_ok=True)
     path = f'{folder}/sync_data.csv'
@@ -65,19 +68,19 @@ if __name__ == "__main__":
     data = get_data(f'{data_name}-mixed-train',
                     domain_name=f'domain/{data_name}-mixed',  root_path='../../data_files/folktables_datasets_real')
 
-    algo = PrivGAfast(num_generations=100000,print_progress=True, strategy=SimpleGAforSyncDataFast(
+    algo = PrivGAfast(num_generations=100000, print_progress=True, strategy=SimpleGAforSyncDataFast(
             domain=data.domain, data_size=2000, population_size=100, elite_size=5, muta_rate=1, mate_rate=1))
 
     # algo = RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.01,), print_progress=False)
 
-    train_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=20000)
-    eval_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1), random_hs=2000, )
+    # train_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=20000)
+    # eval_module, _ = Halfspace4.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(1), random_hs=2000, )
     # ranges_stat_module, _ = Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2,
     #                                                                   bins=[2, 4, 8, 16, 32, 64])
 
 
-    # train_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=1000)
-    # eval_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(1), random_prefixes=20000)
+    train_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=2000)
+    eval_module, _ = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(1), random_prefixes=2000)
 
     for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
         for r in [10, 25, 50, 75]:
