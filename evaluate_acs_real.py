@@ -6,7 +6,8 @@ import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 
 from utils.utils_data import get_data
-from sklearn.linear_model import LogisticRegression as Model
+# from sklearn.linear_model import LogisticRegression as Model
+from sklearn.ensemble import RandomForestClassifier as Model
 
 from sklearn.metrics import accuracy_score, make_scorer
 scorer = make_scorer(accuracy_score)
@@ -80,11 +81,12 @@ Results = []
 
 algo = [
     'PrivGA',
-    # 'GEM',
-    # 'RAP'
+    'GEM',
+    'RAP'
 ]
 queries = [
     'Halfspaces',
+    'Prefix',
     'Ranges'
 ]
 for a, q in itertools.product(algo, queries):
@@ -119,9 +121,7 @@ df_results = pd.DataFrame(Results, columns=cols)
 df_results = df_results.groupby(['algo', 'error type', 'T', 'epsilon'], as_index=False)['error'].mean()
 df_results = df_results.groupby(['algo', 'error type', 'epsilon'], as_index=False)['error'].min()
 
-sns.relplot(data=df_results, x='epsilon', y='error', col='error type', hue='algo', kind='line')
+sns.relplot(data=df_results, x='epsilon', y='error', col='error type', hue='algo', kind='line', markers=True)
 # plt.plot(range(0, len(acc_list)), acc_list, color='b', label='synthetic')
 # plt.hlines(xmin=0, xmax=rounds, y=acc_list[0], color='r', label='original')
-plt.ylabel('Error')
-plt.xlabel('Halfpaces Adaptive Epoch')
 plt.show()
