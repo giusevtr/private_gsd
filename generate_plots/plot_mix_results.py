@@ -1,5 +1,5 @@
 import pandas as pd
-from results.plot_utils_results import read_result, show_result
+from generate_plots.plot_utils_results import read_result, show_result
 dataname = 'folktables_2018_mobility_CA'
 
 ##################################################
