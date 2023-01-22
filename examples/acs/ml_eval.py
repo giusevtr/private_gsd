@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
@@ -24,17 +26,20 @@ df_test = data_test.df
 
 rounds = 50
 
+sync_paths = []
+for eps in [0.07, 0.23, 0.52]:
+    for r in [50, 75]:
+        for seed in [0]:
+            path = f'sync_data/PrivGAfast/Prefix/{data_name}/{eps:.2f}/{r}/sync_data_{seed}.csv'
+            sync_paths.append(path)
 
 acc_list = []
-for i in range(0, rounds):
-
-    if i == 0:
-        df_train = data_train.df
-    else:
-        df_train = pd.read_csv(f'sync/sync_data_{i}.csv')
-        cat_cols = domain.get_categorical_cols()
-        for cat in domain.get_categorical_cols():
-            df_train[cat] = df_train[cat].round().astype(int)
+for path in sync_paths:
+    if not os.path.exists(path): continue
+    df_train = pd.read_csv(path)
+    cat_cols = domain.get_categorical_cols()
+    for cat in domain.get_categorical_cols():
+        df_train[cat] = df_train[cat].round().astype(int)
 
 
     for target in ['PINCP']:
@@ -69,6 +74,7 @@ for i in range(0, rounds):
         acc_list.append(test_acc)
 
         print('\n#####')
+        print(path)
         print(f'Target: {target}')
         print(f'Majority classifier test acc: {test_maj_acc}')
         print(f'Test acc: {train_acc}')
@@ -77,7 +83,7 @@ for i in range(0, rounds):
 
 
 
-plt.plot(range(1, rounds), acc_list[1:], color='b', label='synthetic')
+plt.plot(range(0, len(acc_list)), acc_list, color='b', label='synthetic')
 plt.hlines(xmin=0, xmax=rounds, y=acc_list[0], color='r', label='original')
 plt.ylabel('Accuracy')
 plt.xlabel('Halfpaces Adaptive Epoch')
