@@ -13,9 +13,9 @@ import time
 if __name__ == "__main__":
 
     # EPSILON = [0.07, 0.23, 0.52, 0.74, 1.00]
-    EPSILON = [0.07, 1.00]
+    EPSILON = [ 1.00]
     # Get Data
-    ROUNDS = [20, 40]
+    ROUNDS = [100]
     # adaptive_rounds = (3, 10, 100)
 
     task = 'mobility'

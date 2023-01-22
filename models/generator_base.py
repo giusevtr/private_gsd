@@ -3,13 +3,14 @@ import jax
 # from stats import PrivateStatistic
 from stats import Marginals, AdaptiveStatisticState
 import time
-from utils import Dataset, Domain
+from utils import Dataset, Domain, timer
 from utils.cdp2adp import cdp_rho
 import numpy as np
 import jax.numpy as jnp
 import pandas as pd
 from typing import Callable
 import matplotlib.pyplot as plt
+
 
 class Generator:
     data_size: int
@@ -68,10 +69,10 @@ class Generator:
     def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, epsilon: float, delta: float,
                init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         rho = cdp_rho(epsilon, delta)
-        return self.fit_zcdp(key, stat_module, rho, init_data, tolerance )
+        return self.fit_zcdp(key, stat_module, rho, init_data, tolerance)
 
     def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rho: float,
-                 init_data: Dataset = None, tolerance: float=0) -> Dataset:
+                 init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         key_stats, key_fit = jax.random.split(key)
         stat = AdaptiveStatisticState(stat_module)
         stat.private_measure_all_statistics(key_stats, rho)
@@ -81,27 +82,27 @@ class Generator:
     # def default_debug_fn(X):
     def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds,
                         epsilon: float, delta: float,
-                        tolerance: float =0,
+                        tolerance: float = 0,
                         start_sync=True,
                         print_progress=False,
-                        debug_fn: Callable = None):
+                        debug_fn: Callable = None, num_sample=1):
         rho = cdp_rho(epsilon, delta)
-        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, tolerance, start_sync, print_progress, debug_fn)
+        return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, tolerance, start_sync, print_progress, debug_fn,
+                                      num_sample)
 
     def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray, stat_module: Marginals, rounds: int,
                           rho: float, tolerance: float = 0,
                           start_sync=False,
                           print_progress=False,
-                          debug_fn: Callable = None):
+                          debug_fn: Callable = None, num_sample=1):
         rho_per_round = rho / rounds
         domain = stat_module.domain
 
         key, key_init = jax.random.split(key, 2)
         # X_sync = Dataset.synthetic_jax_rng(domain, N=self.data_size, rng=key_init)
-        init_seed = int(jax.random.randint(key_init, minval=0, maxval=2**20, shape=(1,))[0])
+        init_seed = int(jax.random.randint(key_init, minval=0, maxval=2 ** 20, shape=(1,))[0])
         sync_dataset = Dataset.synthetic(domain, N=self.data_size, seed=init_seed)
         # sync_dataset = None
-
 
         # true_answers = prefix_fn(data.to_numpy())
 
@@ -120,70 +121,61 @@ class Generator:
         adaptive_statistic = AdaptiveStatisticState(stat_module)
         for i in range(1, rounds + 1):
             if i < rounds:
-                self.loss_change_threshold = 0.001
+                self.loss_change_threshold = 0.01
             else:
                 self.loss_change_threshold = 0.001
 
-            stime = time.time()
+            stime = timer()
 
             # Select a query with max error using the exponential mechanism and evaluate
+            select_time = timer()
             X_sync = sync_dataset.to_numpy()
             key, subkey_select = jax.random.split(key, 2)
-            adaptive_statistic.private_select_measure_statistic(subkey_select, rho_per_round, X_sync)
+            adaptive_statistic.private_select_measure_statistic(subkey_select, rho_per_round, X_sync, num_sample)
+            select_time = timer() - select_time
             # state = stat_module.priv_update(subkey_select, state, rho_per_round, X_sync)
 
-
+            fit_time = timer()
             key, key_fit = jax.random.split(key, 2)
             dataset: Dataset
             if start_sync:
                 sync_dataset = self.fit(key_fit, adaptive_statistic, sync_dataset, tolerance=tolerance)
             else:
                 sync_dataset = self.fit(key_fit, adaptive_statistic, tolerance=tolerance)
-
-            ##### PROJECT STEP
-            X_sync = sync_dataset.to_numpy()
-
-            # Get errors for debugging
-            errors_post_max = stat_module.get_sync_data_errors(X_sync).max()
-            errors_post_avg = jnp.linalg.norm(true_stats - stat_module.get_stats_jit(sync_dataset), ord=1)/true_stats.shape[0]
-
-            round_true_max_loss = adaptive_statistic.true_loss_inf(X_sync)
-            round_true_ave_loss = adaptive_statistic.true_loss_l2(X_sync)
-
-            round_priv_max_loss = adaptive_statistic.true_loss_inf(X_sync)
-            round_priv_ave_loss = adaptive_statistic.true_loss_l2(X_sync)
+            fit_time = timer() - fit_time
 
             if print_progress:
-                gaussian_error = jnp.abs(adaptive_statistic.get_private_statistics() - adaptive_statistic.get_true_statistics()).max()
-                print(f'Epoch {i:03}: Total error(max/avg) is {errors_post_max:.4f}/{errors_post_avg:.7f}.\t ||'
-                      f'\tRound: True error(max/l2) is {adaptive_statistic.true_loss_inf(X_sync):.5f}/{adaptive_statistic.true_loss_l2(X_sync):.7f}.'
-                      # f'\t(true) max error = {stat_state.true_loss_inf(X_sync):.4f}.'
+                ##### PROJECT STEP
+                X_sync = sync_dataset.to_numpy()
+
+                # Round results
+                priv_stats = adaptive_statistic.get_private_statistics()
+                selected_true_stats = stat_module.get_true_stat(adaptive_statistic.get_statistics_ids())
+                stat_fn = stat_module.get_stat_fn(adaptive_statistic.get_statistics_ids())
+                sync_stats = stat_fn(X_sync)
+                round_errors = jnp.abs(selected_true_stats-sync_stats)
+                gau_error = jnp.abs(selected_true_stats - priv_stats)
+
+                # Get errors for debugging
+                all_true_stats = stat_module.get_true_stats()
+                all_sync_stats = stat_module.get_stats_jax_jit(X_sync)
+                all_errors = jnp.abs(all_true_stats - all_sync_stats)
+
+                print(f'Epoch {i:03}: Total error(max/avg) is {all_errors.max():.4f}/{all_errors.mean():.7f}.\t ||'
+                      f'\tRound: True error(max/l2) is {round_errors.max():.5f}/{round_errors.mean():.7f}.'
+                      # f'\t(true) max error = {jnp.abs(true_stats - sync_stats).max():.4f}.'
                       # f'\t(true)  l2 error = {stat_state.true_loss_l2(X_sync):.5f}.'
-                      f'\tPriv error(max/l2) is {adaptive_statistic.private_loss_inf(X_sync):.5f}/{adaptive_statistic.private_loss_l2(X_sync):.7f}.'
-                      f'\tGaussian max error {gaussian_error:.6f}.'
-                      f'\tElapsed time = {time.time() - stime:.4f}s')
+                      f'\tGaussian error(max/l2) is {gau_error.max():.5f}/{gau_error.mean():.7f}.'
+                      f'\tElapsed time(fit/select)={fit_time:>7.3f}/{select_time:.3f}')
             if debug_fn is not None:
                 debug_fn(i, sync_dataset)
-            ADA_DATA['epoch'].append(i)
-            ADA_DATA['max error'].append(float(errors_post_max))
-            ADA_DATA['average error'].append(float(errors_post_avg))
-            ADA_DATA['round true max error'].append(float(round_true_max_loss))
-            ADA_DATA['round true avg error'].append(float(round_true_ave_loss))
-            ADA_DATA['round priv max error'].append(float(round_priv_max_loss))
-            ADA_DATA['round priv avg error'].append(float(round_priv_ave_loss))
-            ADA_DATA['time'].append(float(time.time() - stime))
             # ADA_DATA['round init error'].append(initial_max_error)
 
-        df = pd.DataFrame(ADA_DATA)
-        df['algo'] = str(self)
-        df['rho'] = rho
-        df['rounds'] = rounds
-        self.ADA_DATA = df
         return sync_dataset
 
-def exponential_mechanism(key:jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
+
+def exponential_mechanism(key: jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
     dist = jax.nn.softmax(2 * eps0 * scores / (2 * sensitivity))
     cumulative_dist = jnp.cumsum(dist)
     max_query_idx = jnp.searchsorted(cumulative_dist, jax.random.uniform(key, shape=(1,)))
     return max_query_idx[0]
-
