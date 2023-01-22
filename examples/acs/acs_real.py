@@ -72,7 +72,7 @@ if __name__ == "__main__":
     #                                                                   bins=[2, 4, 8, 16, 32, 64])
     # train_module = Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=20000)[0]
 
-    for eps in [0.07, 0.23, 0.52]:
+    for eps in [1]:
         for r in [50, 75]:
             for seed in [0]:
 
