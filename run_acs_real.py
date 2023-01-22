@@ -16,12 +16,16 @@ def run_acs_example(algo,
                     rounds=30,
                     num_sample=10,
                     adaptive=False):
+
+
+
     print(f'Running {algo} with epsilon={epsilon}, train module is {stats_module}')
     if adaptive:
         print(f'Adaptive with {rounds} rounds and {num_sample} samples.')
     else:
         print('Non-adaptive')
     stats_module.fit(data)
+    data_name = f'folktables_2018_real_CA'
     folder = f'sync_data/{str(algo)}/{stats_module}/{data_name}/{epsilon:.2f}/{rounds}'
     os.makedirs(folder, exist_ok=True)
     path = f'{folder}/sync_data_{seed}.csv'
@@ -44,6 +48,38 @@ def run_acs_example(algo,
     print(f'{str(algo)}: Train max error = {errors.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
 
 
+
+def run_all_acs(algo, queries, epsilon: list, seed: list, adaptive: bool, rounds:list, samples_per_round):
+
+    data_name = f'folktables_2018_real_CA'
+    data = get_data(f'{data_name}-mixed-train',
+                    domain_name=f'domain/{data_name}-mixed', root_path='data_files/folktables_datasets_real')
+
+    algos = {
+        'privga': PrivGAfast(num_generations=100000, print_progress=False, strategy=SimpleGAforSyncDataFast(
+            domain=data.domain, data_size=2000, population_size=100, elite_size=5, muta_rate=1, mate_rate=1)),
+        'rap++': RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.01,), print_progress=False)
+    }
+    algo = algos[algo]
+
+    modules = {
+        'halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=20000)[0],
+        'prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=20000)[0],
+        'ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])[0]
+    }
+    train_module = modules[queries]
+
+    for epsilon, seed, rounds, samples_per_round in itertools.product(epsilon, seed, rounds, samples_per_round):
+
+        run_acs_example(algo, data,
+                        stats_module=train_module,
+                        epsilon=epsilon,
+                        seed=seed,
+                        rounds=rounds,
+                        num_sample=samples_per_round,
+                        adaptive=adaptive)
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(prog='ACSreal Experiment',
@@ -59,29 +95,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    data_name = f'folktables_2018_real_CA'
-    data = get_data(f'{data_name}-mixed-train',
-                    domain_name=f'domain/{data_name}-mixed', root_path='data_files/folktables_datasets_real')
-    algos = {
-        'privga': PrivGAfast(num_generations=100000, print_progress=False, strategy=SimpleGAforSyncDataFast(
-            domain=data.domain, data_size=2000, population_size=100, elite_size=5, muta_rate=1, mate_rate=1)),
-        'rap++': RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.01,), print_progress=False)
-    }
-    algo = algos[args.algo]
-
-    modules = {
-        'halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=20000)[0],
-        'prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=20000)[0],
-        'ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])[0]
-    }
-    train_module = modules[args.queries]
-
-    for epsilon, seed, rounds, samples_per_round in itertools.product(args.epsilon, args.seed, args.rounds, args.samples_per_round):
-
-        run_acs_example(algo, data,
-                        stats_module=train_module,
-                        epsilon=epsilon,
-                        seed=seed,
-                        rounds=rounds,
-                        num_sample=samples_per_round,
-                        adaptive=args.adaptive)
+    run_all_acs(args.algo, args.queries, args.epsilon, args.seed, args.adaptive, args.rounds, args.samples_per_round)
