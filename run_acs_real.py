@@ -26,7 +26,7 @@ def run_acs_example(algo,
     else:
         print('Non-adaptive')
     stats_module.fit(data)
-    folder = f'sync_data/{str(algo)}/{stats_module}/{rounds:03}/{epsilon:.2f}'
+    folder = f'sync_data/{str(algo)}/{stats_module}/{rounds}/{num_sample}/{epsilon:.2f}'
     os.makedirs(folder, exist_ok=True)
     path = f'{folder}/sync_data_{seed}.csv'
 
