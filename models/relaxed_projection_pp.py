@@ -29,6 +29,7 @@ class RelaxedProjectionPP(Generator):
         self.print_progress = print_progress
         self.CACHE = {}
         self.stop_early = 50
+        self.iterations = 5000
 
 
 
@@ -108,13 +109,13 @@ class RelaxedProjectionPP(Generator):
         t0 = timer()
         t1 = timer()
         loss_hist = []
-        for i in range(11):
+        for i in range(12):
             # sigmoid = i ** 2
             sigmoid = 2 ** i
             if self.print_progress: print(f'sigmoid={sigmoid}:')
-            for t in range(2000):
+            for t in range(self.iterations):
                 iters += 1
-                loss = compute_loss_jit(params, 1024)
+                loss = compute_loss_jit(params, 2048)
                 loss_hist.append(loss)
                 updates, opt_state = update_fn_jit(params, sigmoid, opt_state)
                 params = optax.apply_updates(params, updates)
@@ -124,7 +125,7 @@ class RelaxedProjectionPP(Generator):
                     break
 
                 if self.print_progress:
-                    total_loss = compute_loss_jit(params, 1024)
+                    total_loss = compute_loss_jit(params, 2048)
                     if total_loss < 0.95 * best_loss:
                         t1 = timer(t1, f't={t:<5} sigmoid={sigmoid:<5}| total_loss={total_loss:<8.5f}. time=')
                         best_loss = total_loss
