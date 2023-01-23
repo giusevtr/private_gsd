@@ -1,5 +1,6 @@
 import itertools
 import os.path
+import sys
 
 import numpy as np
 import pandas as pd
@@ -10,7 +11,10 @@ from utils.utils_data import get_data
 from sklearn.ensemble import RandomForestClassifier as Model
 
 from sklearn.metrics import accuracy_score, make_scorer
-scorer = make_scorer(accuracy_score)
+# scorer = make_scorer(accuracy_score)
+from sklearn.metrics import accuracy_score, f1_score
+scorer = make_scorer(f1_score, average='weighted')
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -44,12 +48,12 @@ def linear_ml_accuracy(df_train, df_test, target='PINCP'):
     train_acc = scorer(model, X_train, y_train)
     test_acc = scorer(model, X_test, y_test)
 
-    # print('\n#####')
-    # print(f'Target: {target}')
-    # print(f'Majority classifier test acc: {test_maj_acc}')
-    # print(f'Test acc: {train_acc}')
-    # print(f'Train acc: {test_acc}')
-    # print('#####\n')
+    print('\n#####')
+    print(f'Target: {target}')
+    print(f'Majority classifier test acc: {test_maj_acc}')
+    print(f'Train acc: {train_acc}')
+    print(f'Test acc: {test_acc}')
+    print('#####\n')
     return train_acc, test_acc
 
 
@@ -71,7 +75,9 @@ test_acc_original = {}
 for target in domain.get_categorical_cols():
     train_acc, test_acc = linear_ml_accuracy(df_train, df_test, target)
     test_acc_original[target] = test_acc
+    # print(f'target={target}: test_accuracy = {test_acc:.5f}')
 
+sys.exit()
 rounds = 50
 
 sync_paths = []

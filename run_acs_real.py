@@ -5,6 +5,7 @@ from models import PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjectionPP
 from stats import Halfspace, Prefix, Marginals
 import time
 from utils.utils_data import get_data
+import pandas as pd
 import argparse
 
 
@@ -45,38 +46,46 @@ def run_acs_example(algo,
     errors = jax.numpy.abs(stats_module.get_true_stats() - stats_module.get_stats_jit(sync_data))
     ave_error = jax.numpy.linalg.norm(errors, ord=1)/errors.shape[0]
     print(f'{str(algo)}: Train max error = {errors.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
+    return errors.max(), ave_error
 
 
 
-def run_all_acs(algo, queries, epsilon: list, seed: list, adaptive: bool, rounds:list, samples_per_round):
+def run_all_acs(gen_name, queries, epsilon: list, seed: list, adaptive: bool, rounds:list, samples_per_round,
+                print_progress=False):
 
     data_name = f'folktables_2018_real_CA'
     data = get_data(f'{data_name}-mixed-train',
                     domain_name=f'domain/{data_name}-mixed', root_path='data_files/folktables_datasets_real')
 
     algos = {
-        'privga': PrivGAfast(num_generations=100000, print_progress=False, strategy=SimpleGAforSyncDataFast(
+        'PrivGA': PrivGAfast(num_generations=100000, print_progress=print_progress, strategy=SimpleGAforSyncDataFast(
             domain=data.domain, data_size=2000, population_size=100, elite_size=5, muta_rate=1, mate_rate=1)),
-        'rap++': RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.01,), print_progress=False)
+        'RAP++': RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.01,), print_progress=print_progress)
     }
-    algo = algos[algo]
+    algo = algos[gen_name]
 
     modules = {
-        'halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=20000)[0],
-        'prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=20000)[0],
-        'ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])[0]
+        'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=15000)[0],
+        'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=20000)[0],
+        'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])[0]
     }
     train_module = modules[queries]
+    Results = []
 
     for epsilon, seed, rounds, samples_per_round in itertools.product(epsilon, seed, rounds, samples_per_round):
 
-        run_acs_example(algo, data,
+        max_error, ave_error = run_acs_example(algo, data,
                         stats_module=train_module,
                         epsilon=epsilon,
                         seed=seed,
                         rounds=rounds,
                         num_sample=samples_per_round,
                         adaptive=adaptive)
+        Results.append([data_name, gen_name, queries, rounds, epsilon, seed, max_error, ave_error])
+
+    cols = ['data', 'generator', 'stats', 'T', 'epsilon' , 'seed', 'max error' , 'l1 error']
+    Results_df = pd.DataFrame(Results, columns=cols)
+    Results_df.to_csv(f'acsreal_{gen_name}_{queries}_results.csv', index=False)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ sns.set_style("white")
 sns.set(font_scale=1.5)
 
 # def read_result(path, error_type='max error'):
-def read_result(data_path, algo_name, query_name, error_type='max error'):
+def read_result(data_path, error_type='max error'):
     # data_path = f'{data_dir}/mix/privga/result_mix_privga.csv'
     df = pd.read_csv(data_path)
     df = df.rename(columns={"dataset": "data", "error_max": "max error", 'error_mean': 'l1 error',
@@ -16,23 +16,31 @@ def read_result(data_path, algo_name, query_name, error_type='max error'):
         df['data'] = df['data'].replace(to_replace=f"folktables_2018_mobility_CA{rn}",
                                         value="folktables_2018_mobility_CA")
 
-    df = df[['data',  'T', 'epsilon', 'seed', 'max error', 'l1 error']]
+    df = df[['data', 'generator', 'T', 'epsilon', 'seed', 'max error', 'l1 error']]
 
-    df = df.groupby(['data', 'T', 'epsilon'], as_index=False)[error_type].mean()
-    df = df.groupby(['data', 'epsilon'], as_index=False)[error_type].min()
-    df['data'] = algo_name
+    df = df.groupby(['data', 'generator', 'T', 'epsilon'], as_index=False)[error_type].mean()
+    df = df.groupby(['data', 'generator' , 'epsilon'], as_index=False)[error_type].min()
     # privga_df['generator'] = 'PrivGA'
     return df
 
 
 def show_result(df, error_type='max error'):
     fontsize = 18
+    gens = ['PrivGA', 'GEM', 'RAP', 'PGM', 'RAP++']
+
+    gens_in_df = df['generator'].unique()
+    hue_order = []
+    for g in gens:
+        if g in gens_in_df:
+            hue_order.append(g)
+
+    print(hue_order)
     g = sns.relplot(data=df, x='epsilon', y=error_type,
                     col='data',
                     hue='generator', kind='line',
                     marker='o',
                     facet_kws={'sharey': False, 'sharex': True},
-                    hue_order=['PrivGA', 'GEM', 'RAP', 'PGM'],
+                    hue_order=hue_order,
                     aspect=1.5,
                     linewidth=3,
                     alpha=0.9)
