@@ -2,14 +2,19 @@ import pandas as pd
 from generate_plots.plot_utils_results import read_result, show_result
 dataname = 'folktables_2018_mobility_CA'
 
+data_dir = '../results'
 ##################################################
-privga_df = read_result('acs/mix/privga/result_mix_privga.csv')
-privga_df['generator'] = 'PrivGA'
+mix_privga_df = read_result(f'{data_dir}/acs/mix/privga/result_mix_privga.csv')
+cat_privga_df = read_result(f'{data_dir}/acs/mix/privga/result_mix_privga.csv')
+mix_privga_df['generator'] = 'PrivGA'
+cat_privga_df['generator'] = 'PrivGA'
+mix_privga_df['queries'] = 'Ranges'
+cat_privga_df['queries'] = 'Categorical'
 ##################################################
-gem_df = read_result('acs/mix/gem/gem.csv')
+gem_df = read_result(f'{data_dir}/acs/mix/gem/gem.csv')
 gem_df['generator'] = 'GEM'
 ##################################################
-rap_df = read_result('acs/mix/rap/rap.csv')
+rap_df = read_result(f'{data_dir}/acs/mix/rap/rap.csv')
 rap_df['generator'] = 'RAP'
 ##################################################
 

@@ -4,8 +4,10 @@ import matplotlib.pyplot as plt
 sns.set_style("white")
 sns.set(font_scale=1.5)
 
-def read_result(path, error_type='max error'):
-    df = pd.read_csv(path)
+# def read_result(path, error_type='max error'):
+def read_result(data_path, algo_name, query_name, error_type='max error'):
+    # data_path = f'{data_dir}/mix/privga/result_mix_privga.csv'
+    df = pd.read_csv(data_path)
     df = df.rename(columns={"dataset": "data", "error_max": "max error", 'error_mean': 'l1 error',
                             "test_seed": "seed"})
 
@@ -18,6 +20,7 @@ def read_result(path, error_type='max error'):
 
     df = df.groupby(['data', 'T', 'epsilon'], as_index=False)[error_type].mean()
     df = df.groupby(['data', 'epsilon'], as_index=False)[error_type].min()
+    df['data'] = algo_name
     # privga_df['generator'] = 'PrivGA'
     return df
 

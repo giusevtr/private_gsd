@@ -93,11 +93,13 @@ for a, q in itertools.product(algo, queries):
     for T in [25, 50, 75, 100, 10, 20, 40, 60, 80]:
         for eps in [0.07, 0.23, 0.52, 0.74, 1.00]:
             for seed in [0, 1, 2]:
-                path = f'sync_data/{a}/{q}/{T:03}/{eps:.2f}/sync_data_{seed}.csv'
+                path = f'sync_data_temp/{a}/{q}/{T:03}/{eps:.2f}/sync_data_{seed}.csv'
                 if not os.path.exists(path): continue
                 print(f'reading {path}')
                 sync_paths.append(path)
                 df_train_sync = pd.read_csv(path)
+                if len(df_train_sync) > 3000:
+                    df_train_sync = df_train_sync.sample(n=3000)
                 if 'Unnamed: 0' in df_train_sync.columns:
                     df_train_sync.drop('Unnamed: 0', axis=1, inplace=True)
 
