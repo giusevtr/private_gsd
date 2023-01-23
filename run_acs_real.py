@@ -60,13 +60,13 @@ def run_all_acs(gen_name, queries, epsilon: list, seed: list, adaptive: bool, ro
     algos = {
         'PrivGA': PrivGAfast(num_generations=100000, print_progress=print_progress, strategy=SimpleGAforSyncDataFast(
             domain=data.domain, data_size=2000, population_size=100, elite_size=5, muta_rate=1, mate_rate=1)),
-        'RAP++': RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.01,), print_progress=print_progress)
+        'RAP++': RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.0005,), print_progress=print_progress)
     }
     algo = algos[gen_name]
 
     modules = {
-        'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=15000)[0],
-        'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=20000)[0],
+        'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=150000)[0],
+        'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=200000)[0],
         'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])[0]
     }
     train_module = modules[queries]

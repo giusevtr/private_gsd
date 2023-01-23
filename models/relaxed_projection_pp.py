@@ -28,8 +28,8 @@ class RelaxedProjectionPP(Generator):
         self.stop_loss_time_window = stop_loss_time_window
         self.print_progress = print_progress
         self.CACHE = {}
-        self.stop_early = 50
-        self.iterations = 5000
+        self.stop_early = 100
+        self.iterations = 10000
 
 
 
