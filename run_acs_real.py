@@ -50,7 +50,8 @@ def run_acs_example(algo,
 
 
 
-def run_all_acs(gen_name, queries, epsilon: list, seed: list, adaptive: bool, rounds:list, samples_per_round,
+def run_all_acs(gen_name, queries, epsilon_list: list, seed_list: list,
+                adaptive: bool, rounds_list:list, samples_per_round_list,
                 print_progress=False):
 
     data_name = f'folktables_2018_real_CA'
@@ -72,7 +73,7 @@ def run_all_acs(gen_name, queries, epsilon: list, seed: list, adaptive: bool, ro
     train_module = modules[queries]
     Results = []
 
-    for epsilon, seed, rounds, samples_per_round in itertools.product(epsilon, seed, rounds, samples_per_round):
+    for epsilon, seed, rounds, samples_per_round in itertools.product(epsilon_list, seed_list, rounds_list, samples_per_round_list):
 
         max_error, ave_error = run_acs_example(algo, data,
                         stats_module=train_module,
@@ -83,8 +84,9 @@ def run_all_acs(gen_name, queries, epsilon: list, seed: list, adaptive: bool, ro
                         adaptive=adaptive)
         Results.append([data_name, gen_name, queries, rounds, epsilon, seed, max_error, ave_error])
 
-    cols = ['data', 'generator', 'stats', 'T', 'epsilon' , 'seed', 'max error' , 'l1 error']
+    cols = ['data', 'generator', 'stats', 'T', 'epsilon', 'seed', 'max error', 'l1 error']
     Results_df = pd.DataFrame(Results, columns=cols)
+    print(f'Saving ', f'acsreal_{gen_name}_{queries}_results.csv')
     Results_df.to_csv(f'acsreal_{gen_name}_{queries}_results.csv', index=False)
 
 

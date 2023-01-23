@@ -4,12 +4,8 @@ dataname = 'folktables_2018_mobility_CA'
 
 data_dir = '../results'
 ##################################################
-mix_privga_df = read_result(f'{data_dir}/acs/mix/privga/result_mix_privga.csv')
-cat_privga_df = read_result(f'{data_dir}/acs/mix/privga/result_mix_privga.csv')
-mix_privga_df['generator'] = 'PrivGA'
-cat_privga_df['generator'] = 'PrivGA'
-mix_privga_df['queries'] = 'Ranges'
-cat_privga_df['queries'] = 'Categorical'
+privga_df = read_result(f'{data_dir}/acs/mix/privga/result_mix_privga.csv')
+privga_df['generator'] = 'PrivGA'
 ##################################################
 gem_df = read_result(f'{data_dir}/acs/mix/gem/gem.csv')
 gem_df['generator'] = 'GEM'
