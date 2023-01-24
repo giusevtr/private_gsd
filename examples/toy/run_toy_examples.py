@@ -98,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument('--queries', choices=['Halfspaces', 'Prefix', 'Ranges'], default='Prefix')
     parser.add_argument('--epsilon', type=float, default=1)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('-a', '--adaptive', action='store_true', default=True)  # on/off flag
+    parser.add_argument('-a', '--adaptive', action='store_true')  # on/off flag
     parser.add_argument('--rounds',  type=int, default=50)
     parser.add_argument('--samples_per_round',  type=int, default=1)
 

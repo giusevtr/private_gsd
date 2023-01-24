@@ -13,7 +13,7 @@ import argparse
 
 
 def eval_all_acs(generators_list, queries_list, epsilon_list: list, seed_list: list, rounds_list: list,
-                 samples_per_round_list: list):
+                 samples_per_round_list: list, adaptive: bool):
 
     Results = []
     data_name = f'folktables_2018_real_CA'
@@ -22,7 +22,8 @@ def eval_all_acs(generators_list, queries_list, epsilon_list: list, seed_list: l
     modules = {
             'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=150000)[0],
             'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=200000)[0],
-            'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])[0]
+            'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])[0],
+            '2-way Marginals': Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32, 64])[0]
         }
     for query_set in queries_list:
 
@@ -80,4 +81,5 @@ if __name__ == "__main__":
                  epsilon_list=args.epsilon,
                  seed_list=args.seed,
                  rounds_list=args.rounds,
-                 samples_per_round_list=args.samples_per_round)
+                 samples_per_round_list=args.samples_per_round,
+                 adaptive=False)
