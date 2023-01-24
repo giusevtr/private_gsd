@@ -424,6 +424,8 @@ class PrivGAfast(Generator):
             best_fitness_total = min(best_fitness_total, best_fitness)
 
             if t > self.switch_to_mutations_threshold and best_fitness > 0.999 * fitness_record[-self.switch_to_mutations_threshold]:
+                if self.print_progress:
+                    print(f'\t\tSwitching to mutate only at t={t}')
                 mutate_only = 1
 
             # if t > int(0.25*self.data_size):
