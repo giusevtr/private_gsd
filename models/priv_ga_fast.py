@@ -245,6 +245,7 @@ class PrivGAfast(Generator):
         self.print_progress = print_progress
         self.strategy = strategy
         self.switch_to_mutations_threshold = 1000
+        self.max_mating_generations = -1
 
         self.CACHE = {}
 
@@ -384,7 +385,7 @@ class PrivGAfast(Generator):
         last_fitness = None
         mutate_only = 0
 
-        fitness_record = []
+        self.fitness_record = []
         for t in range(self.num_generations):
 
             # ASK
@@ -416,14 +417,16 @@ class PrivGAfast(Generator):
             best_pop_idx = fitness.argmin()
             best_fitness = fitness[best_pop_idx]
             tell_time += timer() - t0
-            fitness_record.append(best_fitness)
-
-
+            self.fitness_record.append(best_fitness)
 
             # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)
 
-            if t > self.switch_to_mutations_threshold and best_fitness > 0.999 * fitness_record[-self.switch_to_mutations_threshold]:
+            if t > self.switch_to_mutations_threshold and best_fitness > 0.999 * self.fitness_record[-self.switch_to_mutations_threshold]:
+                if self.print_progress:
+                    print(f'\t\tSwitching to mutate only at t={t}')
+                mutate_only = 1
+            if self.max_mating_generations > 0 and t > self.max_mating_generations and mutate_only != 1:
                 if self.print_progress:
                     print(f'\t\tSwitching to mutate only at t={t}')
                 mutate_only = 1
