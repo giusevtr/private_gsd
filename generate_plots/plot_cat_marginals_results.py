@@ -3,13 +3,13 @@ from generate_plots.plot_utils_results import read_result, show_result
 
 error_type = 'l1 error'
 ##################################################
-privga_df = read_result('../ICML/cat_results/privga/result_cat_privga.csv', error_type)
+privga_df = read_result('../ICML/cat_ranges_results/privga/result_cat_privga.csv', error_type)
 privga_df['generator'] = 'PrivGA'
-gem_df = read_result('../ICML/cat_results/gem/gem.csv', error_type)
+gem_df = read_result('../ICML/cat_ranges_results/gem/gem.csv', error_type)
 gem_df['generator'] = 'GEM'
-rap_df = read_result('../ICML/cat_results/rap/rap.csv', error_type)
+rap_df = read_result('../ICML/cat_ranges_results/rap/rap.csv', error_type)
 rap_df['generator'] = 'RAP'
-pgm_df = read_result('../ICML/cat_results/pgm/pgm_em.csv', error_type)
+pgm_df = read_result('../ICML/cat_ranges_results/pgm/pgm_em.csv', error_type)
 pgm_df['generator'] = 'PGM'
 df_cat = pd.concat([privga_df, gem_df, rap_df, pgm_df], ignore_index=True)
 df_cat.loc[:, 'Statistics'] = 'Categorical Marginals'
