@@ -55,9 +55,10 @@ def show_result(df):
     # gen_bold = ['Original', r'\textbf{PrivGA(HS)}', 'PrivGA(Prefix)', 'RAP(Ranges)', 'GEM(Range)']
 
     # sns.barplot(data=df, x='generator', y='ML accuracy', hue='ML method type', row='epsilon')
-    g = sns.catplot(data=df,
-                    x="generator",
-                    y=clf_error_label,
+    g = sns.relplot(data=df,
+                    # x="generator",
+                    x=clf_error_label,
+                    y='generator',
                     # kind="bar",
                     # row='epsilon',
                     col=target_label,
@@ -66,29 +67,33 @@ def show_result(df):
                     hue='model',
                     # mar
                     # hue_order=['PrivGA(Halfspaces)', 'PrivGA(Prefix)', 'RAP(Ranges)', 'GEM(Ranges)',  'Original'],
-                    # facet_kws={'sharey': False, 'legend_out': False},
-                    sharey=False,
+                    facet_kws={'sharey': True, 'sharex': False, 'legend_out': False},
+                    # sharey=False,
                     s=200,
-                    order=gen
+                    # order=gen
                     # order=gen
                 )
     # g.set_xticklabels( rotation=0)
     # g.despine(left=True)
     # g.add_legend([])
     sns.move_legend(g, "lower center", bbox_to_anchor=(.5, .85),
-                    ncol=5, title=None, frameon=False)
+                    ncol=5, title=None, frameon=False, fontsize=28)
 
     # plt.legend(loc='bottom', title='Team')
-    plt.subplots_adjust(top=0.8, bottom=0.20)
+    plt.subplots_adjust(top=0.8, bottom=0.15)
 
-    g.set_xlabels(f'')
+    g.set_xlabels(clf_error_label)
     for ax in g.axes.flat:
+        title = ax.get_title()
+        ax.set_title(title, fontsize=28)
         temp = ax.get_xticklabels()
         print(temp)
-        ax.set_xticklabels( rotation=0, labels=gen)
-        # ax.set_xlabel(roc)
+        # ax.set(yticklabels=[])
+        # ax.set_yticklabels( rotation=0, labels=['', '', '', '', ''])
+        # ax.set_xlabel('')
+        ax.set_ylabel('')
         # ValueError: keyword fontsize is not recognized; valid keywords are ['size', 'width', 'color', 'tickdir', 'pad', 'labelsize', 'labelcolor', 'zorder', 'gridOn', 'tick1On', 'tick2On', 'label1On', 'label2On', 'length', 'direction', 'left', 'bottom', 'right', 'top', 'labelleft', 'labelbottom', 'labelright', 'labeltop', 'labelrotation', 'grid_agg_filter', 'grid_alpha', 'grid_animated', 'grid_antialiased', 'grid_clip_box', 'grid_clip_on', 'grid_clip_path', 'grid_color', 'grid_dash_capstyle', 'grid_dash_joinstyle', 'grid_dashes', 'grid_data', 'grid_drawstyle', 'grid_figure', 'grid_fillstyle', 'grid_gid', 'grid_in_layout', 'grid_label', 'grid_linestyle', 'grid_linewidth', 'grid_marker', 'grid_markeredgecolor', 'grid_markeredgewidth', 'grid_markerfacecolor', 'grid_markerfacecoloralt', 'grid_markersize', 'grid_markevery', 'grid_path_effects', 'grid_picker', 'grid_pickradius', 'grid_rasterized', 'grid_sketch_params', 'grid_snap', 'grid_solid_capstyle', 'grid_solid_joinstyle', 'grid_transform', 'grid_url', 'grid_visible', 'grid_xdata', 'grid_ydata', 'grid_zorder', 'grid_aa', 'grid_c', 'grid_ds', 'grid_ls', 'grid_lw', 'grid_mec', 'grid_mew', 'grid_mfc', 'grid_mfcalt', 'grid_ms']
-        ax.tick_params(axis='x', rotation=30, labelsize=12)
+        ax.tick_params(axis='y', rotation=0, labelsize=22)
     #     if error_type == 'max error':
     #         ax.set_ylabel(f'Max Error', fontsize=fontsize)
     #     elif error_type == 'l1 error':

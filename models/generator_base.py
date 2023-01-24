@@ -4,7 +4,7 @@ import jax
 from stats import Marginals, AdaptiveStatisticState
 import time
 from utils import Dataset, Domain, timer
-from utils.cdp2adp import cdp_rho
+from utils.cdp2adp import cdp_rho, cdp_eps
 import numpy as np
 import jax.numpy as jnp
 import pandas as pd
@@ -87,6 +87,8 @@ class Generator:
                         print_progress=False,
                         debug_fn: Callable = None, num_sample=1):
         rho = cdp_rho(epsilon, delta)
+        eps2 = cdp_eps(rho, delta)
+        assert rho < epsilon, f'Error: ({rho})-zCDP -> ({eps2})-DP'
         return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, tolerance, start_sync, print_progress, debug_fn,
                                       num_sample)
 

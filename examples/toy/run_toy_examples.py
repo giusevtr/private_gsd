@@ -74,9 +74,9 @@ def run_toy_example(
 
 
 DATASETS = {
-    'circles': get_circles_dataset(DATA_SIZE=10000),
-    'sparse': get_sparse_dataset(DATA_SIZE=10000),
-    'moons': get_moons_dataset(DATA_SIZE=10000),
+    'circles': get_circles_dataset(DATA_SIZE=50000),
+    'sparse': get_sparse_dataset(DATA_SIZE=50000),
+    'moons': get_moons_dataset(DATA_SIZE=50000),
     'digits': get_digits_dataset(),
     # 'ACSreal' :
 }

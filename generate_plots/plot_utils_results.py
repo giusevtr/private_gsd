@@ -26,7 +26,7 @@ def read_result(data_path, error_type='max error'):
 
 
 def show_result(df, error_type='max error'):
-    fontsize = 18
+    fontsize = 24
     gens = ['PrivGA', 'GEM', 'RAP', 'PGM', 'RAP++']
 
     gens_in_df = df['generator'].unique()
@@ -36,32 +36,35 @@ def show_result(df, error_type='max error'):
             hue_order.append(g)
 
     print(hue_order)
-    g = sns.relplot(data=df, x='epsilon', y=error_type,
-                    # col='data',
+    g = sns.relplot(data=df,
+                    x='epsilon',
+                    y=error_type,
                     hue='generator', kind='line',
                     marker='o',
-                    # s=100,
                     facet_kws={'sharey': False, 'sharex': True, 'legend_out': False},
                     hue_order=hue_order,
                     col='Statistics',
                     aspect=1.5,
                     linewidth=5,
                     alpha=0.9)
-    plt.subplots_adjust(top=0.9, bottom=0.26)
+    plt.subplots_adjust(top=0.9, bottom=0.28)
 
-    sns.move_legend(g, "lower center", bbox_to_anchor=(.5, .005),
-                    ncol=4, title=None, frameon=False)
+
+    sns.move_legend(g, "lower center", bbox_to_anchor=(.5, -.05),
+                    ncol=4, title=None, frameon=False, fontsize=28)
 
     for ax in g.axes.flat:
         epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1.00]
+        title = ax.get_title()
+        ax.set_title(title, fontsize=28)
         ax.set_xticks(epsilon_vals)
         ax.set_xticklabels( rotation=0, labels=epsilon_vals)
         ax.set_xlabel(f'epsilon', fontsize=fontsize)
         if error_type == 'max error':
-            ax.set_ylabel(f'Max Error', fontsize=fontsize)
+            ax.set_ylabel(f'Max Error', fontsize=28)
         elif error_type == 'l1 error':
-            ax.set_ylabel(f'Average Error', fontsize=fontsize)
-        ax.tick_params(axis='both', which='major', labelsize=fontsize)
+            ax.set_ylabel(f'Average Error', fontsize=28)
+        ax.tick_params(axis='both', which='major', labelsize=18)
 
     # plt.title(f'Input data is {dataname} and \nquery class is categorical-marginals')
     plt.show()
