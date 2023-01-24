@@ -20,8 +20,8 @@ def eval_all_acs(generators_list, queries_list, epsilon_list: list, seed_list: l
     data = get_data(f'{data_name}-mixed-train',
                     domain_name=f'domain/{data_name}-mixed', root_path='data_files/folktables_datasets_real')
     modules = {
-            'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=20000)[0],
-            'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=20000)[0],
+            'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=150000)[0],
+            'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=200000)[0],
             'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32, 64])[0]
         }
     for query_set in queries_list:
