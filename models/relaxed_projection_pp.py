@@ -34,7 +34,7 @@ class RelaxedProjectionPP(Generator):
 
 
     def __str__(self):
-        return 'RP++'
+        return 'RAP++'
 
     def fit(self, key, adaptive_statistic: AdaptiveStatisticState, init_data: Dataset=None, tolerance=0):
 

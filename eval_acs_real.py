@@ -52,12 +52,12 @@ def eval_all_acs(generators_list, queries_list, epsilon_list: list, seed_list: l
             Results.append(
                 [data_name, gen_name, query_set, rounds, samples_per_round, epsilon, seed, max_error, ave_error])
 
-            Results.append([data_name, gen_name, query_set, rounds, epsilon, seed, max_error, ave_error])
 
     cols = ['data', 'generator', 'stats', 'T', 'samples', 'epsilon', 'seed', 'max error', 'l1 error']
     # cols = ['data', 'generator', 'stats', 'T', 'epsilon' , 'seed', 'max error' , 'l1 error']
     Results_df = pd.DataFrame(Results, columns=cols)
     Results_df.to_csv('acsreal_results.csv', index=False)
+    return Results_df
 
 if __name__ == "__main__":
 

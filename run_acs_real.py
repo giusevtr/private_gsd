@@ -9,7 +9,7 @@ import pandas as pd
 import argparse
 
 
-def run_acs_example(algo,
+def run_acs_example(generator,
                     data,
                     stats_module,
                     epsilon=1.00,
@@ -20,32 +20,32 @@ def run_acs_example(algo,
 
 
 
-    print(f'Running {algo} with epsilon={epsilon}, train module is {stats_module}')
+    print(f'Running {generator} with epsilon={epsilon}, train module is {stats_module}')
     if adaptive:
         print(f'Adaptive with {rounds} rounds and {num_sample} samples.')
     else:
         print('Non-adaptive')
     stats_module.fit(data)
-    folder = f'sync_data/{str(algo)}/{stats_module}/{rounds}/{num_sample}/{epsilon:.2f}'
+    folder = f'sync_data/{str(generator)}/{str(stats_module)}/{rounds}/{num_sample}/{epsilon:.2f}'
     os.makedirs(folder, exist_ok=True)
     path = f'{folder}/sync_data_{seed}.csv'
 
-    print(f'Starting {algo}:')
+    print(f'Starting {generator}:')
     stime = time.time()
     key = jax.random.PRNGKey(seed)
 
     if adaptive:
-        sync_data = algo.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6,
-                                        rounds=rounds, print_progress=True, num_sample=num_sample)
+        sync_data = generator.fit_dp_adaptive(key, stat_module=stats_module, epsilon=epsilon, delta=1e-6,
+                                              rounds=rounds, print_progress=True, num_sample=num_sample)
     else:
-        sync_data = algo.fit_dp(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6)
+        sync_data = generator.fit_dp(key, stat_module=stats_module, epsilon=epsilon, delta=1e-6)
 
     print(f'Saving in {path}')
     sync_data.df.to_csv(path, index=False)
 
     errors = jax.numpy.abs(stats_module.get_true_stats() - stats_module.get_stats_jit(sync_data))
     ave_error = jax.numpy.linalg.norm(errors, ord=1)/errors.shape[0]
-    print(f'{str(algo)}: Train max error = {errors.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
+    print(f'{str(generator)}: Train max error = {errors.max():.4f}, ave_error={ave_error:.6f}, time={time.time() - stime:.4f}')
     return errors.max(), ave_error
 
 
