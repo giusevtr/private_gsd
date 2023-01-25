@@ -22,7 +22,7 @@ if __name__ == "__main__":
     # cat_cols = ['COW', 'RELP',  'RAC1P', 'SCHL']
     # data = data.project(cat_cols)
     # Create statistics and evaluate
-    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)[0]
     marginal_module.fit(data)
 
     print(f'Workloads = {len(marginal_module.true_stats)}')
@@ -40,7 +40,7 @@ if __name__ == "__main__":
             population_size=2000,
             elite_size=2,
             muta_rate=1,
-            mate_rate=20
+            mate_rate=1
         )
     )
 

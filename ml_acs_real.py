@@ -1,5 +1,6 @@
 import itertools
 import os.path
+import sys
 
 import numpy as np
 import pandas as pd
@@ -51,12 +52,12 @@ def linear_ml_accuracy(df_train, df_test, target='PINCP',model_name='XGBoost'):
     train_acc = scorer(model, X_train, y_train)
     test_acc = scorer(model, X_test, y_test)
 
-    # print('\n#####')
-    # print(f'Target: {target}')
-    # print(f'Majority classifier test acc: {test_maj_acc}')
-    # print(f'Test acc: {train_acc}')
-    # print(f'Train acc: {test_acc}')
-    # print('#####\n')
+    print('\n#####')
+    print(f'Target: {target}')
+    print(f'Majority classifier test acc: {test_maj_acc}')
+    print(f'Train acc: {train_acc}')
+    print(f'Test acc: {test_acc}')
+    print('#####\n')
     return train_acc, test_acc
 
 
@@ -78,7 +79,9 @@ test_acc_original = {}
 for target in domain.get_categorical_cols():
     train_acc, test_acc = linear_ml_accuracy(df_train, df_test, target,model_name=model_name)
     test_acc_original[target] = test_acc
+    # print(f'target={target}: test_accuracy = {test_acc:.5f}')
 
+sys.exit()
 rounds = 50
 
 sync_paths = []
@@ -101,14 +104,13 @@ for a, q in itertools.product(algo, queries):
     for T in [3,4,5,6,7,8,9]:
         for eps in [0.07, 0.23, 0.52, 0.74, 1.00]:
             for seed in [0,1, 2]:
-    # for T in [25,]:
-    #     for eps in [0.07,1]:
-    #         for seed in [0,1]:
                 path = f'examples/acs/results_halfspaces/folktables_2018_real_CA/{a}/{T:03}/{eps:.2f}/sync_data_{seed}.csv'
                 if not os.path.exists(path): continue
                 print(f'reading {path}')
                 sync_paths.append(path)
                 df_train_sync = pd.read_csv(path)
+                if len(df_train_sync) > 3000:
+                    df_train_sync = df_train_sync.sample(n=3000)
                 if 'Unnamed: 0' in df_train_sync.columns:
                     df_train_sync.drop('Unnamed: 0', axis=1, inplace=True)
 

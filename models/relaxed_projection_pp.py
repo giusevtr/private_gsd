@@ -28,11 +28,13 @@ class RelaxedProjectionPP(Generator):
         self.stop_loss_time_window = stop_loss_time_window
         self.print_progress = print_progress
         self.CACHE = {}
+        self.stop_early = 100
+        self.iterations = 10000
 
 
 
     def __str__(self):
-        return 'RP++'
+        return 'RAP++'
 
     def fit(self, key, adaptive_statistic: AdaptiveStatisticState, init_data: Dataset=None, tolerance=0):
 
@@ -99,7 +101,7 @@ class RelaxedProjectionPP(Generator):
 
     def fit_help(self, params, opt_state, compute_loss_jit, update_fn_jit, lr):
 
-        stop_early = 5
+        stop_early = self.stop_early
 
         self.early_stop_init()
         best_loss = compute_loss_jit(params, 1024)
@@ -107,24 +109,24 @@ class RelaxedProjectionPP(Generator):
         t0 = timer()
         t1 = timer()
         loss_hist = []
-        for i in range(11):
+        for i in range(12):
             # sigmoid = i ** 2
             sigmoid = 2 ** i
             if self.print_progress: print(f'sigmoid={sigmoid}:')
-            for t in range(1000):
+            for t in range(self.iterations):
                 iters += 1
-                loss = compute_loss_jit(params, 1024)
+                loss = compute_loss_jit(params, 2048)
                 loss_hist.append(loss)
                 updates, opt_state = update_fn_jit(params, sigmoid, opt_state)
                 params = optax.apply_updates(params, updates)
-                if (t > stop_early and len(loss_hist)>10 and loss >= 0.999 * loss_hist[-10]):
+                if (t > stop_early and len(loss_hist)> 2 * stop_early and loss >= 0.999 * loss_hist[-10]):
                     if self.print_progress:
                         t0 = timer(t0, f'Stop early at {t} for sigmoid = {sigmoid} current loss={loss:.5f}. time=')
                     break
 
                 if self.print_progress:
-                    total_loss = compute_loss_jit(params, 1024)
-                    if total_loss < 0.97 * best_loss:
+                    total_loss = compute_loss_jit(params, 2048)
+                    if total_loss < 0.95 * best_loss:
                         t1 = timer(t1, f't={t:<5} sigmoid={sigmoid:<5}| total_loss={total_loss:<8.5f}. time=')
                         best_loss = total_loss
 

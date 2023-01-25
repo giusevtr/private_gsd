@@ -168,7 +168,11 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
     # muta_rate = 1
 
     # numeric_idx=jnp.array([0, 1])
-    numeric_idx = domain.get_attribute_indices(domain.get_numeric_cols())
+    d = len(domain.attrs)
+    numeric_idx = domain.get_attribute_indices(domain.get_numeric_cols()).astype(int)
+    mask = jnp.zeros(d)
+    mask = mask.at[numeric_idx].set(1)
+    mask = mask.reshape((1, d))
 
     def mute_and_mate(
             rng: chex.PRNGKey, X1: chex.Array, elite_rows: chex.Array, initialization
@@ -191,8 +195,11 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
         add_rows_idx = jax.random.randint(rng3, minval=0, maxval=elite_rows.shape[0], shape=(mate_rate,))
 
         new_rows = elite_rows[add_rows_idx]
-        noise = jax.random.normal(rng_normal, shape=(new_rows.shape[0], numeric_idx.shape[0])) * 0.01
-        new_rows = new_rows.at[:, numeric_idx].add(noise)
+        noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d)) * 0.01
+
+        new_rows = new_rows + noise
+
+        # new_rows = new_rows.at[:, numeric_idx].add(noise)
         new_rows = new_rows.at[:, numeric_idx].set(jnp.clip(new_rows[:, numeric_idx], 0, 1))
 
         temp = jax.random.randint(rng_temp, minval=0, maxval=2, shape=new_rows.shape)
@@ -379,6 +386,7 @@ class PrivGAfast(Generator):
         last_fitness = None
         mutate_only = 0
 
+        self.fitness_record = []
         for t in range(self.num_generations):
 
             # ASK
@@ -410,6 +418,7 @@ class PrivGAfast(Generator):
             best_pop_idx = fitness.argmin()
             best_fitness = fitness[best_pop_idx]
             tell_time += timer() - t0
+            self.fitness_record.append(best_fitness)
 
             # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)

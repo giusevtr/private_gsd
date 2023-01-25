@@ -18,3 +18,4 @@ data_files/folktables_datasets/*
 *sync_data_*
 sync_data_results/*
 results/*
+digits

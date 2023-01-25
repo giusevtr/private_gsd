@@ -1,12 +1,15 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-sns.set_style("white")
-sns.set(font_scale=1.5)
+sns.set(font_scale=1.75)
+sns.set_style("whitegrid")
 
-def read_result(path, error_type='max error'):
-    df = pd.read_csv(path)
-    df = df.rename(columns={"dataset": "data", "error_max": "max error", 'error_mean': 'l1 error',
+# def read_result(path, error_type='max error'):
+def read_result(data_path, error_type='max error'):
+    # data_path = f'{data_dir}/mix/privga/result_mix_privga.csv'
+    df = pd.read_csv(data_path)
+    df = df.rename(columns={"dataset": "data",
+                            "error_max": "max error", 'error_mean': 'l1 error',
                             "test_seed": "seed"})
 
     replace_names = ['-train', '-cat-train']
@@ -23,28 +26,45 @@ def read_result(path, error_type='max error'):
 
 
 def show_result(df, error_type='max error'):
-    fontsize = 18
-    g = sns.relplot(data=df, x='epsilon', y=error_type,
-                    col='data',
+    fontsize = 24
+    gens = ['PrivGA', 'GEM', 'RAP', 'PGM', 'RAP++']
+
+    gens_in_df = df['generator'].unique()
+    hue_order = []
+    for g in gens:
+        if g in gens_in_df:
+            hue_order.append(g)
+
+    print(hue_order)
+    g = sns.relplot(data=df,
+                    x='epsilon',
+                    y=error_type,
                     hue='generator', kind='line',
                     marker='o',
-                    facet_kws={'sharey': False, 'sharex': True},
-                    hue_order=['PrivGA', 'GEM', 'RAP', 'PGM'],
+                    facet_kws={'sharey': False, 'sharex': True, 'legend_out': False},
+                    hue_order=hue_order,
+                    col='Statistics',
                     aspect=1.5,
-                    linewidth=3,
+                    linewidth=5,
                     alpha=0.9)
-    plt.subplots_adjust(top=0.9)
+    plt.subplots_adjust(top=0.9, bottom=0.28)
+
+
+    sns.move_legend(g, "lower center", bbox_to_anchor=(.5, -.05),
+                    ncol=4, title=None, frameon=False, fontsize=28)
 
     for ax in g.axes.flat:
         epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1.00]
+        title = ax.get_title()
+        ax.set_title(title, fontsize=28)
         ax.set_xticks(epsilon_vals)
         ax.set_xticklabels( rotation=0, labels=epsilon_vals)
         ax.set_xlabel(f'epsilon', fontsize=fontsize)
         if error_type == 'max error':
-            ax.set_ylabel(f'Max Error', fontsize=fontsize)
+            ax.set_ylabel(f'Max Error', fontsize=28)
         elif error_type == 'l1 error':
-            ax.set_ylabel(f'Average Error', fontsize=fontsize)
-        ax.tick_params(axis='both', which='major', labelsize=fontsize)
+            ax.set_ylabel(f'Average Error', fontsize=28)
+        ax.tick_params(axis='both', which='major', labelsize=18)
 
     # plt.title(f'Input data is {dataname} and \nquery class is categorical-marginals')
     plt.show()
