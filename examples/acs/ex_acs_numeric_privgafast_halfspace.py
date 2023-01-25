@@ -12,13 +12,13 @@ import time
 
 if __name__ == "__main__":
 
-    # EPSILON = [0.07, 0.23, 0.52, 0.74, 1.00]
-    EPSILON = [ 1.00]
+    EPSILON = [0.07, 0.23, 0.52, 0.74, 1.00]
+    # EPSILON = [ 1.00]
     # Get Data
-    ROUNDS = [100]
+    ROUNDS = [3, 4, 5, 6, 7, 8, 9, 10]
     # adaptive_rounds = (3, 10, 100)
 
-    task = 'mobility'
+    task = 'real'
     state = 'CA'
     data_name = f'folktables_2018_{task}_{state}'
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
@@ -40,28 +40,33 @@ if __name__ == "__main__":
         strategy=SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
-            population_size=100,
-            elite_size=10,
+            population_size=1000,
+            elite_size=2,
             muta_rate=1,
             mate_rate=1
         )
     )
 
-    for eps, rounds, seed in itertools.product(EPSILON, ROUNDS, [0]):
-        # Generate differentially private synthetic data with ADAPTIVE mechanism
-        key = jax.random.PRNGKey(seed)
-        stime = time.time()
-
-        sync_data = priv_ga.fit_dp_adaptive(key, stat_module=hs_module, rounds=rounds, start_sync=True,
-                                            epsilon=eps, delta=1e-6, print_progress=True)
-
-        true_stats = hs_module.get_true_stats()
-        sync_stats = hs_module.get_stats_jit(sync_data)
-        print(f'PrivGA(fast): eps={eps}, round={rounds}, seed={seed}'
-              f'max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
-              f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
-              f'time = {time.time() - stime:.5f}')
-
+    # for eps, rounds, seed in itertools.product(EPSILON, ROUNDS, [0]):
+    #     # Generate differentially private synthetic data with ADAPTIVE mechanism
+    #     key = jax.random.PRNGKey(seed)
+    #     stime = time.time()
+    #
+    #     sync_data = priv_ga.fit_dp_adaptive(key, stat_module=hs_module, rounds=rounds, start_sync=True,
+    #                                         epsilon=eps, delta=1e-6, print_progress=True,num_sample=1000)
+    #
+    #     true_stats = hs_module.get_true_stats()
+    #     sync_stats = hs_module.get_stats_jit(sync_data)
+    #     print(f'PrivGA(fast): eps={eps}, round={rounds}, seed={seed}'
+    #           f'max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
+    #           f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
+    #           f'time = {time.time() - stime:.5f}')
+    run_experiments(data=data, algorithm=priv_ga, stats_module=hs_module, epsilon=EPSILON,
+                    adaptive_rounds=ROUNDS,
+                    seeds=SEED,
+                    save_dir=('results_prefix', data_name, 'PrivGA'),
+                    # data_post_processing=lambda data_in: data_in.inverse_map_real_values(col_range)
+                    )
         # sync_data.df.to_csv('sync')
 
 
