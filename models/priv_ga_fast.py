@@ -244,8 +244,6 @@ class PrivGAfast(Generator):
         self.num_generations = num_generations
         self.print_progress = print_progress
         self.strategy = strategy
-        self.switch_to_mutations_threshold = 1000
-        self.max_mating_generations = -1
 
         self.CACHE = {}
 
@@ -422,26 +420,18 @@ class PrivGAfast(Generator):
             # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)
 
-            if t > self.switch_to_mutations_threshold and best_fitness > 0.999 * self.fitness_record[-self.switch_to_mutations_threshold]:
-                if self.print_progress:
-                    print(f'\t\tSwitching to mutate only at t={t}')
-                mutate_only = 1
-            if self.max_mating_generations > 0 and t > self.max_mating_generations and mutate_only != 1:
-                if self.print_progress:
-                    print(f'\t\tSwitching to mutate only at t={t}')
-                mutate_only = 1
 
-            # if t > int(0.25*self.data_size):
-            # # if t > int(2*self.data_size):
-            #     if self.early_stop(t, best_fitness_total):
-            #         if self.print_progress:
-            #             if mutate_only == 0: print(f'\t\tSwitching to mutate only at t={t}')
-            #             elif mutate_only == 1: print(f'\t\tStop early at t={t}')
-            #         mutate_only += 1
-            #         if mutate_only>1:
-            #             if self.print_progress:
-            #                 print(f'\t\tStop early at t={t}')
-            # stop_early = mutate_only >= 2
+            if t > int(0.25*self.data_size):
+            # if t > int(2*self.data_size):
+                if self.early_stop(t, best_fitness_total):
+                    if self.print_progress:
+                        if mutate_only == 0: print(f'\t\tSwitching to mutate only at t={t}')
+                        elif mutate_only == 1: print(f'\t\tStop early at t={t}')
+                    mutate_only += 1
+                    if mutate_only>1:
+                        if self.print_progress:
+                            print(f'\t\tStop early at t={t}')
+            stop_early = mutate_only >= 2
 
 
             if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2:
@@ -460,8 +450,8 @@ class PrivGAfast(Generator):
                     print()
                 last_fitness = best_fitness_total
 
-            # if stop_early:
-            #     break
+            if stop_early:
+                break
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)

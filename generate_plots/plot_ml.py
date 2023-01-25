@@ -108,10 +108,21 @@ def show_result(df):
 ## Fake data.
 ###############
 
-df1 = read_result('../ICML/ml_results/ML_RF.csv', ml_model='RF')
-df2 = read_result('../ICML/ml_results/ML_LR.csv', ml_model='LR')
-df3 = read_result('../ICML/ml_results/ML_XGBoost.csv', ml_model='XGB')
+# df = read_result('../ICML/ml_results/ML_LR.csv', ml_model='LR')
+# df = read_result('../ICML/ml_results/ML_RF.csv', ml_model='RF')
+df = read_result('../ICML/ml_results/ML_XGBoost.csv', ml_model='XGB')
 
-df = pd.concat([df1, df2, df3], ignore_index=True)
+
+# df = pd.concat([df1, df2, df3], ignore_index=True)
 df = df.loc[(df['epsilon'] == 1), :]
-show_result(df)
+df = df.loc[(df[target_label] == 'PINCP'), :]
+df[clf_error_label] = df[clf_error_label].round(4)
+print(df)
+# show_result(df)
+
+0.1218
+0.1013
+0.1011
+0.0909
+0.1089
+0.0334
