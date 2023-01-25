@@ -1,22 +1,16 @@
 import itertools
 import os.path
 import sys
-
+import argparse
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
-
 from utils.utils_data import get_data
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from xgboost.sklearn import XGBClassifier
-
 from sklearn.metrics import accuracy_score, make_scorer, f1_score
-
 scorer = make_scorer(accuracy_score)
-# scorer = make_scorer(f1_score, average='weighted')
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 def linear_ml_accuracy(df_train, df_test, target='PINCP', model_name='XGBoost'):
@@ -101,36 +95,52 @@ for target in domain.get_categorical_cols():
 sync_paths = []
 acc_list = []
 
-Results = []
+def run_ml_evaluation(algo:list,queries:list,epsilon_list:list,seed_list:list,model_name='LR',):
+    Results = []
+    for a, q in itertools.product(algo, queries):
+        for T in [3, 4, 5, 6, 7, 8, 9, 10, 20, 40, 60, 80, 25, 50, 75, 100]:
+            for eps in epsilon_list:
+                for seed in seed_list:
+                    path = f'examples/acs/results_halfspaces/folktables_2018_real_CA/{a}/{T:03}/{eps:.2f}/sync_data_{seed}.csv'
+                    if not os.path.exists(path): continue
+                    print(f'reading {path}')
+                    sync_paths.append(path)
+                    df_train_sync = pd.read_csv(path)
+                    if len(df_train_sync) > 3000:
+                        df_train_sync = df_train_sync.sample(n=3000)
+                    if 'Unnamed: 0' in df_train_sync.columns:
+                        df_train_sync.drop('Unnamed: 0', axis=1, inplace=True)
 
-for a, q in itertools.product(algo, queries):
-    for T in [3, 4, 5, 6, 7, 8, 9, 10, 20, 40, 60, 80, 25, 50, 75, 100]:
-        for eps in [0.07, 0.23, 0.52, 0.74, 1.00]:
-            for seed in [0, 1, 2]:
-                path = f'examples/acs/results_halfspaces/folktables_2018_real_CA/{a}/{T:03}/{eps:.2f}/sync_data_{seed}.csv'
-                if not os.path.exists(path): continue
-                print(f'reading {path}')
-                sync_paths.append(path)
-                df_train_sync = pd.read_csv(path)
-                if len(df_train_sync) > 3000:
-                    df_train_sync = df_train_sync.sample(n=3000)
-                if 'Unnamed: 0' in df_train_sync.columns:
-                    df_train_sync.drop('Unnamed: 0', axis=1, inplace=True)
+                    cat_cols = domain.get_categorical_cols()
+                    for cat in domain.get_categorical_cols():
+                        df_train_sync[cat] = df_train_sync[cat].round().astype(int)
 
-                cat_cols = domain.get_categorical_cols()
-                for cat in domain.get_categorical_cols():
-                    df_train_sync[cat] = df_train_sync[cat].round().astype(int)
+                    for target in cat_cols:
+                        train_acc, test_acc = linear_ml_accuracy(df_train_sync, df_test, target, model_name=model_name)
+                        acc_list.append(test_acc)
 
-                for target in cat_cols:
-                    train_acc, test_acc = linear_ml_accuracy(df_train_sync, df_test, target, model_name=model_name)
-                    acc_list.append(test_acc)
+                        Results.append([f'{a}({q})', T, eps, seed, f'{target} ML Acc', test_acc_original[target], test_acc])
+                        print(path, f'\ntarget ={target}: Original acc = {test_acc_original[target]:.5f},'
+                                    f' Synthetic acc = {test_acc:.5f}')
 
-                    Results.append([f'{a}({q})', T, eps, seed, f'{target} ML Acc', test_acc_original[target], test_acc])
-                    print(path, f'\ntarget ={target}: Original acc = {test_acc_original[target]:.5f},'
-                                f' Synthetic acc = {test_acc:.5f}')
+    cols = ['algo', 'T', 'epsilon', 'seed', 'error type', 'original accuracy', 'private accuracy']
+    df_results = pd.DataFrame(Results, columns=cols)
+    df_results.to_csv(f"ML_{model_name}.csv")
 
-cols = ['algo', 'T', 'epsilon', 'seed', 'error type', 'original accuracy', 'private accuracy']
-df_results = pd.DataFrame(Results, columns=cols)
-df_results.to_csv(f"ML_{model_name}.csv")
-# df_results = df_results.groupby(['algo', 'error type', 'T', 'epsilon'], as_index=False)['error'].mean()
-# df_results = df_results.groupby(['algo', 'error type', 'epsilon'], as_index=False)['error'].max()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog='ACSreal Experiment',
+                                     description='Run algorithm PrivGA and RAP++ on ACSreal data')
+
+    parser.add_argument('--algo', choices=['PrivGA', 'RAP++'], default='PrivGA')
+    parser.add_argument('--queries', choices=['Halfspaces', 'Prefix', 'Ranges'], default='Prefix')
+    parser.add_argument('--epsilon', type=float, default=[1], nargs='+')
+    parser.add_argument('--seed', type=int, default=[0], nargs='+')
+    parser.add_argument('-a', '--adaptive', action='store_true', default=True)  # on/off flag
+    parser.add_argument('--rounds', type=int, default=[50], nargs='+')
+    parser.add_argument('--samples_per_round', type=int, default=[10], nargs='+')
+
+    args = parser.parse_args()
+    T = [3, 4, 5, 6, 7, 8, 9, 10, 20, 40, 60, 80, 25, 50, 75, 100]
+    epsilons= [0.07, 0.23, 0.52, 0.74, 1.00]
+    seeds = []
+    run_ml_evaluation(algo=args.algo,queries=args.queries,)
