@@ -19,8 +19,15 @@ pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases
 
 # Execution
 
-Run ADULT
+Run ACSReal
 ````
-cd examples
-python adult_example.py
+python run_acs_real.py
+````
+Run ACS (mixed-type data)
+````
+python run_acs_mixed-type.py
+````
+Run ACS (categorical data)
+````
+python run_acs_categorical.py
 ````

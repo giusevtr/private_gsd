@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from models import Generator
 import time
-from stats import  AdaptiveStatisticState
+from stats import AdaptiveStatisticState
 import jax
 import chex
 from flax import struct
@@ -16,6 +16,7 @@ from functools import partial
 from typing import Tuple
 from evosax.utils import get_best_fitness_member
 from stats import Marginals
+
 
 @struct.dataclass
 class EvoState:
@@ -200,7 +201,8 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
         new_rows = new_rows + noise
 
         # new_rows = new_rows.at[:, numeric_idx].add(noise)
-        new_rows = new_rows.at[:, numeric_idx].set(jnp.clip(new_rows[:, numeric_idx], 0, 1))
+        if len(numeric_idx) > 0:
+            new_rows = new_rows.at[:, numeric_idx].set(jnp.clip(new_rows[:, numeric_idx], 0, 1))
 
         temp = jax.random.randint(rng_temp, minval=0, maxval=2, shape=new_rows.shape)
         # temp = jnp.ones(shape=new_rows.shape)
@@ -251,7 +253,8 @@ class PrivGAfast(Generator):
     def __str__(self):
         return f'PrivGAfast'
 
-    def fit(self, key, adaptive_statistic: AdaptiveStatisticState, sync_dataset: Dataset=None, tolerance: float = 0.0):
+    def fit(self, key, adaptive_statistic: AdaptiveStatisticState, sync_dataset: Dataset = None,
+            tolerance: float = 0.0):
         """
         Minimize error between real_stats and sync_stats
         """
@@ -323,9 +326,12 @@ class PrivGAfast(Generator):
         gau_avg = jnp.linalg.norm(gau_error, ord=2) / gau_error.shape[0]
 
         stat_fn = jax.jit(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()))
-        elite_population_fn = jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0, ))
-        population1_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0, )))
-        population2_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0, )))
+        elite_population_fn = jax.vmap(
+            adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0,))
+        population1_fn = jax.jit(
+            jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0,)))
+        population2_fn = jax.jit(
+            jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0,)))
 
         @jax.jit
         def true_loss(X_arg):
@@ -349,9 +355,7 @@ class PrivGAfast(Generator):
         fitness_vmap_fn = jax.vmap(fitness_fn, in_axes=(None, 0, 0, 0))
         fitness_vmap_fn = jax.jit(fitness_vmap_fn)
 
-
         if self.print_progress: timer(init_time, '\tSetup time = ')
-
 
         t_init = timer()
         key, subkey = jax.random.split(key, 2)
@@ -369,6 +373,7 @@ class PrivGAfast(Generator):
         t_elite = timer()
         elite_stats = self.data_size * elite_population_fn(state.archive)
         if self.print_progress: timer(t_elite, '\tElite population statistics time = ')
+
         # assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - elite_stats).max() < 1, f'archive stats error'
 
         @jax.jit
@@ -431,7 +436,7 @@ class PrivGAfast(Generator):
                         elif mutate_only == 1:
                             print(f'\t\tStop early at t={t}')
                     mutate_only += 2
-                    if mutate_only>1:
+                    if mutate_only > 1:
                         if self.print_progress:
                             print(f'\t\tStop early at t={t}')
             stop_early = mutate_only >= 2
@@ -443,10 +448,10 @@ class PrivGAfast(Generator):
 
                     print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
                     p_inf, p_avg = private_loss(X_sync)
-                    print(f'\tprivate error(max/l2)=({p_inf:.5f}/{p_avg:.7f})',end='')
+                    print(f'\tprivate error(max/l2)=({p_inf:.5f}/{p_avg:.7f})', end='')
                     t_inf, t_avg = true_loss(X_sync)
-                    print(f'\ttrue error=({t_inf:.5f}/{t_avg:.7f})',end='')
-                    print(f'\tgau error=({gau_max:.5f}/{gau_avg:.7f})',end='')
+                    print(f'\ttrue error=({t_inf:.5f}/{t_avg:.7f})', end='')
+                    print(f'\tgau error=({gau_max:.5f}/{gau_avg:.7f})', end='')
                     print(f'\t|time={elapsed_time:.4f}(s):', end='')
                     print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
                     print()

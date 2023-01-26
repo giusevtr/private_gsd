@@ -51,17 +51,6 @@ class Generator:
             self.last_update_iteration = t
         return stop_early
 
-    # def early_stop(self, t, error):
-    #     current_time = time.time()
-    #     stop_early = False
-    #     if current_time - self.last_time > self.early_stop_elapsed_time:
-    #         loss_change = jnp.abs(error - self.last_error) / self.last_error
-    #         if loss_change < 0.001:
-    #             stop_early = True
-    #         self.last_time = current_time
-    #         self.last_error = error
-    #     return stop_early
-
     def fit(self, key: jax.random.PRNGKeyArray, stat: AdaptiveStatisticState, init_data: Dataset = None,
             tolerance: float = 0) -> Dataset:
         pass
@@ -155,7 +144,7 @@ class Generator:
                 selected_true_stats = stat_module.get_true_stat(adaptive_statistic.get_statistics_ids())
                 stat_fn = stat_module.get_stat_fn(adaptive_statistic.get_statistics_ids())
                 sync_stats = stat_fn(X_sync)
-                round_errors = jnp.abs(selected_true_stats-sync_stats)
+                round_errors = jnp.abs(selected_true_stats - sync_stats)
                 gau_error = jnp.abs(selected_true_stats - priv_stats)
 
                 # Get errors for debugging
