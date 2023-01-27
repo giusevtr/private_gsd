@@ -298,7 +298,23 @@ class Halfspace(Marginals):
         return stats
 
     def get_stats_jax(self, X: chex.Array):
-        stats = jnp.concatenate([fn(X).flatten() for fn in self.halfpaces_fn])
+        total_num_rows = X.shape[0]
+        if total_num_rows <= 2000:
+            stats = jnp.concatenate([fn(X).flatten() for fn in self.halfpaces_fn])
+        else:
+            halfspaces_stats = []
+            num_splits = total_num_rows // 2000
+            X_split = jnp.array_split(X, num_splits)
+            for fn in self.halfpaces_fn:
+                stat_sum = None
+                for i in range(num_splits):
+                    X_i = X_split[i]
+                    num_rows = X_i.shape[0]
+                    temp_stats = num_rows * fn(X_i)
+                    stat_sum = temp_stats if stat_sum is None else stat_sum + temp_stats
+                hs_stats = stat_sum / total_num_rows
+                halfspaces_stats.append(hs_stats)
+            stats = jnp.concatenate([stat.flatten() for stat in halfspaces_stats])
         return stats
 
     def get_stats_jax_jit(self, X: chex.Array):

@@ -30,29 +30,32 @@ EPSILON = (0.07, 0.23, 0.52, 0.74, 1.0)
 def run_experiments(data: Dataset,
                     algorithm: Generator,
                     stats_module: Marginals,
+                    data_name,
                     epsilon=(0.07, 0.15, 0.23, 0.41, 0.52, 0.62, 0.74, 0.87, 1.0),
                     adaptive_rounds=(25, 50, 100),
                     seeds=(0, 1, 2),
                     save_dir: tuple = ('real_valued_sync_data',),
-                    data_post_processing=lambda x: x):
+                    data_post_processing=lambda x: x,num_samples=1):
 
     num_workloads = len(stats_module.true_stats)
     N = data.df.shape[0]
+    RESULTS=[]
     for T, eps, seed in itertools.product(list(adaptive_rounds), list(epsilon), list(seeds)):
-        if num_workloads < T:
-            print(f'Skipping (T={T}, eps={eps:2f}, seed={seed}. {str(algorithm)}) because number '
-                  f'of workloads {len(stats_module.true_stats)} is smaller than T={T}')
-            continue
+        # if num_workloads < T:
+        #     print(f'Skipping (T={T}, eps={eps:2f}, seed={seed}. {str(algorithm)}) because number '
+        #           f'of workloads {len(stats_module.true_stats)} is smaller than T={T}')
+        #     continue
         delta = 1/N**2
         key = jax.random.PRNGKey(seed)
         sync_data = algorithm.fit_dp_adaptive(key, stat_module=stats_module, start_sync=True,
-                                              rounds=T, epsilon=eps, delta=delta, print_progress=True)
+                                              rounds=T, epsilon=eps, delta=delta, print_progress=True,num_sample=num_samples)
 
         true_stats = stats_module.get_true_stats()
         errors = true_stats - stats_module.get_stats(sync_data)
         max_error = jnp.abs(errors).max()
         ave_error = jnp.linalg.norm(errors, ord=1)/true_stats.shape[0]
-
+        RESULTS.append(
+            [data_name, str(algorithm), str(stats_module), T, eps, seed, max_error, ave_error])
         print(f'T={T}, eps={eps:2f}, seed={seed}. {str(algorithm)}:\tmax error = {max_error:.5f}, ave error = {ave_error:.7f}')
 
         # Post process before saving
@@ -75,7 +78,14 @@ def run_experiments(data: Dataset,
         data_df.to_csv(save_path)
 
         print()
-
+    results_df = pd.DataFrame(RESULTS,
+                              columns=['data', 'generator', 'stats', 'T', 'epsilon', 'seed', 'max error', 'l1 error'])
+    save_path = ''
+    for s in save_dir:
+        save_path = os.path.join(save_path, s)
+        os.makedirs(s, exist_ok=True)
+    save_path = os.path.join(save_path,f"result_{seeds[0]}.csv")
+    results_df.to_csv(save_path)
 
 if __name__ == "__main__":
     # df = folktables.

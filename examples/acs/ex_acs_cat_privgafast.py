@@ -10,7 +10,7 @@ import time
 if __name__ == "__main__":
 
     # Get Data
-    ROUNDS = 5
+    ROUNDS = 100
     # adaptive_rounds = (3, 10, 100)
 
     task = 'mobility'
@@ -19,8 +19,8 @@ if __name__ == "__main__":
     data = get_data(f'folktables_datasets/{data_name}-mixed-train',
                     domain_name=f'folktables_datasets/domain/{data_name}-cat',  root_path='../../data_files/')
 
-    cat_cols = ['COW', 'RELP',  'RAC1P', 'SCHL']
-    data = data.project(cat_cols)
+    # cat_cols = ['COW', 'RELP',  'RAC1P', 'SCHL']
+    # data = data.project(cat_cols)
     # Create statistics and evaluate
     marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)[0]
     marginal_module.fit(data)
@@ -32,13 +32,13 @@ if __name__ == "__main__":
     ##########
     data_size = 2000
     priv_ga = PrivGAfast(
-        num_generations=100000,
-        print_progress=False,
+        num_generations=500000,
+        print_progress=True,
         strategy=SimpleGAforSyncDataFast(
             domain=data.domain,
             data_size=data_size,
-            population_size=100,
-            elite_size=5,
+            population_size=2000,
+            elite_size=2,
             muta_rate=1,
             mate_rate=1
         )
