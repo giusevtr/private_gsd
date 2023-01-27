@@ -34,11 +34,12 @@ def run_acs_example(generator,
     stime = time.time()
     key = jax.random.PRNGKey(seed)
 
+    delta = 1 / len(data.df)**2
     if adaptive:
-        sync_data = generator.fit_dp_adaptive(key, stat_module=stats_module, epsilon=epsilon, delta=1e-6,
+        sync_data = generator.fit_dp_adaptive(key, stat_module=stats_module, epsilon=epsilon, delta=delta,
                                               rounds=rounds, print_progress=True, num_sample=num_sample)
     else:
-        sync_data = generator.fit_dp(key, stat_module=stats_module, epsilon=epsilon, delta=1e-6)
+        sync_data = generator.fit_dp(key, stat_module=stats_module, epsilon=epsilon, delta=delta)
 
     print(f'Saving in {path}')
     sync_data.df.to_csv(path, index=False)

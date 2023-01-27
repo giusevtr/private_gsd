@@ -326,12 +326,12 @@ class PrivGAfast(Generator):
         population1_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0, )))
         population2_fn = jax.jit(jax.vmap(adaptive_statistic.STAT_MODULE.get_stat_fn(adaptive_statistic.get_statistics_ids()), in_axes=(0, )))
 
-        @jax.jit
+        # @jax.jit
         def true_loss(X_arg):
             error = adaptive_statistic.get_true_statistics() - stat_fn(X_arg)
             return jnp.abs(error).max(), jnp.linalg.norm(error, ord=1) / error.shape[0]
 
-        @jax.jit
+        # @jax.jit
         def private_loss(X_arg):
             error = adaptive_statistic.get_private_statistics() - stat_fn(X_arg)
             return jnp.abs(error).max(), jnp.linalg.norm(error, ord=1) / error.shape[0]
@@ -442,8 +442,8 @@ class PrivGAfast(Generator):
                     print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
                     p_inf, p_avg = private_loss(X_sync)
                     print(f'\tprivate error(max/l2)=({p_inf:.5f}/{p_avg:.7f})',end='')
-                    t_inf, t_avg = true_loss(X_sync)
-                    print(f'\ttrue error=({t_inf:.5f}/{t_avg:.7f})',end='')
+                    # t_inf, t_avg = true_loss(X_sync)
+                    # print(f'\ttrue error=({t_inf:.5f}/{t_avg:.7f})',end='')
                     print(f'\tgau error=({gau_max:.5f}/{gau_avg:.7f})',end='')
                     print(f'\t|time={elapsed_time:.4f}(s):', end='')
                     print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')

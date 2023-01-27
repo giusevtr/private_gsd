@@ -19,3 +19,5 @@ data_files/folktables_datasets/*
 sync_data_results/*
 results/*
 digits
+*.rar
+*.numbers

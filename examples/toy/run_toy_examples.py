@@ -12,6 +12,8 @@ from toy_datasets.moons import get_moons_dataset
 from toy_datasets.sparse import get_sparse_dataset
 from toy_datasets.digits import get_digits_dataset
 import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_style('whitegrid')
 from utils import Dataset
 import time
 from utils.plot_low_dim_data import plot_2d_data
@@ -36,16 +38,16 @@ def run_toy_example(
 
 
     ALGO = {
-        'PrivGA': PrivGAfast(num_generations=100000, print_progress=True, strategy=SimpleGAforSyncDataFast(
+        'PrivGA': PrivGAfast(num_generations=10000, print_progress=True, strategy=SimpleGAforSyncDataFast(
             domain=data.domain, data_size=2000, population_size=100, elite_size=5, muta_rate=1, mate_rate=1)),
         'RAP++': RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.01,), print_progress=False)
     }
     algo = ALGO[algo_name]
 
     modules = {
-        'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=20000)[0],
-        'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=20000)[0],
-        'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16])[0]
+        'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=2000)[0],
+        'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=2000)[0],
+        'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32])[0]
     }
     train_module = modules[queries_name]
     train_module.fit(data)
@@ -56,11 +58,13 @@ def run_toy_example(
     stime = time.time()
     key = jax.random.PRNGKey(seed)
 
+    delta = 1 / len(data.df)**2
     if adaptive:
-        sync_data = algo.fit_dp_adaptive(key, stat_module=train_module,  epsilon=epsilon, delta=1e-6,
+        sync_data = algo.fit_dp_adaptive(key, stat_module=train_module,  epsilon=epsilon, delta=delta,
                                         rounds=rounds, print_progress=True, num_sample=num_sample, debug_fn=debug_fn)
+        debug_fn(1, sync_data)
     else:
-        sync_data = algo.fit_dp(key, stat_module=train_module,  epsilon=epsilon, delta=1e-6)
+        sync_data = algo.fit_dp(key, stat_module=train_module,  epsilon=epsilon, delta=delta)
         debug_fn(1, sync_data)
 
     # debug_fn(1, sync_data)
@@ -143,7 +147,9 @@ if __name__ == "__main__":
                 save_path = f'{folder}/{data_name}_original.png'
             else:
                 save_path = f'{folder}/img_{t:04}.png'
-            tempdata.df.to_csv()
+            # tempdata.df.to_csv()
+            # sns.scatterplot(data=tempdata.df, x='A', y='B', hue='C')
+            print(f'saving {save_path}')
             plot_2d_data(tempdata.to_numpy(), title=f'epoch={t}:\nTrain error = ', alpha=0.9, save_path=save_path)
 
     sync_data: Dataset

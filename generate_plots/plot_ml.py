@@ -34,7 +34,7 @@ def read_result(data_path, ml_model):
 
     # df.melt(id_vars=['data',  'algo', 'T', 'epsilon', 'seed'], )
     df = df.groupby(['generator', 'T', 'epsilon', target_label, 'model'], as_index=False)[clf_error_label].mean()
-    df = df.groupby(['generator', 'epsilon', target_label, 'model'], as_index=False)[clf_error_label].max()
+    df = df.groupby(['generator', 'epsilon', target_label, 'model'], as_index=False)[clf_error_label].min()
     # privga_df['generator'] = 'PrivGA'
 
 
@@ -114,15 +114,17 @@ df = read_result('../ICML/ml_results/ML_XGBoost.csv', ml_model='XGB')
 
 
 # df = pd.concat([df1, df2, df3], ignore_index=True)
-df = df.loc[(df['epsilon'] == 1), :]
-df = df.loc[(df[target_label] == 'PINCP'), :]
+df = df.loc[(df['epsilon'] == 0.07), :]
+# df = df.loc[(df[target_label] == 'PUBCOV'), :]
+# df = df.loc[(df[target_label] == 'PINCP'), :]
+df = df.loc[(df[target_label] == 'ESR'), :]
 df[clf_error_label] = df[clf_error_label].round(4)
 print(df)
 # show_result(df)
 
-0.1218
-0.1013
-0.1011
-0.0909
-0.1089
-0.0334
+0.0884
+0.0839
+0.1083
+0.0877
+0.0831
+0.0648
