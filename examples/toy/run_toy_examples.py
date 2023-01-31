@@ -4,9 +4,8 @@ import argparse
 import jax
 import jax.numpy as jnp
 import numpy as np
-from models import Generator, PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjectionPP
-from stats import Halfspace, Prefix
-from stats.halfspaces import Halfspace, Marginals
+from models import PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjectionPP
+from stats import Halfspace, Prefix, Marginals
 from toy_datasets.circles import get_circles_dataset
 from toy_datasets.moons import get_moons_dataset
 from toy_datasets.sparse import get_sparse_dataset
@@ -47,7 +46,7 @@ def run_toy_example(
     modules = {
         'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=2000)[0],
         'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=2000)[0],
-        'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=2, bins=[2, 4, 8, 16, 32])[0]
+        'Ranges': Marginals.get_all_kway_combinations(data.domain, k=3, bins=[2, 4, 8, 16, 32])[0]
     }
     train_module = modules[queries_name]
     train_module.fit(data)

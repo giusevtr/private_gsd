@@ -3,37 +3,116 @@ import jax
 import jax.numpy as jnp
 from utils import Dataset, Domain
 from utils.utils_data import Domain
-# from stats.private_statistics import PrivateMarginalsState
-import numpy as np
 import chex
+from stats import AdaptiveStatisticState
+from tqdm import tqdm
+
+class Marginals(AdaptiveStatisticState):
 
 
-class Marginals:
-    true_stats: list
-    marginals_fn: list
-    marginals_fn_jit: list
-    get_marginals_fn: list
-    get_differentiable_fn: list
-    diff_marginals_fn: list
-    diff_marginals_fn_jit: list
-    sensitivity: list
-    N: int
-
-    def __init__(self, domain, kway_combinations, bins=(32,)):
+    def __init__(self, domain, kway_combinations, k, bins=(32,)):
         self.domain = domain
         self.kway_combinations = kway_combinations
+        self.k = k
         self.bins = list(bins)
+        self.workload_positions = []
+        self.workload_sensitivity = []
 
-        # Check that domain constains real-valued features
-        self.IS_REAL_VALUED = len(domain.get_numeric_cols()) > 0
+        self.set_up_stats()
 
     def __str__(self):
         return f'Marginals'
 
+    def get_num_workloads(self):
+        return len(self.workload_positions)
+
+    def is_workload_numeric(self, cols):
+        for c in cols:
+            if c in self.domain.get_numeric_cols():
+                return True
+        return False
+
+    def set_up_stats(self):
+
+        queries = []
+        self.workload_positions = []
+        for marginal in tqdm(self.kway_combinations, desc='Setting up Marginals.'):
+            assert len(marginal) == self.k
+            indices = self.domain.get_attribute_indices(marginal)
+            bins = self.bins if self.is_workload_numeric(marginal) else [-1]
+            start_pos = len(queries)
+            for bin in bins:
+                intervals = []
+                for att in marginal:
+                    size = self.domain.size(att)
+                    if size > 1:
+                        upper = jnp.linspace(0, size, num=size+1)[1:]
+                        lower = jnp.linspace(0, size, num=size+1)[:-1]
+                        # lower = lower.at[0].set(-0.01)
+                        interval = list(jnp.vstack((upper, lower)).T - 0.1)
+                        intervals.append(interval)
+                    else:
+                        upper = jnp.linspace(0, 1, num=bin+1)[1:]
+                        lower = jnp.linspace(0, 1, num=bin+1)[:-1]
+                        upper = upper.at[-1].set(1.01)
+                        interval = list(jnp.vstack((upper, lower)).T)
+                        intervals.append(interval)
+                for v in itertools.product(*intervals):
+                    v_arr = jnp.array(v)
+                    upper = v_arr.flatten()[::2]
+                    lower = v_arr.flatten()[1::2]
+                    q = jnp.concatenate((indices, upper, lower))
+                    queries.append(q)  # (i1, i2), ((a1, a2), (b1, b2))
+            end_pos = len(queries)
+            self.workload_positions.append((start_pos, end_pos))
+            self.workload_sensitivity.append(jnp.sqrt(2))
+
+        self.queries = jnp.array(queries)
+
+    def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
+        return self.workload_sensitivity[workload_id] / N
+
+    def _get_workload_fn(self, workload_ids=None):
+        """
+        Returns marginals function and sensitivity
+        :return:
+        """
+        dim = len(self.domain.attrs)
+        def answer_fn(x_row: chex.Array, query_single: chex.Array):
+            I = query_single[:self.k].astype(int)
+            U = query_single[self.k:2*self.k]
+            L = query_single[2*self.k:3*self.k]
+            t1 = (x_row[I] < U).astype(int)
+            t2 = (x_row[I] >= L).astype(int)
+            t3 = jnp.prod(jnp.array([t1, t2]), axis=0)
+            answers = jnp.prod(t3)
+            return answers
+
+        if workload_ids is None :
+            these_queries = self.queries
+        else:
+            these_queries = []
+            for stat_id in workload_ids:
+                a, b = self.workload_positions[stat_id]
+                these_queries.append(self.queries[a:b, :])
+        # queries = jnp.concatenate([self.queries[a:b, :] for (a, b) in self.workload_positions])
+            these_queries = jnp.concatenate(these_queries, axis=0)
+        temp_rows_fn = jax.vmap(answer_fn, in_axes=(None, 0))
+        temp_stat_fn = jax.jit(jax.vmap(temp_rows_fn, in_axes=(0, None)))
+        # stat_fn = lambda X: temp_stat_fn(X, queries)
+
+        def stat_fn(X):
+            return temp_stat_fn(X, these_queries).sum(0) / X.shape[0]
+
+        return stat_fn
+
+
+
+
     @staticmethod
     def get_all_kway_combinations(domain, k, bins=(32,)):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
-        return Marginals(domain, kway_combinations, bins=bins), kway_combinations
+        return Marginals(domain, kway_combinations, k, bins=bins), kway_combinations
 
     @staticmethod
     def get_all_kway_mixed_combinations_v1(domain, k, bins=(32,)):
@@ -53,258 +132,7 @@ class Marginals:
             if count_disc > 0 and count_real > 0:
                 kway_combinations.append(list(cols))
 
-        return Marginals(domain, kway_combinations, bins=bins), kway_combinations
-
-    @staticmethod
-    def get_all_kway_mixed_combinations(domain, k_disc, k_real, bins=(32,)):
-        num_numeric_feats = len(domain.get_numeric_cols())
-        k_real = min(num_numeric_feats, k_real)
-
-        kway_combinations = []
-
-        K = k_disc + k_real
-        for cols in itertools.combinations(domain.attrs, K):
-            count_disc = 0
-            count_real = 0
-            for c in list(cols):
-                if c in domain.get_numeric_cols():
-                    count_real += 1
-                else:
-                    count_disc += 1
-            if count_disc == k_disc and count_real == k_real:
-                kway_combinations.append(list(cols))
-
-        return Marginals(domain, kway_combinations, bins=bins), kway_combinations
-
-    def fit(self, data: Dataset):
-        self.true_stats = []
-        self.marginals_fn = []
-        self.marginals_fn_jit = []
-        self.diff_marginals_fn = []
-        self.diff_marginals_fn_jit = []
-        self.get_marginals_fn = []
-        self.sensitivity = []
-
-        X = data.to_numpy()
-        self.N = X.shape[0]
-        self.domain = data.domain
-
-        def get_get_range_func(cols_arg):
-            def fn():
-                return self.get_range_marginal_stats_fn_helper(cols_arg, debug_msg=f'')[0]
-            return fn
-        def get_get_cat_func(cols_arg):
-            def fn():
-                return self.get_categorical_marginal_stats_fn_helper(cols_arg)[0]
-            return fn
-        for cols in self.kway_combinations:
-
-            if self.is_workload_numeric(cols):
-                fn, sensitivity = self.get_range_marginal_stats_fn_helper(cols)
-                fn_jit = jax.jit(self.get_range_marginal_stats_fn_helper(cols)[0])
-                get_marginal_fn = get_get_range_func(cols)
-            else:
-                fn, sensitivity = self.get_categorical_marginal_stats_fn_helper(cols)
-                fn_jit = jax.jit(self.get_categorical_marginal_stats_fn_helper(cols)[0])
-                get_marginal_fn = get_get_cat_func(cols)
-                # get_marginal_fn = lambda this_cols=cols: self.get_categorical_marginal_stats_fn_helper(this_cols)[0]
-
-
-            self.true_stats.append(fn(X))
-            self.marginals_fn.append(fn)
-            self.marginals_fn_jit.append(fn_jit)
-            self.get_marginals_fn.append(get_marginal_fn)
-            self.sensitivity.append(sensitivity / self.N)
-
-            if not self.IS_REAL_VALUED:
-                # Don't add differentiable queries
-                diff_fn, sensitivity = self.get_differentiable_stats_fn_helper(cols)
-                diff_fn_jit = jax.jit(self.get_differentiable_stats_fn_helper(cols)[0])
-                self.diff_marginals_fn.append(diff_fn)
-                self.diff_marginals_fn_jit.append(diff_fn_jit)
-
-        get_stats_vmap = lambda X: self.get_stats_jax(X)
-        self.get_stats_jax_vmap = jax.vmap(get_stats_vmap, in_axes=(0,))
-
-    def get_num_queries(self):
-        return len(self.true_stats)
-
-    def get_dataset_size(self):
-        return self.N
-
-    def get_true_stat(self, stat_ids: list):
-        stats = []
-        for i in stat_ids:
-            i = int(i)
-            stats.append(self.true_stats[i])
-        return jnp.concatenate(stats)
-
-    def get_stat_fn(self, stat_ids: list):
-        stat_fn_list = []
-        for i in stat_ids:
-            i = int(i)
-            cols = self.kway_combinations[i]
-
-            if self.is_workload_numeric(cols):
-                stat_fn_list.append(self.get_range_marginal_stats_fn_helper(cols)[0])
-            else:
-                stat_fn_list.append(self.get_categorical_marginal_stats_fn_helper(cols)[0])
-
-        def stat_fn(X):
-            stats = jnp.concatenate([fn(X) for fn in stat_fn_list])
-            return stats
-        return stat_fn
-
-    def get_diff_stat_fn(self, stat_ids: list):
-        # cols, marginal_id, hs_sample_id = self.halfspace_map[i]
-        # hs_keys_args = self.halfspace_keys[hs_sample_id]
-        # fn = lambda: self.get_diff_halfspace_fn_helper(cols, hs_keys_args)
-        # return fn
-        # i = int(i)
-        # cols = self.kway_combinations[i]
-        # assert not self.is_workload_numeric(cols), "Only supports discrete data."
-        #
-        # # if self.is_workload_numeric(cols):
-        # #     return self.get_categorical_marginal_stats_fn_helper(cols)[0]
-        # # else:
-        # #     return self.get_range_marginal_stats_fn_helper(cols)[0]
-        # return self.get_differentiable_stats_fn_helper(cols)[0]
-        stat_fn_list = []
-        for i in stat_ids:
-            i = int(i)
-            cols = self.kway_combinations[i]
-            stat_fn_list.append(self.get_differentiable_stats_fn_helper(cols)[0])
-
-        def stat_fn(X, sigmoid):
-            stats = jnp.concatenate([fn(X, sigmoid) for fn in stat_fn_list])
-            return stats
-        return stat_fn
-
-    def get_true_stats(self):
-        assert self.true_stats is not None, "Error: must call the fit function"
-        return jnp.concatenate(self.true_stats)
-
-
-    def get_stats(self, data: Dataset, indices: list = None):
-        X = data.to_numpy()
-        stats = []
-        I = indices if indices is not None else list(range(self.get_num_queries()))
-        for i in I:
-            fn = self.marginals_fn[i]
-            stats.append(fn(X))
-        return jnp.concatenate(stats)
-
-    def get_stats_jit(self, data: Dataset, indices: list = None):
-        X = data.to_numpy()
-        stats = []
-        I = indices if indices is not None else list(range(self.get_num_queries()))
-        for i in I:
-            fn = self.marginals_fn_jit[i]
-            stats.append(fn(X))
-        return jnp.concatenate(stats)
-
-    def get_stats_jax(self, X: chex.Array):
-        stats = jnp.concatenate([fn(X) for fn in self.marginals_fn])
-        return stats
-
-    def get_stats_jax_jit(self, X: chex.Array):
-        stats = jnp.concatenate([fn(X) for fn in self.marginals_fn_jit])
-        return stats
-
-    def get_diff_stats(self, data: Dataset, indices: list = None):
-        assert not self.IS_REAL_VALUED, "Does not work with real-valued data. Must discretize first."
-        X = data.to_onehot()
-        stats = []
-        I = indices if indices is not None else list(range(self.get_num_queries()))
-        for i in I:
-            fn = self.diff_marginals_fn_jit[i]
-            stats.append(fn(X))
-        return jnp.concatenate(stats)
-
-    def get_sync_data_errors(self, X):
-        assert self.true_stats is not None, "Error: must call the fit function"
-        max_errors = []
-        for i in range(len(self.true_stats)):
-            fn = self.marginals_fn_jit[i]
-            error = jnp.abs(self.true_stats[i] - fn(X))
-            max_errors.append(error.max())
-        return jnp.array(max_errors)
-
-    def is_workload_numeric(self, cols):
-        for c in cols:
-            if c in self.domain.get_numeric_cols():
-                return True
-        return False
-
-    def get_range_marginal_stats_fn_helper(self, cols, debug_msg=''):
-        sizes = []
-        for col in cols:
-            sizes.append(self.domain.size(col))
-        idx = self.domain.get_attribute_indices(cols)
-        assert self.is_workload_numeric(cols), "cols tuple must contain at least one numeric attribute"
-
-        cat_idx = self.domain.get_attribute_indices(self.domain.get_categorical_cols())
-
-        bins_sizes = []
-        for bins in self.bins:
-            sizes_jnp = [jnp.arange(s + 1).astype(float) if i in cat_idx else jnp.linspace(0, 1, bins + 1) for i, s in
-                         zip(idx, sizes)]
-            bins_sizes.append(sizes_jnp)
-
-        dim = len(self.domain.attrs)
-        def stat_fn(X):
-            # print(debug_msg, end='')
-            X = X.reshape((-1, dim))
-            X_proj = X[:, idx]
-            stats = []
-            for sizes_jnp in bins_sizes:
-                stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / X.shape[0]
-                stats.append(stat)
-            all_stats = jnp.concatenate(stats)
-            return all_stats
-
-        return stat_fn, jnp.sqrt(len(self.bins) * 2)
-
-    def get_categorical_marginal_stats_fn_helper(self, cols):
-        """
-        Returns marginals function and sensitivity
-        :return:
-        """
-        sizes = []
-        for col in cols:
-            sizes.append(self.domain.size(col))
-        idx = self.domain.get_attribute_indices(cols)
-        dim = len(self.domain.attrs)
-        assert not self.is_workload_numeric(cols), "Workload cannot contain any numeric attribute"
-
-        sizes_jnp = [jnp.arange(s + 1).astype(float) for i, s in zip(idx, sizes)]
-        def stat_fn(x):
-            x = x.reshape((-1, dim))
-            X_proj = x[:, idx]
-            stat = jnp.histogramdd(X_proj, sizes_jnp)[0].flatten() / x.shape[0]
-            return stat
-
-        return stat_fn, jnp.sqrt(2)
-
-    def get_differentiable_stats_fn_helper(self, kway_attributes):
-
-        assert not self.is_workload_numeric(kway_attributes), "Does not work with real-valued data. Must discretize first."
-        # For computing differentiable marginal queries
-        queries = []
-        indices = [self.domain.get_attribute_onehot_indices(att) for att in kway_attributes]
-        for tup in itertools.product(*indices):
-            queries.append(tup)
-        queries = jnp.array(queries)
-        # queries_split = jnp.array_split(self.queries, 10)
-
-        # @jax.jit
-        def stat_fn(X, sigmoid):
-            return jnp.prod(X[:, queries], 2).sum(0) / X.shape[0]
-
-        return stat_fn, jnp.sqrt(2)
-
-
-
+        return Marginals(domain, kway_combinations, k, bins=bins), kway_combinations
 
 
 
@@ -315,164 +143,58 @@ class Marginals:
 
 
 def test_discrete():
-    num_bins= 3
     import pandas as pd
     cols = ['A', 'B', 'C']
-    dom = Domain(cols, [3, 1, 1])
+    dom = Domain(cols, [2, 2, 2])
 
     raw_data_array = pd.DataFrame([
-                        [0, 0.0, 0.95],
-                        [1, 0.1, 0.90],
-                        [2, 0.25, 0.01]], columns=cols)
+                        [0, 0, 0],
+                        [1, 0, 0],
+                        [1, 0, 0]], columns=cols)
     # data = Dataset.synthetic_rng(dom, data_size, rng)
     data = Dataset(raw_data_array, dom)
     numeric_features = data.domain.get_numeric_cols()
-    data_disc = data.discretize(num_bins=num_bins)
-    data_num = Dataset.to_numeric(data=data_disc, numeric_features=numeric_features)
 
-    stat_mod = Marginals.get_all_kway_combinations(data.domain, 3, bins=num_bins)
+    stat_mod, _ = Marginals.get_all_kway_combinations(data.domain, 2)
     stat_mod.fit(data)
 
-    disc_stat_mod = Marginals.get_all_kway_combinations(data_disc.domain, 3, bins=num_bins)
-    disc_stat_mod.fit(data_disc)
+    stat_fn = stat_mod.get_categorical_marginal_stats_fn_helper()
+    stats1 = stat_fn(data.to_numpy())
+    print(stats1)
+    print('test_discrete() passed!')
 
-    stats1 = stat_mod.get_true_stats()
-    stats2 = disc_stat_mod.get_true_stats()
-    stats_diff = jnp.linalg.norm(stats1 - stats2, ord=1)
-    assert stats_diff<=1e-9
+def test_mixed():
+    import pandas as pd
+    cols = ['A', 'B']
+    dom = Domain(cols, [3, 1])
+
+    raw_data_array = pd.DataFrame([
+                        [0, 0.0],
+                        [0, 0.5],
+                        [0, 1.0],
+                        [1, 0.0],
+                        [1, 0.5],
+                        [1, 1.0],
+                        # [1, 0.2]
+    ],
+        columns=cols)
+    # data = Dataset.synthetic_rng(dom, data_size, rng)
+    data = Dataset(raw_data_array, dom)
+    numeric_features = data.domain.get_numeric_cols()
+
+    stat_mod, _ = Marginals.get_all_kway_combinations(data.domain, 2, bins=[2])
+    stat_mod.fit(data)
+
+    stat_fn = stat_mod.get_stat_fn()
+    stats1 = stat_fn(data.to_numpy())
+    print(stats1)
     print('test_discrete() passed!')
 
 
-
-def test_mixed():
-
-    import numpy as np
-    import pandas as pd
-    print('debug')
-    cols = ['A', 'B', 'C']
-    domain = Domain(cols, [2, 1, 1])
-
-    A = pd.DataFrame(np.array([
-        [0, 0.0, 0.1],
-        [0, 0.2, 0.3],
-        [0, 0.8, 0.9],
-        [0, 0.1, 0.0],
-    ]), columns=cols)
-    data = Dataset(A, domain=domain)
-    X = data.to_numpy()
-
-    stat_mod = Marginals.get_all_kway_combinations(domain, 2, bins=[4])
-    stat_mod.fit(data)
-
-    stats1 = stat_mod.get_true_stats()
-    print(stats1.shape)
-    print(stats1)
-
-
-def test_cat_and_diff():
-
-    import numpy as np
-    import pandas as pd
-    print('debug')
-    cols = ['A', 'B', 'C']
-    domain = Domain(cols, [2, 3, 2])
-
-    A = pd.DataFrame(np.array([
-        [0, 0, 1],
-        [0, 2, 0],
-        [0, 0, 0],
-        [0, 1, 0],
-    ]), columns=cols)
-    data = Dataset(A, domain=domain)
-    X = data.to_numpy()
-
-    stat_mod = Marginals.get_all_kway_combinations(domain, 2)
-    stat_mod.fit(data)
-
-    stats_true = stat_mod.get_true_stats()
-    stats_diff = stat_mod.get_diff_stats(data)
-
-    print(jnp.linalg.norm(stats_true - stats_diff, ord=1))
-
-
-
-
-def test_runtime():
-    import time
-    DATA_SIZE = 10000
-    cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']
-    domain = Domain(cols, [16, 7, 10, 1, 10, 13,  1, 12, 8, 10, 6])
-    data = Dataset.synthetic(domain, DATA_SIZE, 0)
-
-    stime = time.time()
-    stat_mod = Marginals.get_all_kway_combinations(domain, 3)
-    print(f'create stat_module elapsed time = {time.time() - stime:.5f}')
-
-    print(f'Fitting')
-    stime = time.time()
-    stat_mod.fit(data)
-    etime = time.time() - stime
-    print(f'fit elapsed time = {etime:.5f}')
-
-    print(f'num queries = {stat_mod.get_num_queries()}')
-
-    true_stats = stat_mod.get_true_stats()
-    print(f'true_stats.shape = ', true_stats.shape)
-    print(f'Testing sub stat module evaluation time.')
-    print(f'Testing submodule with 5 workloads...')
-
-    sync_data = Dataset.synthetic(domain, 500, 0)
-
-    # stat_fn = jax.jit(sub_stats_moudule.get_stats_fn())
-    stime = time.time()
-    for it in range(0, 101):
-        stat = stat_mod.get_stats(sync_data, indices=[0, 1, 2, 3, 4])
-        stat.block_until_ready()
-        # print(stat)
-        del stat
-        if it % 50 == 0:
-            print(f'1) it={it:02}. time = {time.time()-stime:.5f}')
-    print(f'first evaluate elapsed time = {time.time() - stime:.5f}')
-
-    print(f'Testing submodule with one more workload...')
-    stime = time.time()
-    for it in range(0, 101):
-        D_temp = stat_mod.get_stats(sync_data, indices=[0, 1, 2, 3, 4, 5])
-        del D_temp
-        if it % 50 == 0:
-            print(f'2) it={it:02}. time = {time.time()-stime:.5f}')
-    print(f'second evaluate elapsed time = {time.time() - stime:.5f}')
-
-def test_row_answers():
-
-    import numpy as np
-    import pandas as pd
-    print('debug')
-    cols = ['A']
-    domain = Domain(cols, [1])
-
-    A = pd.DataFrame(np.array([
-        [ 0.4999],
-        [ 0.999],
-    ]), columns=cols)
-    data = Dataset(A, domain=domain)
-
-    stat_mod = Marginals.get_all_kway_combinations(domain, 1, bins=[2])
-    stat_mod.fit(data)
-
-    stats1 = stat_mod.get_true_stats()
-
-    row_answers = stat_mod.get_row_answers(data)
-    print(stats1.shape)
-    print(stats1)
-    print(f'row_answers.shape:')
-    print(row_answers.shape)
-    print(f'row_answers:')
-    print(row_answers)
-
 if __name__ == "__main__":
     # test_mixed()
-    test_runtime()
+    # test_runtime()
     # test_cat_and_diff()
+    test_mixed()
     # test_discrete()
     # test_row_answers()

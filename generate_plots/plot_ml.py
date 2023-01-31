@@ -121,10 +121,3 @@ df = df.loc[(df[target_label] == 'ESR'), :]
 df[clf_error_label] = df[clf_error_label].round(4)
 print(df)
 # show_result(df)
-
-0.0884
-0.0839
-0.1083
-0.0877
-0.0831
-0.0648

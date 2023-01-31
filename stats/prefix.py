@@ -7,8 +7,10 @@ from stats import Marginals
 import numpy as np
 import chex
 import time
+from stats import AdaptiveStatisticState
 
-class Prefix(Marginals):
+
+class Prefix(AdaptiveStatisticState):
     true_stats: list
     marginals_fn: list
     marginals_fn_jit: list
@@ -24,7 +26,9 @@ class Prefix(Marginals):
         :param kway_combinations:
         :param num_random_prefixes: number of random halfspaces for each marginal that contains a real-valued feature
         """
-        super().__init__(domain, kway_combinations)
+        # super().__init__(domain, kway_combinations)
+        self.domain = domain
+        self.kway_combinations = kway_combinations
         self.num_prefix_samples = num_random_prefixes
         self.rng = rng
 
@@ -101,7 +105,7 @@ class Prefix(Marginals):
                 query_id = query_id + 1
                 self.sensitivity.append(jnp.sqrt(2) / self.N)
 
-    def get_num_queries(self):
+    def get_num_workloads(self):
         return len(self.sensitivity)
 
     def get_true_stat(self, stat_ids: list):
@@ -320,7 +324,7 @@ class Prefix(Marginals):
     def get_diff_halfspace_stats(self, data: Dataset, sigmoid, indices: list = None):
         X = data.to_onehot()
         stats = []
-        I = indices if indices is not None else list(range(self.get_num_queries()))
+        I = indices if indices is not None else list(range(self.get_num_workloads()))
         for stat_fn_diff_jit in self.prefix_fn_diff_jit:
             stats.append(stat_fn_diff_jit(X, sigmoid).flatten())
         return jnp.concatenate(stats)
@@ -361,8 +365,8 @@ def test_prefix():
     stat_mod = Prefix(domain, kway_combinations=cols, rng=key, num_random_prefixes=num_random_halfspaces)
     stat_mod.fit(data)
 
-    stat_fn = stat_mod.get_stat_fn(list(jnp.arange(stat_mod.get_num_queries())))
-    diff_stat_fn = stat_mod.get_diff_stat_fn(list(jnp.arange(stat_mod.get_num_queries())))
+    stat_fn = stat_mod.get_stat_fn(list(jnp.arange(stat_mod.get_num_workloads())))
+    diff_stat_fn = stat_mod.get_diff_stat_fn(list(jnp.arange(stat_mod.get_num_workloads())))
     # print(stat_mod.get_true_stats())
 
     stats = stat_fn(data.to_numpy())
@@ -373,8 +377,8 @@ def test_prefix():
     print('max diff error = ', diff_error)
     assert diff_error < 0.001, f"Diff error is {diff_error:.6f}"
 
-    print(f'num queries={stat_mod.get_num_queries()}')
-    for qid in range(stat_mod.get_num_queries()):
+    print(f'num queries={stat_mod.get_num_workloads()}')
+    for qid in range(stat_mod.get_num_workloads()):
         stat_fn = stat_mod.get_stat_fn([qid])
         stat = stat_mod.get_true_stat([qid])
         diff = jnp.abs(stat - stat_fn(data.to_numpy()))

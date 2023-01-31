@@ -19,20 +19,21 @@ if __name__ == "__main__":
     marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3, bins=30)
     marginal_module.fit(data)
 
-    strategy = SimpleGAforSyncData(
-            domain=data.domain,
-            data_size=SYNC_DATA_SIZE,
-            population_size=1000,
-            elite_size=2,
-            muta_rate=1,
-            mate_rate=200,
-        )
+
     # Choose algorithm parameters
     priv_ga = PrivGA(
                     num_generations=10000,
                     stop_loss_time_window=100,
                     print_progress=True,
-                    strategy=strategy
+                    strategy=SimpleGAforSyncData(
+                            domain=data.domain,
+                            data_size=SYNC_DATA_SIZE,
+                            population_size=1000,
+                            elite_size=2,
+                            muta_rate=1,
+                            mate_rate=200,
+        )
+
     )
     # rap = RelaxedProjection(domain=data.domain, data_size=1000, iterations=1000, learning_rate=0.05,
     #                         print_progress=False)

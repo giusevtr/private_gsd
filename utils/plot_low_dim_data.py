@@ -9,14 +9,15 @@ def plot_1d_data(array, title=''):
     plt.xlim(0, 1)
     plt.show()
 
-def plot_2d_data(data_array, i=0, j=1, label_col=2, alpha=1.0, title='', save_path=None):
+def plot_2d_data(data_array, i=0, j=1, label_col=2, alpha=1.0, s=1, title='', save_path=None):
     plt.figure(figsize=(5, 5))
-    # plt.title(title)
-    plt.scatter(data_array[:, i], data_array[:, j], c=data_array[:, label_col].astype(int), alpha=alpha, s=0.8)
+    plt.title(title)
+    plt.scatter(data_array[:, i], data_array[:, j], c=data_array[:, label_col].astype(int), alpha=alpha, s=s)
     # plt.hlines(y=0, xmin=0, xmax=1, alpha=0.4)
     # plt.hlines(y=1, xmin=0, xmax=1, alpha=0.4)
     # plt.vlines(x=0, ymin=0, ymax=1)
     # plt.vlines(x=1, ymin=0, ymax=1)
+    # plt.legend()
     plt.xlim(-0.05, 1.05)
     plt.ylim(-0.05, 1.05)
     if save_path is None:

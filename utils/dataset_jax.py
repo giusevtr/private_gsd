@@ -150,7 +150,7 @@ class Dataset:
 
     def to_numpy(self):
         cols = [self.df.values[:, i].astype(int) if n > 1 else self.df.values[:, i].astype(float) for i, n in enumerate(self.domain.shape)]
-        df_numpy = np.vstack(cols).T
+        df_numpy = jnp.vstack(cols).T
         return df_numpy
 
     def to_onehot(self) -> jnp.ndarray:
