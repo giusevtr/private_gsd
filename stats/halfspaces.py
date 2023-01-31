@@ -8,6 +8,7 @@ import numpy as np
 import chex
 import time
 
+
 class Halfspace(Marginals):
     true_stats: list
     marginals_fn: list
@@ -17,14 +18,15 @@ class Halfspace(Marginals):
     diff_marginals_fn: list
     diff_marginals_fn_jit: list
     sensitivity: list
+
     def __init__(self, domain: Domain, kway_combinations: list, rng: chex.PRNGKey,
-                 num_random_halfspaces: int):
+                 num_random_halfspaces: int, k: int):
         """
         :param domain:
         :param kway_combinations:
         :param num_random_halfspaces: number of random halfspaces for each marginal that contains a real-valued feature
         """
-        super().__init__(domain, kway_combinations)
+        super().__init__(domain, kway_combinations, k)
         self.num_hs_samples = num_random_halfspaces
         self.rng = rng
 
@@ -34,14 +36,13 @@ class Halfspace(Marginals):
     @staticmethod
     def get_kway_random_halfspaces(domain: Domain,
                                    k: int,
-                                   rng:chex.PRNGKey,
+                                   rng: chex.PRNGKey,
                                    random_hs: int = 500):
         kway_combinations = []
         for cols in itertools.combinations(domain.get_categorical_cols(), k):
             kway_combinations.append(list(cols))
         return Halfspace(domain, kway_combinations, rng=rng,
-                         num_random_halfspaces=random_hs), kway_combinations
-
+                         num_random_halfspaces=random_hs, k=k), kway_combinations
 
     def fit(self, data: Dataset):
         self.true_stats = []
@@ -84,7 +85,6 @@ class Halfspace(Marginals):
             halfspace_fn_vmap = self.get_halfspace_stats_fn_helper(cols, self.halfspace_keys)
             diff_halfspace_fn_vmap = self.get_diff_halfspace_fn_helper(cols, self.halfspace_keys)
 
-
             # Compute stats on orginal data
             X = data.to_numpy()
             total_num_rows = X.shape[0]
@@ -104,7 +104,7 @@ class Halfspace(Marginals):
             self.halfpaces_stats.append(hs_stats)
             self.halfpaces_fn.append(halfspace_fn_vmap)
             self.halfpaces_fn_jit.append(jax.jit(halfspace_fn_vmap))
-            self.halfpaces_fn_diff_jit.append(jax.jit(diff_halfspace_fn_vmap,))
+            self.halfpaces_fn_diff_jit.append(jax.jit(diff_halfspace_fn_vmap, ))
 
             for hs_sample_id in range(self.num_hs_samples):
                 self.halfspace_map[query_id] = (marginal_id, hs_sample_id)
@@ -145,6 +145,7 @@ class Halfspace(Marginals):
         def stat_fn(X):
             stats = jnp.concatenate([fn(X) for fn in stat_fn_list])
             return stats
+
         return stat_fn
 
     def get_diff_stat_fn(self, stat_ids: list):
@@ -181,7 +182,6 @@ class Halfspace(Marginals):
         max_errors_jax = jnp.concatenate(max_errors)
         return max_errors_jax
 
-
     # @jax.jit
     # def get_halfspace
     def get_halfspace_stats_fn_helper(self, cols: tuple, keys: chex.PRNGKey):
@@ -210,7 +210,7 @@ class Halfspace(Marginals):
         # @jax.jit
         def stat_fn(x_row, key):
             # Compute statistic for a single row and halfspace
-            n=1
+            n = 1
             x_row = jnp.concatenate((x_row, jnp.ones(n).astype(int)))
 
             # Cat
@@ -267,12 +267,14 @@ class Halfspace(Marginals):
             hs_mat = (jax.random.normal(rng_h, shape=(numeric_dim,))) / jnp.sqrt(numeric_dim)  # d x h
             b = jax.random.normal(rng_b, shape=(1,))  # 1 x h
             X_num_proj = X[:, num_idx]  # n x d
-            HS_proj = jnp.dot(X_num_proj, hs_mat) - b # n x h
-            above_halfspace = jax.nn.sigmoid(sigmoid * HS_proj) # n x h
-            diff_answers = jnp.multiply(cat_answers.reshape((n, -1, 1)), above_halfspace.reshape((n, 1, -1))).reshape((n, -1))
+            HS_proj = jnp.dot(X_num_proj, hs_mat) - b  # n x h
+            above_halfspace = jax.nn.sigmoid(sigmoid * HS_proj)  # n x h
+            diff_answers = jnp.multiply(cat_answers.reshape((n, -1, 1)), above_halfspace.reshape((n, 1, -1))).reshape(
+                (n, -1))
             diff_statistics = diff_answers.sum(0) / X.shape[0]
 
             return diff_statistics
+
         num_hs_queries = keys.shape[0]
 
         stat_fn_vmap = jax.vmap(stat_fn, in_axes=(None, None, 0))
@@ -330,7 +332,6 @@ class Halfspace(Marginals):
         return jnp.concatenate(stats)
 
 
-
 ######################################################################
 ## TEST
 ######################################################################
@@ -351,14 +352,13 @@ def test_get_max_errors():
     data = Dataset(A, domain=domain)
     X = data.to_numpy()
 
-    cols = ('A', )
+    cols = ('A',)
     key = jax.random.PRNGKey(0)
     stat_mod = Halfspace(domain, kway_combinations=[cols], rng=key, num_random_halfspaces=3)
     stat_mod.fit(data)
 
 
 def test_hs():
-
     print('debug')
     cols = ['A', 'B', 'C', 'D', 'E', 'F']
     domain = Domain(cols, [2, 5, 2, 1, 1, 1])
@@ -374,7 +374,7 @@ def test_hs():
 
     rand_data = Dataset.synthetic(domain, N=10, seed=0)
 
-    cols = [('A',), ('B',), ('C', )]
+    cols = [('A',), ('B',), ('C',)]
 
     num_random_halfspaces = 13
     workloads = len(cols) * num_random_halfspaces + num_random_halfspaces
@@ -395,7 +395,6 @@ def test_hs():
     # errors = stat_mod.get_sync_data_errors(data.to_numpy())
     # assert errors.shape[0] == workloads, f'errors.shape[0] = {errors.shape[0]}, workloads = {workloads}'
     # print(f'max error = {errors.max()}')
-
 
     print(f'num queries={stat_mod.get_num_queries()}')
 
@@ -418,8 +417,8 @@ def test_hs():
         print(stat_fn1(data.to_numpy()), f'\t\t\t\t ids[:{i:<3}]={temp}:')
         print()
 
-def test_fit_runtime():
 
+def test_fit_runtime():
     print('debug')
     cols_names = [f'f{i}' for i in range(20)]
     cols_sizes = [3 for _ in range(10)] + [1 for _ in range(10)]
