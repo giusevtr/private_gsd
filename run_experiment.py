@@ -1,7 +1,7 @@
 import itertools
 import os
 import jax
-from models import PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjectionPP
+from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
 from stats import Halfspace, Prefix, Marginals
 import time
 from utils.utils_data import get_data
