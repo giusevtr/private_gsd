@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name='evo-privsyn',
+    name='PrivGA',
     version='1.0',
     description='PrivGA',
     url='https://github.com/giusevtr/evolutionary_private_synthetic_data/',
@@ -9,7 +9,6 @@ setup(
     license='MIT',
     packages=['examples', 'models', 'stats', 'utils'],
     zip_safe=False,
-    install_requires=['numpy', 'pandas', 'scipy', 'scikit-learn',
-                      'tqdm', 'matplotlib', 'seaborn',
-                      'folktables', 'evosax'],
+    install_requires=['numpy', 'pandas', 'scipy',
+                      'tqdm', 'matplotlib', 'seaborn'],
 )

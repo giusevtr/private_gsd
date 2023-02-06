@@ -1,10 +1,4 @@
-"""
-To run parallelization on multiple cores set
-XLA_FLAGS=--xla_force_host_platform_device_count=4
-"""
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
-import numpy as np
 from models import Generator
 import time
 from stats import ChainedStatistics
@@ -14,8 +8,6 @@ from flax import struct
 from utils import Dataset, Domain, timer
 from functools import partial
 from typing import Tuple
-from evosax.utils import get_best_fitness_member
-
 @struct.dataclass
 class EvoState:
     mean: chex.Array
@@ -31,6 +23,22 @@ class EvoState:
 Implement crossover that is specific to synthetic data
 """
 
+def get_best_fitness_member(
+    x: chex.Array, fitness: chex.Array, state
+) -> Tuple[chex.Array, chex.Array]:
+    best_in_gen = jnp.argmin(fitness)
+    best_in_gen_fitness, best_in_gen_member = (
+        fitness[best_in_gen],
+        x[best_in_gen],
+    )
+    replace_best = best_in_gen_fitness < state.best_fitness
+    best_fitness = jax.lax.select(
+        replace_best, best_in_gen_fitness, state.best_fitness
+    )
+    best_member = jax.lax.select(
+        replace_best, best_in_gen_member, state.best_member
+    )
+    return best_member, best_fitness
 
 class SimpleGAforSyncData:
     def __init__(self, domain: Domain,
@@ -53,7 +61,6 @@ class SimpleGAforSyncData:
         self.num_devices = jax.device_count()
         self.domain = domain
         self.muta_rate = muta_rate
-        # assert self.muta_rate == 1, "Only supports mutations=1"
         self.mate_rate = mate_rate
         self.debugging = debugging
 
@@ -62,7 +69,6 @@ class SimpleGAforSyncData:
     ) -> EvoState:
         """`initialize` the evolution strategy."""
         init_x = self.initialize_elite_population(rng)
-        # init_a = self.data_size * get_stats_vmap(init_x)
         state = EvoState(
             mean=init_x.mean(axis=0),
             archive=init_x,
@@ -106,12 +112,10 @@ class SimpleGAforSyncData:
     def ask_strategy(self, rng: chex.PRNGKey, random_data, state: EvoState):
         pop_size = self.population_size
         rng, rng_i, rng_j, rng_k, rng_mate, rng_mutate = jax.random.split(rng, 6)
-        # i = jax.random.randint(rng_i, minval=0, maxval=self.elite_size, shape=(pop_size,))
         i = jnp.zeros(shape=(pop_size,)).astype(jnp.int32)
         j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(pop_size,))
         x_i = state.archive[i]
         x_j = state.archive[j]
-        # a = state.archive_stats[i]
 
         rng_mate_split = jax.random.split(rng_mate, pop_size)
         x, removed_rows, added_rows = self.mate_mutate_vmap(rng_mate_split, x_i, x_j, random_data)

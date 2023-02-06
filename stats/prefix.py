@@ -130,13 +130,9 @@ class Prefix(AdaptiveStatisticState):
 
         temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
 
-        # temp_stat_fn = jax.jit(jax.vmap(temp_rows_fn, in_axes=(0, None)))
-        # def stat_fn(X):
-        #     return temp_stat_fn(X, these_queries).sum(0) / X.shape[0]
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, these_queries), None
         def stat_fn(X):
-
             out = jax.eval_shape(temp_stat_fn, X[0], these_queries)
             stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]
             return stats / X.shape[0]
