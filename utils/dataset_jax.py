@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 
 def get_data_onehot(data):
-    df_data = data.df
+    df_data = data.df_real
     dim = sum(data.domain.shape)
     i = 0
     oh_encoded = []
@@ -365,7 +365,7 @@ class Dataset:
         domain_shape = []
         """ when called on a discretized dataset it turns discretized features into numeric features """
         for col, shape in zip(data.domain.attrs, data.domain.shape):
-            col_values = data.df[col].values
+            col_values = data.df_real[col].values
 
             if col in numeric_features:
                 rand_values = np.random.rand(col_values.shape[0]) / shape

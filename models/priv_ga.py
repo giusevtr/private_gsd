@@ -267,9 +267,12 @@ class PrivGA(Generator):
         statistics_fn = adaptive_statistic.get_selected_statistics_fn()
 
         # For debugging
+        @jax.jit
         def true_loss(X_arg):
             error = jnp.abs(selected_statistics - statistics_fn(X_arg))
             return jnp.abs(error).max(), error.mean()
+
+        @jax.jit
         def private_loss(X_arg):
             error = jnp.abs(selected_noised_statistics - statistics_fn(X_arg))
             return jnp.abs(error).max(), error.mean()
@@ -388,6 +391,8 @@ class PrivGA(Generator):
                     print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
                     p_inf, p_avg = private_loss(X_sync)
                     print(f'\tprivate error(max/l2)=({p_inf:.5f}/{p_avg:.7f})',end='')
+                    t_inf, t_avg = true_loss(X_sync)
+                    print(f'\ttrue error(max/l2)=({t_inf:.5f}/{t_avg:.7f})',end='')
                     print(f'\t|time={elapsed_time:.4f}(s):', end='')
                     print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
                     print()
@@ -397,6 +402,7 @@ class PrivGA(Generator):
                 break
 
         X_sync = state.best_member
+        X_sync = state.archive.reshape((-1, X_sync.shape[1]))
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         if self.print_progress:
             p_max, p_avg = private_loss(X_sync)

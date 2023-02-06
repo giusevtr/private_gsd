@@ -20,7 +20,7 @@ domain = data_train.domain
 data_name = f'folktables_2018_real_CA'
 data_test = get_data(f'{data_name}-mixed-test',
                 domain_name=f'domain/{data_name}-mixed', root_path='../../data_files/folktables_datasets_real')
-df_test = data_test.df
+df_test = data_test.df_real
 
 
 

@@ -47,7 +47,7 @@ def run_acs_example(algo,
         sync_data = algo.fit_dp(key, stat_module=stats_module,  epsilon=epsilon, delta=1e-6)
 
     print(f'Saving in {path}')
-    sync_data.df.to_csv(path, index=False)
+    sync_data.df_real.to_csv(path, index=False)
 
     errors = jax.numpy.abs(stats_module.get_true_stats() - stats_module.get_stats_jit(sync_data))
     ave_error = jax.numpy.linalg.norm(errors, ord=1)/errors.shape[0]

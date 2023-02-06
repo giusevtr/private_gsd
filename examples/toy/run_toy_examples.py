@@ -4,8 +4,8 @@ import argparse
 import jax
 import jax.numpy as jnp
 import numpy as np
-from models import PrivGAfast, SimpleGAforSyncDataFast, RelaxedProjectionPP
-from stats import Halfspace, Prefix, Marginals
+from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
+from stats import Halfspace, Prefix, Marginals, ChainedStatistics
 from toy_datasets.circles import get_circles_dataset
 from toy_datasets.moons import get_moons_dataset
 from toy_datasets.sparse import get_sparse_dataset
@@ -37,21 +37,21 @@ def run_toy_example(
 
 
     ALGO = {
-        'PrivGA': PrivGAfast(num_generations=10000, print_progress=True, strategy=SimpleGAforSyncDataFast(
+        'PrivGA': PrivGA(num_generations=10000, print_progress=True, strategy=SimpleGAforSyncData(
             domain=data.domain, data_size=2000, population_size=100, elite_size=5, muta_rate=1, mate_rate=1)),
         'RAP++': RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=(0.01,), print_progress=False)
     }
     algo = ALGO[algo_name]
 
     modules = {
-        'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=2000)[0],
-        'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=2000)[0],
-        'Ranges': Marginals.get_all_kway_combinations(data.domain, k=3, bins=[2, 4, 8, 16, 32])[0]
+        # 'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=2000)[0],
+        'Prefix': Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=jax.random.PRNGKey(0), random_prefixes=2000),
+        'Ranges': Marginals.get_all_kway_combinations(data.domain, k=3, bins=[2, 4, 8, 16, 32])
     }
-    train_module = modules[queries_name]
+    # train_module = modules[queries_name]
+    train_module = ChainedStatistics([modules[queries_name]])
     train_module.fit(data)
-
-
+    stats_fn = train_module.get_all_statistics_fn()
 
     print(f'Starting {algo}:')
     stime = time.time()
@@ -67,7 +67,7 @@ def run_toy_example(
         debug_fn(1, sync_data)
 
     # debug_fn(1, sync_data)
-    errors = jax.numpy.abs(train_module.get_true_stats() - train_module.get_stats_jit(sync_data))
+    errors = jax.numpy.abs(train_module.get_all_true_statistics() - stats_fn(sync_data))
     ave_error = jax.numpy.linalg.norm(errors, ord=1)/errors.shape[0]
     print(f'{str(algo)}: Train max error = {errors.max():.4f}, ave_error={ave_error:.6f}, time={time.time()-stime:.4f}')
     return sync_data

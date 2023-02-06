@@ -34,7 +34,7 @@ def run_acs_example(generator,
     stime = time.time()
     key = jax.random.PRNGKey(seed)
 
-    delta = 1 / len(data.df)**2
+    delta = 1 / len(data.df_real) ** 2
     if adaptive:
         sync_data = generator.fit_dp_adaptive(key, stat_module=stats_module, epsilon=epsilon, delta=delta,
                                               rounds=rounds, print_progress=True, num_sample=num_sample)
@@ -42,7 +42,7 @@ def run_acs_example(generator,
         sync_data = generator.fit_dp(key, stat_module=stats_module, epsilon=epsilon, delta=delta)
 
     print(f'Saving in {path}')
-    sync_data.df.to_csv(path, index=False)
+    sync_data.df_real.to_csv(path, index=False)
 
     errors = jax.numpy.abs(stats_module.get_true_stats() - stats_module.get_stats_jit(sync_data))
     ave_error = jax.numpy.linalg.norm(errors, ord=1)/errors.shape[0]

@@ -1,6 +1,6 @@
 import chex
 import jax
-from stats import Marginals, AdaptiveStatisticState
+from stats import Marginals, AdaptiveStatisticState, ChainedStatistics
 import time
 from utils import Dataset, Domain, timer
 from utils.cdp2adp import cdp_rho, cdp_eps
@@ -65,16 +65,16 @@ class Generator:
     #         self.last_error = error
     #     return stop_early
 
-    def fit(self, key: jax.random.PRNGKeyArray, stat: AdaptiveStatisticState, init_data: Dataset = None,
+    def fit(self, key: jax.random.PRNGKeyArray, stat: ChainedStatistics, init_data: Dataset = None,
             tolerance: float = 0) -> Dataset:
         pass
 
-    def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: AdaptiveStatisticState, epsilon: float, delta: float,
+    def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics, epsilon: float, delta: float,
                init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         rho = cdp_rho(epsilon, delta)
         return self.fit_zcdp(key, stat_module, rho, init_data, tolerance)
 
-    def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: AdaptiveStatisticState, rho: float,
+    def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics, rho: float,
                  init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         key_stats, key_fit = jax.random.split(key)
         stat_module.private_measure_all_statistics(key_stats, rho)
@@ -169,7 +169,7 @@ class Generator:
 
     @staticmethod
     def train_ml(data, target='PINCP'):
-        df_train = data.df
+        df_train = data.df_real
         domain = data.domain
         train_cols = [c for c in df_train.columns if c != target]
         train_cols_num = [c for c in train_cols if domain[c] == 1]

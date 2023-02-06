@@ -92,7 +92,7 @@ def get_data(name, domain_name, root_path='../data_files/'):
 
 def get_rand_workloads(data, num_workloads, marginal, seed=0, check_size=False):
     prng = np.random.RandomState(seed)
-    total = data.df.shape[0]
+    total = data.df_real.shape[0]
     dom = data.domain
     if check_size:
         workloads = [p for p in itertools.combinations(data.domain.attrs, marginal) if dom.size(p) <= total]

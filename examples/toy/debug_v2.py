@@ -30,7 +30,7 @@ if __name__ == "__main__":
                     ),
                     print_progress=True)
     key = jax.random.PRNGKey(0)
-    delta = 1 / len(data.df)**2
+    delta = 1 / len(data.df_real) ** 2
     sync_data = priv_ga.fit_dp_adaptive(key, stat_module=stats_module, epsilon=1, delta=delta, rounds=3, print_progress=True)
     # sync_data = priv_ga.fit_dp(key, stat_module=stats_module, epsilon=1, delta=delta)
 

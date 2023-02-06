@@ -10,6 +10,9 @@ sns.set_style("whitegrid")
 error_lbl = 'error_max'
 
 def show_oneshot_result(df):
+    # df = df.melt(id_vars=['generator', 'epsilon','seed'])
+
+
     fontsize = 24
     gens = ['PrivGA',  'RAP']
 
@@ -19,24 +22,30 @@ def show_oneshot_result(df):
         if g in gens_in_df:
             hue_order.append(g)
 
-
     def line_scatter_plot(x, y, **kwargs):
         print(kwargs)
         # plt.plot(x, y, linewidth=1, **kwargs)
-        plt.scatter(x, y, s=10, linewidth=2, **kwargs)
+        # plt.scatter(x, y, s=10, linewidth=2, **kwargs)
         df = pd.DataFrame(np.column_stack((x, y)), columns=['x', 'y'])
         sns.lineplot(data=df, x='x', y='y', **kwargs)
 
-    g = sns.FacetGrid(df,  hue='generator',  height=4,
-                      legend_out=False,
-                      sharey=False, aspect=1.5
+    g = sns.relplot(data=df,
+                    x='epsilon',
+                    y='error_max',
+                      hue='queries',
+                        style='subgroup',
+                      # height=4,
+                      # legend_out=True,
+                      # sharey=False,
+                    aspect=1.5,
+                    kind='line'
                       )
-    g.map(line_scatter_plot, "epsilon", error_lbl)
-    g.add_legend()
+    # g.map(line_scatter_plot, "epsilon", error_lbl)
+    # g.add_legend()
     plt.subplots_adjust(top=0.94, bottom=0.28)
 
-    sns.move_legend(g, "lower center", bbox_to_anchor=(.5, -.02),
-                    ncol=4, title=None, frameon=False, fontsize=20)
+    # sns.move_legend(g, "lower center", bbox_to_anchor=(.5, -.02),
+    #                 ncol=4, title=None, frameon=False, fontsize=20)
 
     for ax in g.axes.flat:
         # ax.set(s=40)
@@ -66,12 +75,19 @@ def show_oneshot_result(df):
     # plt.title(f'Input data is {dataname} and \nquery class is categorical-marginals')
     plt.show()
 
+priv_ga_1_2way = pd.read_csv('privga_1_and_2way_results.csv')
+priv_ga_1_2way['generator'] = 'PrivGA'
+priv_ga_1_2way['queries'] = '(1 and 2)-way'
+
 # priv_ga = pd.read_csv('../ICML/one_shot/privga_oneshot.csv')
-priv_ga = pd.read_csv('../examples/oneshot_acs/privga_2way_only_results.csv')
-priv_ga['generator'] = 'PrivGA'
+priv_ga_2way = pd.read_csv('privga_2way_only_results.csv')
+# priv_ga = pd.read_csv('privga_1_2way_results.csv')
+priv_ga_2way['generator'] = 'PrivGA'
+priv_ga_2way['queries'] = '2-way only'
 # df = pd.concat(res_df, ignore_index=True)
 # dataname = 'folktables_2018_mobility_CA'
 # df = df.loc[df['data'] == dataname, :]
 
-show_oneshot_result(priv_ga)
+df = pd.concat([priv_ga_1_2way, priv_ga_2way])
+show_oneshot_result(df)
 
