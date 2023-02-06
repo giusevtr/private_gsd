@@ -25,12 +25,13 @@ def run_acs_cat(gen_name, queries, task: str, epsilon_list: list, seed_list: lis
     }
     algo = algos[gen_name]
 
+    bins = [2, 4, 8, 16, 32]
     modules = {
-        # 'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=150000)[0],
-        # 'Prefix': Prefix.get_kway_prefixes(data.domain, k=1, rng=jax.random.PRNGKey(0), random_prefixes=200000)[0],
+        'Halfspaces': Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=jax.random.PRNGKey(0), random_hs=150000),
+        'Prefix': Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=jax.random.PRNGKey(0), random_prefixes=200000),
         # 'Ranges': Marginals.get_all_kway_mixed_combinations(data.domain, k_disc=1, k_real=1, bins=[2, 4, 8, 16, 32])[0],
-        '3-way Marginals': Marginals.get_all_kway_combinations(data.domain, k=3, bins=(30,))[0],
-
+        '2-way Marginals': Marginals.get_all_kway_combinations(data.domain, k=2, bins=bins),
+        '3-way Marginals': Marginals.get_all_kway_combinations(data.domain, k=3, bins=bins),
     }
     train_module = modules[queries]
     Results = []

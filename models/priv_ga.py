@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from models import Generator
 import time
-from stats import AdaptiveStatisticState
+from stats import ChainedStatistics
 import jax
 import chex
 from flax import struct
@@ -33,8 +33,12 @@ Implement crossover that is specific to synthetic data
 
 
 class SimpleGAforSyncData:
-    def __init__(self, domain: Domain, population_size: int, elite_size: int, data_size: int, muta_rate: int,
-                 mate_rate: int,
+    def __init__(self, domain: Domain,
+                 data_size: int,
+                 population_size: int = 100,
+                 elite_size: int = 5,
+                 muta_rate: int = 1,
+                 mate_rate: int = 1,
                  debugging=False):
         """Simple Genetic Algorithm For Synthetic Data Search Adapted from (Such et al., 2017)
         Reference: https://arxiv.org/abs/1712.06567
@@ -250,7 +254,7 @@ class PrivGA(Generator):
     def __str__(self):
         return f'PrivGA'
 
-    def fit(self, key, adaptive_statistic: AdaptiveStatisticState, sync_dataset: Dataset=None, tolerance: float = 0.0):
+    def fit(self, key, adaptive_statistic: ChainedStatistics, sync_dataset: Dataset=None, tolerance: float = 0.0):
         """
         Minimize error between real_stats and sync_stats
         """
@@ -405,7 +409,7 @@ class PrivGA(Generator):
         X_sync = state.archive.reshape((-1, X_sync.shape[1]))
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         if self.print_progress:
-            p_max, p_avg = private_loss(X_sync)
+            p_max, p_avg = true_loss(X_sync)
             print(f'\t\tFinal private max_error={p_max:.5f}, private l2_error={p_avg:.7f},', end='\n')
         return sync_dataset
 

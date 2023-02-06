@@ -23,51 +23,59 @@ def show_oneshot_result(df):
     def line_scatter_plot(x, y, **kwargs):
         print(kwargs)
         # plt.plot(x, y, linewidth=1, **kwargs)
-        plt.scatter(x, y, s=10, linewidth=2, **kwargs)
+        # plt.scatter(x, y, s=10, linewidth=2, **kwargs)
         df = pd.DataFrame(np.column_stack((x, y)), columns=['x', 'y'])
-        sns.lineplot(data=df, x='x', y='y', **kwargs)
+        df['Temp'] = 's'
+        sns.lineplot(data=df, x='x', y='y', style='Temp', markers=['o'],  **kwargs)
 
     g = sns.FacetGrid(df,  hue='generator',  height=4,
                       legend_out=False,
-                      sharey=False, aspect=1.5
+                      row='error type',
+                      col='data',
+                      sharey=False,
+                      aspect=1.0,
                       )
-    g.map(line_scatter_plot, "epsilon", error_lbl)
+    g.map(line_scatter_plot, "epsilon", 'error', linewidth=3)
     g.add_legend()
-    plt.subplots_adjust(top=0.94, bottom=0.28)
+    g.set(ylim=(0, None))
+    plt.subplots_adjust(top=0.94, bottom=0.22, left=0.07)
 
     sns.move_legend(g, "lower center", bbox_to_anchor=(.5, -.02),
-                    ncol=4, title=None, frameon=False, fontsize=20)
+                    ncol=4, title=None, frameon=False, fontsize=34)
 
     for ax in g.axes.flat:
         # ax.set(s=40)
         epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1.00]
-        # title = ax.get_title()
-        # stat_name = title.split(' ')[-1]
-        # error_type = title.split(' ')[3]
+        title = ax.get_title()
+        new_title = title.split(' ')[-1]
+        new_title = new_title.split('_')
+        new_title = new_title[2].capitalize()
+
+        error_type = title.split(' ')[3]
         # print(error_type)
-        # if error_type == 'max':
-        #     ax.set_title(stat_name, fontsize=28)
-        # else:
-        #     ax.set_title('')
+        if error_type == 'max':
+            ax.set_title(new_title, fontsize=34)
+        else:
+            ax.set_title('')
         #
         # print(ax)
-        # ax.set_xticks( epsilon_vals, rotation=30)
-        # ax.set_xticklabels( rotation=0, labels=epsilon_vals)
-        # ax.set_xlabel(rf'$\epsilon$', fontsize=fontsize)
+        ax.set_xticks( epsilon_vals)
+        ax.set_xticklabels( rotation=0, labels=epsilon_vals)
+        ax.set_xlabel(rf'$\epsilon$', fontsize=fontsize)
         #
-        # if stat_name == 'Halfspaces' or stat_name == 'Marginals':
-        #     if error_type == 'max':
-        #         ax.set_ylabel(f'Max Error', fontsize=26)
-        #     elif error_type == 'l1':
-        #         ax.set_ylabel(f'Average Error', fontsize=22)
+        if new_title == 'Coverage' :
+            if error_type == 'max':
+                ax.set_ylabel(f'Max Error', fontsize=34)
+            elif error_type == 'l1':
+                ax.set_ylabel(f'Average Error', fontsize=34)
+        ax.ticklabel_format(style='scientific', axis='y')
         # ax.tick_params(axis='y', which='major', labelsize=16, rotation=45)
-        # ax.tick_params(axis='x', which='major', labelsize=16, rotation=45)
-
+        ax.tick_params(axis='x', which='major', labelsize=16, rotation=45)
     # plt.title(f'Input data is {dataname} and \nquery class is categorical-marginals')
     plt.show()
 
-# priv_ga = pd.read_csv('../ICML/one_shot/privga_oneshot.csv')
-priv_ga = pd.read_csv('../examples/oneshot_acs/privga_2way_only_results.csv')
+priv_ga = pd.read_csv('../ICML/one_shot/privga_oneshot_result.csv')
+# priv_ga = pd.read_csv('../examples/oneshot_acs/privga_2way_only_results.csv')
 priv_ga['generator'] = 'PrivGA'
 # df = pd.concat(res_df, ignore_index=True)
 # dataname = 'folktables_2018_mobility_CA'

@@ -18,7 +18,6 @@ class Marginals(AdaptiveStatisticState):
         self.bins = list(bins)
         self.workload_positions = []
         self.workload_sensitivity = []
-
         self.set_up_stats()
 
     def __str__(self):
@@ -58,8 +57,8 @@ class Marginals(AdaptiveStatisticState):
                     else:
                         upper = np.linspace(0, 1, num=bin+1)[1:]
                         lower = np.linspace(0, 1, num=bin+1)[:-1]
-
-                        upper = upper.at[-1].set(1.01)
+                        upper[-1] = 1.01
+                        # upper = upper.at[-1].set(1.01)
                         interval = list(np.vstack((upper, lower)).T)
                         intervals.append(interval)
                 for v in itertools.product(*intervals):
@@ -76,6 +75,7 @@ class Marginals(AdaptiveStatisticState):
 
     def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
         return self.workload_sensitivity[workload_id] / N
+
     def _get_workload_fn(self, workload_ids=None):
         """
         Returns marginals function and sensitivity
@@ -103,18 +103,17 @@ class Marginals(AdaptiveStatisticState):
                 q_pos = jnp.arange(a, b)
                 query_positions.append(q_pos)
                 these_queries.append(self.queries[a:b, :])
-
-            # queries = jnp.concatenate([self.queries[a:b, :] for (a, b) in self.workload_positions])
             these_queries = jnp.concatenate(these_queries, axis=0)
         temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
+        # temp_stat_fn2 = jax.vmap(temp_stat_fn, in_axes=(0, None))
+        # temp_stat_fn2 = jax.jit(jax.vmap(temp_stat_fn, in_axes=(0, None)))
 
-        # temp_stat_fn = jax.vmap(temp_rows_fn, in_axes=(0, None))
-        # stat_fn = lambda X: temp_stat_fn(X, queries)
+        # def stat_fn(X):
+        #     return temp_stat_fn2(X, these_queries).sum(0) / X.shape[0]
 
+        def scan_fun(carry, x):
+            return carry + temp_stat_fn(x, these_queries), None
         def stat_fn(X):
-            def scan_fun(carry, x):
-                return carry + temp_stat_fn(x, these_queries), None
-
             out = jax.eval_shape(temp_stat_fn, X[0], these_queries)
             stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]
             return stats / X.shape[0]
@@ -124,15 +123,13 @@ class Marginals(AdaptiveStatisticState):
     @staticmethod
     def get_all_kway_combinations(domain, k, bins=(32,)):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
-        return Marginals(domain, kway_combinations, k, bins=bins), kway_combinations
+        return Marginals(domain, kway_combinations, k, bins=bins)
 
     @staticmethod
     def get_all_kway_mixed_combinations_v1(domain, k, bins=(32,)):
         num_numeric_feats = len(domain.get_numeric_cols())
         k_real = num_numeric_feats
-
         kway_combinations = []
-
         for cols in itertools.combinations(domain.attrs, k):
             count_disc = 0
             count_real = 0
