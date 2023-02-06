@@ -1,6 +1,6 @@
 import jax.random
 import jax.numpy as jnp
-from models import PrivGAfast, SimpleGAforSyncDataFast
+from models import PrivGA, SimpleGAforSyncData
 from stats import Marginals
 from utils.utils_data import get_data
 from utils.utils_data import Dataset
@@ -22,19 +22,19 @@ if __name__ == "__main__":
     # cat_cols = ['COW', 'RELP',  'RAC1P', 'SCHL']
     # data = data.project(cat_cols)
     # Create statistics and evaluate
-    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)[0]
+    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=3)[0]
     marginal_module.fit(data)
 
-    print(f'Workloads = {len(marginal_module.true_stats)}')
+    # print(f'Workloads = {len(marginal_module.true_stats)}')
 
     ##########
     # PrivGA #
     ##########
     data_size = 2000
-    priv_ga = PrivGAfast(
+    priv_ga = PrivGA(
         num_generations=500000,
         print_progress=True,
-        strategy=SimpleGAforSyncDataFast(
+        strategy=SimpleGAforSyncData(
             domain=data.domain,
             data_size=data_size,
             population_size=2000,

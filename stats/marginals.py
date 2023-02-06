@@ -8,6 +8,7 @@ from stats import AdaptiveStatisticState
 from tqdm import tqdm
 import numpy as np
 
+
 class Marginals(AdaptiveStatisticState):
 
     def __init__(self, domain, kway_combinations, k, bins=(32,)):
@@ -57,6 +58,7 @@ class Marginals(AdaptiveStatisticState):
                     else:
                         upper = np.linspace(0, 1, num=bin+1)[1:]
                         lower = np.linspace(0, 1, num=bin+1)[:-1]
+
                         upper = upper.at[-1].set(1.01)
                         interval = list(np.vstack((upper, lower)).T)
                         intervals.append(interval)
@@ -80,17 +82,18 @@ class Marginals(AdaptiveStatisticState):
         :return:
         """
         dim = len(self.domain.attrs)
+
         def answer_fn(x_row: chex.Array, query_single: chex.Array):
             I = query_single[:self.k].astype(int)
-            U = query_single[self.k:2*self.k]
-            L = query_single[2*self.k:3*self.k]
+            U = query_single[self.k:2 * self.k]
+            L = query_single[2 * self.k:3 * self.k]
             t1 = (x_row[I] < U).astype(int)
             t2 = (x_row[I] >= L).astype(int)
             t3 = jnp.prod(jnp.array([t1, t2]), axis=0)
             answers = jnp.prod(t3)
             return answers
 
-        if workload_ids is None :
+        if workload_ids is None:
             these_queries = self.queries
         else:
             these_queries = []
@@ -100,54 +103,23 @@ class Marginals(AdaptiveStatisticState):
                 q_pos = jnp.arange(a, b)
                 query_positions.append(q_pos)
                 these_queries.append(self.queries[a:b, :])
-            these_queries = jnp.concatenate(these_queries, axis=0)
 
-        temp_rows_fn = jax.vmap(answer_fn, in_axes=(None, 0))
-        temp_stat_fn = jax.jit(jax.vmap(temp_rows_fn, in_axes=(0, None)))
+            # queries = jnp.concatenate([self.queries[a:b, :] for (a, b) in self.workload_positions])
+            these_queries = jnp.concatenate(these_queries, axis=0)
+        temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
+
+        # temp_stat_fn = jax.vmap(temp_rows_fn, in_axes=(0, None))
+        # stat_fn = lambda X: temp_stat_fn(X, queries)
 
         def stat_fn(X):
-            return temp_stat_fn(X, these_queries).sum(0) / X.shape[0]
+            def scan_fun(carry, x):
+                return carry + temp_stat_fn(x, these_queries), None
+
+            out = jax.eval_shape(temp_stat_fn, X[0], these_queries)
+            stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]
+            return stats / X.shape[0]
 
         return stat_fn
-
-    # def _get_workload_fn(self, workload_ids=None):
-    #     """
-    #     Returns marginals function and sensitivity
-    #     :return:
-    #     """
-    #     dim = len(self.domain.attrs)
-    #     def answer_fn(x_row: chex.Array, query_single: chex.Array):
-    #         I = query_single[:self.k].astype(int)
-    #         U = query_single[self.k:2*self.k]
-    #         L = query_single[2*self.k:3*self.k]
-    #         t1 = (x_row[I] < U).astype(int)
-    #         t2 = (x_row[I] >= L).astype(int)
-    #         t3 = jnp.prod(jnp.array([t1, t2]), axis=0)
-    #         answers = jnp.prod(t3)
-    #         return answers
-    #
-    #     if workload_ids is None :
-    #         these_queries = self.queries
-    #     else:
-    #         these_queries = []
-    #         for stat_id in workload_ids:
-    #             a, b = self.workload_positions[stat_id]
-    #             q_pos = jnp.arange(a, b)
-    #             these_queries.append(self.queries[a:b, :])
-    #     # queries = jnp.concatenate([self.queries[a:b, :] for (a, b) in self.workload_positions])
-    #         these_queries = jnp.concatenate(these_queries, axis=0)
-    #
-    #     # bucket queries by k
-    #
-    #     temp_rows_fn = jax.vmap(answer_fn, in_axes=(None, 0))
-    #     temp_stat_fn = jax.jit(jax.vmap(temp_rows_fn, in_axes=(0, None)))
-    #     # stat_fn = lambda X: temp_stat_fn(X, queries)
-    #
-    #     def stat_fn(X):
-    #         return temp_stat_fn(X, these_queries).sum(0) / X.shape[0]
-    #
-    #     return stat_fn
-
 
     @staticmethod
     def get_all_kway_combinations(domain, k, bins=(32,)):
@@ -175,18 +147,6 @@ class Marginals(AdaptiveStatisticState):
         return Marginals(domain, kway_combinations, k, bins=bins)
 
 
-
-
 ######################################################################
 ## TEST
 ######################################################################
-
-
-
-if __name__ == "__main__":
-    # test_mixed()
-    # test_runtime()
-    # test_cat_and_diff()
-    test_mixed()
-    # test_discrete()
-    # test_row_answers()

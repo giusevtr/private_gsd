@@ -2,7 +2,7 @@ import itertools
 
 import jax.random
 import jax.numpy as jnp
-from models import PrivGAfast, SimpleGAforSyncDataFast
+from models import PrivGA, SimpleGAforSyncData
 from stats import Halfspace
 from utils.utils_data import get_data
 from utils.utils_data import Dataset
@@ -15,7 +15,7 @@ if __name__ == "__main__":
     EPSILON = [0.07, 0.23, 0.52, 0.74, 1.00]
     # EPSILON = [ 1.00]
     # Get Data
-    ROUNDS = [3, 4, 5, 6, 7, 8, 9, 10]
+    ROUNDS = 25
     # adaptive_rounds = (3, 10, 100)
 
     task = 'real'
@@ -34,10 +34,10 @@ if __name__ == "__main__":
     # PrivGA
     ########
     data_size = 2000
-    priv_ga = PrivGAfast(
+    priv_ga = PrivGA(
         num_generations=100000,
         print_progress=False,
-        strategy=SimpleGAforSyncDataFast(
+        strategy=SimpleGAforSyncData(
             domain=data.domain,
             data_size=data_size,
             population_size=1000,
@@ -61,12 +61,8 @@ if __name__ == "__main__":
     #           f'max error = {jnp.abs(true_stats - sync_stats).max():.5f}, '
     #           f'ave error = {jnp.linalg.norm(true_stats - sync_stats, ord=1) / true_stats.shape[0]:.7f}\t'
     #           f'time = {time.time() - stime:.5f}')
-    run_experiments(data=data, algorithm=priv_ga, stats_module=hs_module, epsilon=EPSILON,
-                    adaptive_rounds=ROUNDS,
-                    seeds=SEED,
-                    save_dir=('results_prefix', data_name, 'PrivGA'),
-                    # data_post_processing=lambda data_in: data_in.inverse_map_real_values(col_range)
-                    )
+    sync_data = priv_ga.fit_dp_adaptive(key, stat_module=hs_module, rounds=ROUNDS, start_sync=True,
+                                        epsilon=1.00, delta=1e-6, print_progress=True)
         # sync_data.df.to_csv('sync')
 
 
