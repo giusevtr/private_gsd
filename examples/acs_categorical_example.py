@@ -1,17 +1,22 @@
 import jax.random
 from models import PrivGA, SimpleGAforSyncData
 from stats import Marginals, ChainedStatistics, Halfspace, Prefix
-from utils.utils_data import get_data
 from utils import timer
 import jax.numpy as jnp
-
-
+# from dp_data.data_preprocessor import ge
+from dp_data import get_dataset, get_data
 
 if __name__ == "__main__":
+    data_name = 'folktables_2018_employment_CA'
+    ROOT_PATH = '../dp-data/datasets/preprocessed/folktables/1-Year'
+    IDXS_PATH = 'seed0/train'
+    data = get_data(data_name,
+                    # root_path=ROOT_PATH,
+                    idxs_path=IDXS_PATH)
+
 
     # Get Data
-    data_name = 'folktables_2018_employment_CA'
-    data = get_data(f'{data_name}-mixed-train', domain_name=f'domain/{data_name}-mixed',  root_path='../data_files/folktables_datasets')
+    # data = get_data(f'{data_name}-mixed-train', domain_name=f'domain/{data_name}-mixed',  root_path='../data_files/folktables_datasets')
     print(f'Dataset: {data_name}')
 
     # Create statistics and evaluate

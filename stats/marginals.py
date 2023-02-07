@@ -1,8 +1,6 @@
 import itertools
 import jax
 import jax.numpy as jnp
-from utils import Dataset, Domain
-from utils.utils_data import Domain
 import chex
 from stats import AdaptiveStatisticState
 from tqdm import tqdm
