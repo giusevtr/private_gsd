@@ -81,6 +81,13 @@ class Prefix(AdaptiveStatisticState):
 
         self.queries = jnp.array(queries)
 
+    def _get_dataset_statistics_fn(self, workload_ids=None):
+        workload_fn = self._get_workload_fn(workload_ids)
+        def data_fn(data: Dataset):
+            X = data.to_numpy()
+            return workload_fn(X)
+        return data_fn
+
     def _get_workload_fn(self, workload_ids=None):
         """
         Returns marginals function and sensitivity
@@ -88,7 +95,7 @@ class Prefix(AdaptiveStatisticState):
         """
         dim = len(self.domain.attrs)
         numeric_cols = self.domain.get_numeric_cols()
-        num_idx = self.domain.get_attribute_indices(numeric_cols)
+        num_idx = self.domain.get_attribute_indices(numeric_cols).astype(int)
         numeric_dim = num_idx.shape[0]
 
 
@@ -130,13 +137,10 @@ class Prefix(AdaptiveStatisticState):
 
         temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
 
-        # temp_stat_fn = jax.jit(jax.vmap(temp_rows_fn, in_axes=(0, None)))
-        # def stat_fn(X):
-        #     return temp_stat_fn(X, these_queries).sum(0) / X.shape[0]
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, these_queries), None
-        def stat_fn(X):
 
+        def stat_fn(X):
             out = jax.eval_shape(temp_stat_fn, X[0], these_queries)
             stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]
             return stats / X.shape[0]

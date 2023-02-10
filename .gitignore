@@ -6,9 +6,8 @@ __pycache__
 
 
 save
-results
+dev/results
 Datasets
-watchdog
 *.ipynb
 *.csv
 *.zip
@@ -17,7 +16,8 @@ watchdog
 data_files/folktables_datasets/*
 *sync_data_*
 sync_data_results/*
-results/*
+dev/results/*
 digits
 *.rar
 *.numbers
+dp-data
