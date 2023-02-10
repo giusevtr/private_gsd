@@ -1,4 +1,12 @@
+# Example 
+
+Visit this link to start using PrivGA:
+https://colab.research.google.com/drive/1t49XFG51pmcIsRqAhF_veHbrbfrVZBuy?usp=sharing
+
 # Setup
+
+
+
 
 Set up conda environment
 ````
