@@ -1,11 +1,7 @@
-import chex
-import jax.numpy as jnp
-import jax
-import numpy as np
+
 
 from typing import Callable
 from utils import Dataset, Domain
-from tqdm import tqdm
 
 
 class AdaptiveStatisticState:

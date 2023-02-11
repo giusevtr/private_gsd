@@ -1,12 +1,11 @@
 import itertools
 import jax
 import jax.numpy as jnp
-from utils import Dataset, Domain
+from utils import Dataset
 from utils.utils_data import Domain
 from stats import AdaptiveStatisticState
 import numpy as np
 import chex
-import time
 from tqdm import tqdm
 
 

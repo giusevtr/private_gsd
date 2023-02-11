@@ -1,12 +1,10 @@
 import itertools
 import jax
 import jax.numpy as jnp
-from utils import Dataset, Domain
+from utils import Dataset
 from utils.utils_data import Domain
-from stats import Marginals
 import numpy as np
 import chex
-import time
 from stats import AdaptiveStatisticState
 
 from tqdm import tqdm
@@ -139,10 +137,6 @@ class Prefix(AdaptiveStatisticState):
 
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, these_queries), None
-<<<<<<< HEAD
-=======
-
->>>>>>> main
         def stat_fn(X):
             out = jax.eval_shape(temp_stat_fn, X[0], these_queries)
             stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]

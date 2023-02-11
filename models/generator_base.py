@@ -1,4 +1,3 @@
-import chex
 import jax
 from stats import ChainedStatistics
 import time
@@ -6,8 +5,6 @@ from utils import Dataset, timer
 from utils.cdp2adp import cdp_rho, cdp_eps
 import jax.numpy as jnp
 from typing import Callable
-from sklearn.metrics import accuracy_score, make_scorer
-scorer = make_scorer(accuracy_score)
 
 class Generator:
     data_size: int
