@@ -3,9 +3,10 @@ import matplotlib.pyplot as plt
 
 from models import PrivGA, SimpleGAforSyncData
 from stats import ChainedStatistics, Halfspace
-from utils.utils_data import get_data
+# from utils.utils_data import get_data
 from utils import timer
 import jax.numpy as jnp
+from dp_data.data import get_data
 
 if __name__ == "__main__":
 
