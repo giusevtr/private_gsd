@@ -2,6 +2,7 @@ import itertools
 import jax
 import jax.numpy as jnp
 import chex
+from utils import Dataset
 from stats import AdaptiveStatisticState
 from tqdm import tqdm
 import numpy as np
