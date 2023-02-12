@@ -30,11 +30,3 @@ cd dp-data
 pip install -e .
 ./preprocess_all.sh
 ````
-
-
-# Execution
-
-Run example: 
-````
-cd examples
-````
