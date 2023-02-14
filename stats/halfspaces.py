@@ -1,12 +1,11 @@
 import itertools
 import jax
 import jax.numpy as jnp
-from utils import Dataset, Domain
+from utils import Dataset
 from utils.utils_data import Domain
 from stats import AdaptiveStatisticState
 import numpy as np
 import chex
-import time
 from tqdm import tqdm
 
 
@@ -97,7 +96,12 @@ class Halfspace(AdaptiveStatisticState):
         self.queries = jnp.array(queries)
 
 
-
+    def _get_dataset_statistics_fn(self, workload_ids=None):
+        workload_fn = self._get_workload_fn(workload_ids)
+        def data_fn(data: Dataset):
+            X = data.to_numpy()
+            return workload_fn(X)
+        return data_fn
 
     def _get_workload_fn(self, workload_ids=None):
         """
@@ -148,12 +152,11 @@ class Halfspace(AdaptiveStatisticState):
             these_queries = jnp.concatenate(these_queries, axis=0)
 
         temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
-        # temp_stat_fn = jax.jit(jax.vmap(temp_rows_fn, in_axes=(0, None)))
 
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, these_queries), None
-        def stat_fn(X):
 
+        def stat_fn(X):
             out = jax.eval_shape(temp_stat_fn, X[0], these_queries)
             stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]
             return stats / X.shape[0]

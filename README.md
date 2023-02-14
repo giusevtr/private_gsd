@@ -1,11 +1,20 @@
+# Example 
+
+Visit this link to start using PrivGA:
+https://colab.research.google.com/drive/1t49XFG51pmcIsRqAhF_veHbrbfrVZBuy?usp=sharing
+
 # Setup
+
+
+
 
 Set up conda environment
 ````
-conda create -n evo-privsyn python=3.8
-conda activate evo-privsyn
+conda create -n privga python=3.9
+conda activate privga
 pip install --upgrade pip
 ````
+
 
 Install via setuptools
 ````
@@ -17,10 +26,21 @@ Install JAX separately
 pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ````
 
+
+Download datasets
+````
+git clone https://github.com/terranceliu/dp-data
+cd dp-data
+pip install -e .
+./preprocess_all.sh
+````
+
+
+
+
 # Execution
 
-Run ADULT
+Run example: 
 ````
 cd examples
-python adult_example.py
 ````

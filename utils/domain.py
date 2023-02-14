@@ -158,23 +158,3 @@ class Domain:
 
         att_size = self.size([att])
         return jnp.arange(0, att_size) + left_position
-    # def get_one_hot_indices(self):
-    #     indices = []
-    #     p = 0
-    #     for att, size in self.
-
-    # def from_onehot_to_categorical(self, X):
-    #     encoder = OneHotEncoder()
-    #     encoder.categories_ = [list(range(self.size(att))) for att in self.attrs]
-    #
-    #     for att in self.attrs:
-    #         encoder = OneHotEncoder()
-    #         encoder.categories_ = [list(range(self.size(att))) for att in self.attrs]
-    #
-    #     data_array = encoder.inverse_transform(X)
-    #     return data_array
-        # data_df = pd.DataFrame(data_array, columns=self.attrs)
-        # return Dataset(data_df, domain=self)
-
-
-# if __name__ == "__main__":
