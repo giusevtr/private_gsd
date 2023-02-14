@@ -39,7 +39,7 @@ if __name__ == "__main__":
         for seed in [0]:
             key = jax.random.PRNGKey(seed)
             t0 = timer()
-            sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta, rounds=50)
+            sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta, rounds=20)
             sync_data.df.to_csv(f'{data_name}_sync_{eps:.2f}_{seed}.csv', index=False)
             errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
             print(f'PrivGA: eps={eps:.2f}, seed={seed}'

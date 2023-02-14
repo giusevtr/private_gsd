@@ -1,5 +1,6 @@
 # Example 
-
+We provide a simple example that generates synthetic data that preserving all 2-way marignal 
+statistics of the Adult dataset. 
 Visit this link to start using PrivGA:
 https://colab.research.google.com/drive/1t49XFG51pmcIsRqAhF_veHbrbfrVZBuy?usp=sharing
 
