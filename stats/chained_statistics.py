@@ -149,9 +149,10 @@ class ChainedStatistics(AdaptiveStatisticState):
                 sync_stats = all_stats[wrk_a:wrk_b]
                 workload_error = jnp.abs(true_stats - sync_stats)
                 stat_max_errors.append(workload_error.max())
-            max_errors.append(stat_max_errors)
+            max_errors.append(jnp.array(stat_max_errors))
 
-        return jnp.array(max_errors)
+        # return jnp.array(max_errors)
+        return jnp.concatenate(max_errors)
 
     def private_select_measure_statistic(self, key: chex.PRNGKey, rho_per_round: float, sync_data_mat: chex.Array,
                                          sample_num=1):

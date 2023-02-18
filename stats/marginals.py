@@ -2,6 +2,7 @@ import itertools
 import jax
 import jax.numpy as jnp
 import chex
+from utils import Dataset, Domain
 from stats import AdaptiveStatisticState
 from tqdm import tqdm
 import numpy as np
@@ -121,6 +122,12 @@ class Marginals(AdaptiveStatisticState):
             return stats / X.shape[0]
 
         return stat_fn
+
+
+    @staticmethod
+    def get_kway_categorical(domain: Domain, k):
+        kway_combinations = [list(idx) for idx in itertools.combinations(domain.get_categorical_cols(), k)]
+        return Marginals(domain, kway_combinations, k, bins=[2])
 
     @staticmethod
     def get_all_kway_combinations(domain, k, bins=(32,)):
