@@ -52,7 +52,7 @@ class ChainedStatistics(AdaptiveStatisticState):
         self.selected_workloads[stat_id].append((workload_id, workload_fn, noised_workload_statistics, true_workload_statistics))
 
     def __get_selected_workload_ids(self, stat_id: int):
-        return [tup[0] for tup in self.selected_workloads[stat_id]]
+        return jnp.array([tup[0] for tup in self.selected_workloads[stat_id]]).astype(int)
 
     def get_all_true_statistics(self):
 
@@ -67,16 +67,20 @@ class ChainedStatistics(AdaptiveStatisticState):
     def get_selected_noised_statistics(self):
         selected_chained_stats = []
         for stat_id in range(len(self.stat_modules)):
-            temp = jnp.concatenate([selected[2] for selected in self.selected_workloads[stat_id]])
-            selected_chained_stats.append(temp)
+            temp = [selected[2] for selected in self.selected_workloads[stat_id]]
+            if len(temp) > 0:
+                temp = jnp.concatenate(temp)
+                selected_chained_stats.append(temp)
 
         return jnp.concatenate(selected_chained_stats)
 
     def get_selected_statistics_without_noise(self):
         selected_chained_stats = []
         for stat_id in range(len(self.stat_modules)):
-            temp = jnp.concatenate([selected[3] for selected in self.selected_workloads[stat_id]])
-            selected_chained_stats.append(temp)
+            temp = [selected[3] for selected in self.selected_workloads[stat_id]]
+            if len(temp) > 0:
+                temp = jnp.concatenate(temp)
+                selected_chained_stats.append(temp)
         return jnp.concatenate(selected_chained_stats)
 
     def get_selected_statistics_fn(self):
@@ -84,7 +88,8 @@ class ChainedStatistics(AdaptiveStatisticState):
         for stat_id in range(len(self.stat_modules)):
             stat_mod = self.stat_modules[stat_id]
             workload_ids = self.__get_selected_workload_ids(stat_id)
-            workload_fn_list.append(stat_mod._get_workload_fn(workload_ids))
+            if workload_ids.shape[0] > 0:
+                workload_fn_list.append(stat_mod._get_workload_fn(workload_ids))
 
         def chained_workload(X):
             return jnp.concatenate([fn(X) for fn in workload_fn_list], axis=0)
@@ -152,7 +157,7 @@ class ChainedStatistics(AdaptiveStatisticState):
             max_errors.append(jnp.array(stat_max_errors))
 
         # return jnp.array(max_errors)
-        return jnp.concatenate(max_errors)
+        return max_errors
 
     def private_select_measure_statistic(self, key: chex.PRNGKey, rho_per_round: float, sync_data_mat: chex.Array,
                                          sample_num=1):
@@ -168,20 +173,43 @@ class ChainedStatistics(AdaptiveStatisticState):
         rs = np.random.RandomState(key_g)
         # Computing Gumbel noise scale based on: https://differentialprivacy.org/one-shot-top-k/
 
-        noise = rs.gumbel(scale=(np.sqrt(sample_num) / (np.sqrt(2 * rho_per_round) * self.N)), size=errors.shape)
-        noise = jnp.array(noise)
-        errors_noise = errors + noise
-
+        errors_noise = []
+        pos_cnt = 0
+        stat_id_pos = []
+        workload_id_pos = []
         for stat_id in range(len(self.stat_modules)):
+
+            stat_errors = errors[stat_id]
+
+            noise = rs.gumbel(scale=(np.sqrt(sample_num) / (np.sqrt(2 * rho_per_round) * self.N)), size=stat_errors.shape)
+            noise = jnp.array(noise)
+            stat_errors_noise = stat_errors + noise
+
+
             w_ids = self.__get_selected_workload_ids(stat_id)
-            errors_noise = errors_noise.at[stat_id, w_ids].set(-100000)
+            stat_errors_noise = stat_errors_noise.at[w_ids].set(-100000)
+            errors_noise.append(stat_errors_noise)
+
+            m = stat_errors_noise.shape[0]
+            vec_stat_id = jnp.ones(m) * stat_id
+            vec_work_id = jnp.arange(m)
+            stat_id_pos.append(vec_stat_id)
+            workload_id_pos.append(vec_work_id)
+
+        stat_id_pos = jnp.concatenate(stat_id_pos)
+        workload_id_pos = jnp.concatenate(workload_id_pos)
+        errors_noise = jnp.concatenate(errors_noise)
 
         errors_noise_flatten = errors_noise.flatten()
         top_k_indices = (-errors_noise_flatten).argsort()[:sample_num]
 
 
-        for flatten_ids in top_k_indices:
-            stat_id, workload_id = jnp.unravel_index(flatten_ids, errors_noise.shape)
+        for flatten_id in top_k_indices:
+
+            stat_id = stat_id_pos[flatten_id]
+            workload_id = workload_id_pos[flatten_id]
+
+            # stat_id, workload_id = jnp.unravel_index(flatten_ids, errors_noise.shape)
             stat_id = int(stat_id)
             workload_id = int(workload_id)
             gaussian_rho_per_round = rho_per_round / sample_num
