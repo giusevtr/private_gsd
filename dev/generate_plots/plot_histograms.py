@@ -26,7 +26,7 @@ synthetic_data_label = 'Synthetic Data'
 
 PRIVGA = pd.read_csv('../sync_data/PrivGA/Prefix/100/1.00/sync_data_0.csv')
 RAPpp = pd.read_csv('../sync_data/RAP++/10/1.00/sync_data_0.csv')
-# RAP = pd.read_csv('../sync_data/RAP/Ranges/080/1.00/sync_data_0.csv')
+# RAP = pd.read_csv('../sync_data/RAP/Ranges/80/1.00/sync_data_0.csv')
 df_list = []
 
 BINS = 64
