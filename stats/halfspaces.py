@@ -143,11 +143,11 @@ class Halfspace(AdaptiveStatisticState):
             these_queries = self.queries
         else:
             these_queries = []
-            query_positions = []
+            # query_positions = []
             for stat_id in workload_ids:
                 a, b = self.workload_positions[stat_id]
-                q_pos = jnp.arange(a, b)
-                query_positions.append(q_pos)
+                # q_pos = jnp.arange(a, b)
+                # query_positions.append(q_pos)
                 these_queries.append(self.queries[a:b, :])
             these_queries = jnp.concatenate(these_queries, axis=0)
 

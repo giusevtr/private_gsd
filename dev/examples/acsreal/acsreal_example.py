@@ -2,7 +2,7 @@ import jax.random
 import matplotlib.pyplot as plt
 
 from models import PrivGA, SimpleGAforSyncData
-from stats import ChainedStatistics, Halfspace
+from stats import ChainedStatistics, Halfspace, Prefix
 # from utils.utils_data import get_data
 from utils import timer
 import jax.numpy as jnp
@@ -35,11 +35,10 @@ if __name__ == "__main__":
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
     # prefix_module = Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key, random_prefixes=1000)
-    module = Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=key, random_hs=5000)
+    module = Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key, random_prefixes=100000)
+    # module = Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=key, random_hs=20000)
     # marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
-    stat_module = ChainedStatistics([
-                                         module,
-                                         ])
+    stat_module = ChainedStatistics([module])
     stat_module.fit(data)
 
     true_stats = stat_module.get_all_true_statistics()
@@ -49,8 +48,8 @@ if __name__ == "__main__":
     #                         data_size=1000, iterations=1000, learning_rate=0.01,)
     # Choose algorithm parameters
     SYNC_DATA_SIZE = 2000
-    algo = PrivGA(num_generations=12000,
-                    print_progress=False, stop_early=True,
+    algo = PrivGA(num_generations=15000,
+                    print_progress=True, stop_early=True,
                     strategy=SimpleGAforSyncData(domain=data.domain, elite_size=5, data_size=SYNC_DATA_SIZE))
 
     delta = 1.0 / len(data) ** 2
@@ -65,11 +64,12 @@ if __name__ == "__main__":
             def debug(i, sync_data: Dataset):
                 print(f'epoch {i}:')
                 results = ml_eval_fn(sync_data.df, seed)
+                results = results[results['Eval Data'] == 'Test']
                 print(results)
 
             sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta,
-                                             rounds=10,
-                                             num_sample=300,
+                                             rounds=100,
+                                             num_sample=5,
                                              debug_fn=debug
                                     )
             # sync_data.df.to_csv(f'{data_name}_sync_{eps:.2f}_{seed}.csv', index=False)

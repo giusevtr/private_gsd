@@ -3,13 +3,13 @@ import jax.numpy as jnp
 import jax
 import numpy as np
 from typing import Callable
-from utils import Dataset, Domain, timer
+from utils import Dataset, Domain
 from tqdm import tqdm
 from stats import AdaptiveStatisticState
 
 
 class ChainedStatistics:
-    all_workloads: list
+    # all_workloads: list
     selected_workloads: list
     domain: Domain
 
@@ -33,21 +33,20 @@ class ChainedStatistics:
             stat_mod: AdaptiveStatisticState
             stat_mod = self.stat_modules[stat_id]
 
+            num_workloads = stat_mod.get_num_workloads()
             data_workload_fn = stat_mod._get_dataset_statistics_fn()
             all_stats = data_workload_fn(data)
-            # all_stats = np.array(all_stats)
             self.modules_workload_fn_jit.append(jax.jit(stat_mod._get_workload_fn()))
             self.modules_all_statistics.append(all_stats)
-            print(f'\nnumber of queries is {all_stats.shape[0]}\n')
+            print(f'\nnumber of queries is {all_stats.shape[0]}')
 
             self.selected_workloads.append([])
 
         self.all_statistics_fn = self._get_workload_fn()
 
-    def __add_stats(self, stat_id, workload_id, noised_workload_statistics, true_workload_statistics):
+    def __add_stats(self, stat_id, workload_id, workload_fn, noised_workload_statistics, true_workload_statistics):
         stat_id = int(stat_id)
         workload_id = int(workload_id)
-        workload_fn = self.stat_modules[stat_id]._get_workload_fn(workload_ids=[workload_id])
         self.selected_workloads[stat_id].append((workload_id, workload_fn, noised_workload_statistics, true_workload_statistics))
 
     def __get_selected_workload_ids(self, stat_id: int):
@@ -57,7 +56,7 @@ class ChainedStatistics:
 
         chained_stats = []
         for stat_id in range(len(self.stat_modules)):
-            chained_stats.append(self.modules_all_statistics[stat_id])
+            chained_stats.append(jnp.concatenate([tup[2] for tup in self.all_workloads[stat_id]]))
         return jnp.concatenate(chained_stats)
 
     def get_all_statistics_fn(self):
@@ -105,7 +104,7 @@ class ChainedStatistics:
             s += stat_mod.get_num_workloads()
         return s
 
-    def _get_workload_fn(self) -> Callable:
+    def _get_workload_fn(self, workload_ids: list = None) -> Callable:
         workload_fn_list = []
         for stat_mod in self.stat_modules:
             stat_mod: AdaptiveStatisticState
@@ -117,6 +116,7 @@ class ChainedStatistics:
     def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
         pass
 
+
     def private_measure_all_statistics(self, key: chex.PRNGKey, rho: float):
         self.selected_workloads = []
         for stat_id in range(len(self.stat_modules)):
@@ -127,33 +127,33 @@ class ChainedStatistics:
 
         for stat_id in range(len(self.stat_modules)):
             stat_mod = self.stat_modules[stat_id]
-            true_stats = self.modules_all_statistics[stat_id]
-
             for workload_id in range(stat_mod.get_num_workloads()):
                 key, key_gaussian = jax.random.split(key, 2)
-                wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
-                stats = true_stats[wrk_a:wrk_b]
+                _, workload_fn, stats = self.all_workloads[stat_id][workload_id]
                 sensitivity = stat_mod._get_workload_sensitivity(workload_id, self.N)
+
                 sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_marginal)))
                 gau_noise = jax.random.normal(key_gaussian, shape=stats.shape) * sigma_gaussian
                 selected_noised_stat = jnp.clip(stats + gau_noise, 0, 1)
-                self.__add_stats(stat_id, workload_id,selected_noised_stat, stats)
+                self.__add_stats(stat_id, workload_id, workload_fn, selected_noised_stat, stats)
 
+        print()
 
     def get_sync_data_errors(self, X):
         max_errors = []
         for stat_id in range(len(self.stat_modules)):
             stat_mod = self.stat_modules[stat_id]
-            module_stat_fn_jit = self.modules_workload_fn_jit[stat_id]
-            module_sync_stats = np.array(module_stat_fn_jit(X))
+            module_stat_fn = self.modules_workload_fn_jit[stat_id]
+            module_sync_stats = module_stat_fn(X)
+
 
             module_true_stats = self.modules_all_statistics[stat_id]
 
-            errors = np.abs(module_true_stats - module_sync_stats)
+            errors = jnp.abs(module_true_stats - module_sync_stats)
 
             stat_max_errors = []
             for workload_id in range(stat_mod.get_num_workloads()):
-                # _, workload_fn = self.all_workloads[stat_id][workload_id]
+                _, workload_fn, true_stats = self.all_workloads[stat_id][workload_id]
                 wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
                 max_error = errors[wrk_a:wrk_b].max()
                 stat_max_errors.append(max_error)
@@ -161,7 +161,7 @@ class ChainedStatistics:
                 # sync_stats = module_sync_stats[wrk_a:wrk_b]
                 # workload_error = jnp.abs(true_stats - sync_stats)
                 # stat_max_errors.append(workload_error.max())
-            max_errors.append(np.array(stat_max_errors))
+            max_errors.append(jnp.array(stat_max_errors))
 
         # return jnp.array(max_errors)
         return max_errors
@@ -189,12 +189,12 @@ class ChainedStatistics:
             stat_errors = errors[stat_id]
 
             noise = rs.gumbel(scale=(np.sqrt(sample_num) / (np.sqrt(2 * rho_per_round) * self.N)), size=stat_errors.shape)
-            # noise = jnp.array(noise)
+            noise = jnp.array(noise)
             stat_errors_noise = stat_errors + noise
 
+
             w_ids = self.__get_selected_workload_ids(stat_id)
-            stat_errors_noise[np.array(w_ids)] = -10000
-            # stat_errors_noise = stat_errors_noise.at[w_ids].set(-100000)
+            stat_errors_noise = stat_errors_noise.at[w_ids].set(-100000)
             errors_noise.append(stat_errors_noise)
 
             m = stat_errors_noise.shape[0]
@@ -222,16 +222,13 @@ class ChainedStatistics:
             gaussian_rho_per_round = rho_per_round / sample_num
             key, key_gaussian = jax.random.split(key, 2)
             stat_mod = self.stat_modules[stat_id]
-
-            # Retrieve workload
-            wrk_a, wrk_b = self.stat_modules[stat_id]._get_workload_positions(workload_id)
-            stats = self.modules_all_statistics[stat_id][wrk_a:wrk_b]
+            _, workload_fn, stats = self.all_workloads[stat_id][workload_id]
             sensitivity = stat_mod._get_workload_sensitivity(workload_id, self.N)
 
             sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * gaussian_rho_per_round)))
             gau_noise = jax.random.normal(key_gaussian, shape=stats.shape) * sigma_gaussian
             selected_noised_stat = jnp.clip(stats + gau_noise, 0, 1)
-            self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
+            self.__add_stats(stat_id, workload_id, workload_fn, selected_noised_stat, stats)
 
 def exponential_mechanism(key: jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
     dist = jax.nn.softmax(2 * eps0 * scores / (2 * sensitivity))
