@@ -145,7 +145,7 @@ class Dataset:
 
     @staticmethod
     def from_numpy_to_dataset(domain, X):
-        df = pd.DataFrame(X, columns=domain.attrs)
+        df = pd.DataFrame(np.array(X), columns=domain.attrs)
         return Dataset(df, domain=domain)
 
     def to_numpy(self):

@@ -8,8 +8,8 @@ from tqdm import tqdm
 from stats import AdaptiveStatisticState
 
 
-class ChainedStatistics(AdaptiveStatisticState):
-    all_workloads: list
+class ChainedStatistics:
+    # all_workloads: list
     selected_workloads: list
     domain: Domain
 
@@ -38,15 +38,8 @@ class ChainedStatistics(AdaptiveStatisticState):
             all_stats = data_workload_fn(data)
             self.modules_workload_fn_jit.append(jax.jit(stat_mod._get_workload_fn()))
             self.modules_all_statistics.append(all_stats)
-            print(f'number of queries is {all_stats.shape[0]}')
+            print(f'\nnumber of queries is {all_stats.shape[0]}')
 
-            self.all_workloads.append([])
-            for i in tqdm(range(num_workloads), f'Fitting workloads. Data has {self.N} rows and {num_attrs} attributes.'):
-                workload_fn = stat_mod._get_workload_fn(workload_ids=[i])
-                # stats = workload_fn(X)
-                wrk_a, wrk_b = stat_mod._get_workload_positions(i)
-                stats = all_stats[wrk_a:wrk_b]
-                self.all_workloads[stat_id].append((i, workload_fn, stats))
             self.selected_workloads.append([])
 
         self.all_statistics_fn = self._get_workload_fn()
