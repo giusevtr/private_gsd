@@ -95,9 +95,12 @@ class Halfspace(AdaptiveStatisticState):
 
         self.queries = jnp.array(queries)
 
+    def _get_dataset_statistics_fn(self, workload_ids=None, jitted: bool = False):
+        if jitted:
+            workload_fn = jax.jit(self._get_workload_fn(workload_ids))
+        else:
+            workload_fn = self._get_workload_fn(workload_ids)
 
-    def _get_dataset_statistics_fn(self, workload_ids=None):
-        workload_fn = self._get_workload_fn(workload_ids)
         def data_fn(data: Dataset):
             X = data.to_numpy()
             return workload_fn(X)
@@ -169,10 +172,153 @@ class Halfspace(AdaptiveStatisticState):
 
 
 
+##############################
+# Differentiable halfspace class to be used with the RAP++ algorithm (models/relaxed_projection_pp.py)
+##############################
+
+
+class HalfspaceDiff(AdaptiveStatisticState):
+
+    def __init__(self, domain: Domain,
+                 k_cat: int,
+                 cat_kway_combinations: list,
+                 rng: chex.PRNGKey,
+                 num_random_halfspaces: int,
+                 ):
+        """
+        :param domain:
+        :param kway_combinations:
+        :param num_random_halfspaces: number of random halfspaces for each marginal that contains a real-valued feature
+        """
+        self.domain = domain
+        self.num_hs_samples = num_random_halfspaces
+        self.rng = rng
+
+        self.cat_kway_combinations = cat_kway_combinations
+        self.k = k_cat
+
+        self.halfspace_keys = jax.random.split(self.rng, self.num_hs_samples)
+        self.workload_positions = []
+        self.workload_sensitivity = []
+
+        self.set_up_stats()
+
+
+    def __str__(self):
+        return f'HalfspacesDiff'
+
+    @staticmethod
+    def get_kway_random_halfspaces(domain: Domain,
+                                   k: int,
+                                   rng: chex.PRNGKey,
+                                   random_hs: int = 500):
+        kway_combinations = []
+        for cols in itertools.combinations(domain.get_categorical_cols(), k):
+            kway_combinations.append(list(cols))
+        return HalfspaceDiff(domain, k_cat=k, cat_kway_combinations=kway_combinations, rng=rng,
+                             num_random_halfspaces=random_hs)
+
+
+    def get_num_workloads(self):
+        return len(self.workload_positions)
+
+    def _get_workload_positions(self, workload_id: int = None) -> tuple:
+        return self.workload_positions[workload_id]
+
+    def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
+        return self.workload_sensitivity[workload_id] / N
+
+    def set_up_stats(self):
+        """
+        Define halfspace queries
+        """
+
+        queries = []
+        self.workload_positions = []
+        for marginal in tqdm(self.cat_kway_combinations, desc='Setting up half-spaces'):
+            assert len(marginal) == self.k
+            indices_onehot = [self.domain.get_attribute_onehot_indices(att) for att in marginal]
+
+            for halfspace_pos in range(self.num_hs_samples):
+                start_pos = len(queries)
+
+                for tup in itertools.product(*indices_onehot):
+                    queries.append(tup + (halfspace_pos,))
+
+                end_pos = len(queries)
+                self.workload_positions.append((start_pos, end_pos))
+                self.workload_sensitivity.append(jnp.sqrt(2))
+
+        self.queries = jnp.array(queries)
+
+    def _get_dataset_statistics_fn(self, workload_ids=None, jitted=False):
+        if jitted:
+            workload_fn = jax.jit(self._get_workload_fn(workload_ids))
+        else:
+            workload_fn = self._get_workload_fn(workload_ids)
+        def data_fn(data: Dataset):
+            X = data.to_onehot()
+            return workload_fn(X)
+        return data_fn
+
+    def _get_workload_fn(self, workload_ids=None):
+        """
+        Returns marginals function and sensitivity
+        :return:
+        """
+        dim = len(self.domain.attrs)
+        numeric_cols = self.domain.get_numeric_cols()
+        num_idx = self.domain.get_attribute_indices(numeric_cols).astype(int)
+        numeric_dim = num_idx.shape[0]
+
+
+        def answer_fn(x_row: chex.Array, query_single: chex.Array, sigmoid: float):
+
+            cat_q = query_single[:self.k].astype(int)
+            key_id = query_single[-1].astype(int)
+            halfspace_key = self.halfspace_keys[key_id]
+
+            # Categorical
+            cat_answers = jnp.prod(x_row[cat_q])
+
+            # Halfspace
+            rng_h, rng_b = jax.random.split(halfspace_key, 2)
+            hs_mat = (jax.random.normal(rng_h, shape=(numeric_dim,))) / jnp.sqrt(numeric_dim)  # d x h
+            b = jax.random.normal(rng_b, shape=(1,))  # 1 x h
+            x_row_num_proj = x_row[num_idx]  # n x d
+            HS_proj = jnp.dot(x_row_num_proj, hs_mat) - b  # n x h
+            # above_halfspace = (HS_proj > 0).astype(int)  # n x h
+            above_halfspace = jax.nn.sigmoid(sigmoid * HS_proj)
+
+            answers = cat_answers * above_halfspace.squeeze()
+
+            return answers
+
+        if workload_ids is None :
+            these_queries = self.queries
+        else:
+            these_queries = []
+            for stat_id in workload_ids:
+                a, b = self.workload_positions[stat_id]
+                these_queries.append(self.queries[a:b, :])
+            these_queries = jnp.concatenate(these_queries, axis=0)
+
+        # Define function that computes all statistics for a single row
+        temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0, None))
+
+        def stat_fn(X, sigmoid: float = 2**15):
+            def scan_fun(carry, x):
+                return carry + temp_stat_fn(x, these_queries, sigmoid), None
+
+            out = jax.eval_shape(temp_stat_fn, X[0], these_queries, sigmoid)
+            stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]
+            return stats / X.shape[0]
+        return stat_fn
 
 
 
 
 
 
-    ##############################
+
+

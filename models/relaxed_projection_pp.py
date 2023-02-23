@@ -6,7 +6,7 @@ from typing import Callable
 from models import Generator
 from dataclasses import dataclass
 from utils import Dataset, Domain, timer
-from stats import Marginals, AdaptiveStatisticState
+from stats import Marginals, AdaptiveStatisticState, ChainedStatistics
 
 @dataclass
 class RelaxedProjectionPP(Generator):
@@ -36,24 +36,20 @@ class RelaxedProjectionPP(Generator):
     def __str__(self):
         return 'RAP++'
 
-    def fit(self, key, adaptive_statistic: AdaptiveStatisticState, init_data: Dataset=None, tolerance=0):
+    def fit(self, key, adaptive_statistic: ChainedStatistics, init_data: Dataset=None, tolerance=0):
 
         softmax_fn = lambda X: Dataset.apply_softmax(self.domain, X)
         data_dim = self.domain.get_dimension()
         key, key2 = jax.random.split(key, 2)
-        if adaptive_statistic.adaptive_rounds_count == 1:
+
+        # Check if this is the first adaptive round. If so, then initialize a synthetic data
+        # selected_workloads = len(adaptive_statistic.selected_workloads)
+        if adaptive_statistic.first_adaptive_round > 1:
             if self.print_progress: print('Initializing relaxed dataset')
             self.init_sync = softmax_fn(jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))
-        # self.init_sync = softmax_fn(jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))
 
-        # if init_data is None:
-        #     init_sync = softmax_fn(jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))
-        # else:
-        #     if init_data.df.shape[0] > self.data_size:
-        #         init_data = init_data.sample(n=self.data_size, replace=False)
-        #     init_sync = init_data.to_onehot()
-
-        diff_stat_fn = adaptive_statistic.STAT_MODULE.get_diff_stat_fn(adaptive_statistic.get_statistics_ids())
+        target_stats = adaptive_statistic.get_selected_noised_statistics()
+        diff_stat_fn = adaptive_statistic.get_selected_statistics_fn()
 
         min_loss = None
 
@@ -65,22 +61,18 @@ class RelaxedProjectionPP(Generator):
             params = {'w': softmax_fn(self.init_sync.copy())}
 
             self.optimizer = optax.adam(lr)
-            # self.optimizer.
             # Obtain the `opt_state` that contains statistics for the optimizer.
             opt_state = self.optimizer.init(params)
 
-            target_stats = adaptive_statistic.get_private_statistics()
-            # compute_loss = lambda params, sigmoid: jnp.linalg.norm(
-            #     diff_stat_fn(softmax_fn(params['w']), sigmoid) - target_stats) ** 2
             def compute_loss(params, sigmoid):
                 w = params['w']
-                l1 = jnp.linalg.norm(diff_stat_fn(softmax_fn(w), sigmoid) - target_stats) ** 2
+                # Distance to the target statistics
+                l1 = jnp.linalg.norm(diff_stat_fn(softmax_fn(w), sigmoid=sigmoid) - target_stats) ** 2
+                # Add a penalty if any numeric features moves outsize the range [0,1]
                 l2 = jnp.sum(jax.nn.sigmoid(sigmoid * (w[:, num_idx] - 1)))
                 l3 = jnp.sum(jax.nn.sigmoid(-sigmoid * (w[:, num_idx])))
                 return l1 + l2 + l3
-                # return l1
 
-            # compute_loss_jit = (compute_loss)
             compute_loss_jit = jax.jit(compute_loss)
             update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)
             update_fn_jit = jax.jit(update_fn)
@@ -88,7 +80,7 @@ class RelaxedProjectionPP(Generator):
 
             params = self.fit_help(params, opt_state, compute_loss_jit, update_fn_jit, lr)
             sync = softmax_fn(params['w'])
-            loss = jnp.linalg.norm(target_stats - diff_stat_fn(sync, 1024))
+            loss = jnp.linalg.norm(target_stats - diff_stat_fn(sync))
             if min_loss is None or loss < min_loss:
                 self.init_sync = jnp.copy(sync)
                 min_loss = loss
@@ -104,12 +96,12 @@ class RelaxedProjectionPP(Generator):
         stop_early = self.stop_early
 
         self.early_stop_init()
-        best_loss = compute_loss_jit(params, 1024)
+        best_loss = compute_loss_jit(params, 2048)
         iters = 0
         t0 = timer()
         t1 = timer()
         loss_hist = []
-        for i in range(12):
+        for i in range(15):
             # sigmoid = i ** 2
             sigmoid = 2 ** i
             if self.print_progress: print(f'sigmoid={sigmoid}:')

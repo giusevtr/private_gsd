@@ -82,6 +82,10 @@ class Generator:
                           start_sync=False,
                           print_progress=False,
                           debug_fn: Callable = None, num_sample=1):
+
+        # Reset selected statistics
+        stat_module.reselect_stats()
+
         rho_per_round = rho / rounds
 
         key, key_init = jax.random.split(key, 2)
@@ -96,9 +100,9 @@ class Generator:
 
             # Select a query with max error using the exponential mechanism and evaluate
             select_time = timer()
-            X_sync = sync_dataset.to_numpy()
+            # X_sync = sync_dataset.to_numpy()
             key, subkey_select = jax.random.split(key, 2)
-            stat_module.private_select_measure_statistic(subkey_select, rho_per_round, X_sync, num_sample)
+            stat_module.private_select_measure_statistic(subkey_select, rho_per_round, sync_dataset, num_sample)
             select_time = timer() - select_time
 
             fit_time = timer()
@@ -111,20 +115,18 @@ class Generator:
             fit_time = timer() - fit_time
 
             if print_progress:
-                ##### PROJECT STEP
-                X_sync = sync_dataset.to_numpy()
-
-                # Round results
+                # Errors of selected statistics. Debug the success of the project step.
                 priv_stats = stat_module.get_selected_noised_statistics()
                 selected_true_stats = stat_module.get_selected_statistics_without_noise()
-                stat_fn = stat_module.get_selected_statistics_fn()
-                sync_stats = stat_fn(X_sync)
+                stat_fn = stat_module.get_selected_dataset_statistics_fn()
+                sync_stats = stat_fn(sync_dataset)
                 round_errors = jnp.abs(selected_true_stats - sync_stats)
                 gau_error = jnp.abs(selected_true_stats - priv_stats)
 
-                # Get errors for debugging
+                # Get errors for debugging. This is
                 all_true_stats = stat_module.get_all_true_statistics()
-                all_sync_stats = stat_module.all_statistics_fn(X_sync)
+                all_sync_stat_fn = stat_module.get_dataset_statistics_fn()
+                all_sync_stats = all_sync_stat_fn(sync_dataset)
                 all_errors = jnp.abs(all_true_stats - all_sync_stats)
 
                 print(f'Epoch {i:03}: '

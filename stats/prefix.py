@@ -81,8 +81,12 @@ class Prefix(AdaptiveStatisticState):
 
         self.queries = jnp.array(queries)
 
-    def _get_dataset_statistics_fn(self, workload_ids=None):
-        workload_fn = self._get_workload_fn(workload_ids)
+    def _get_dataset_statistics_fn(self, workload_ids=None, jitted: bool = False):
+        if jitted:
+            workload_fn = jax.jit(self._get_workload_fn(workload_ids))
+        else:
+            workload_fn = self._get_workload_fn(workload_ids)
+
         def data_fn(data: Dataset):
             X = data.to_numpy()
             return workload_fn(X)
