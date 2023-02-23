@@ -36,6 +36,8 @@ class Prefix(AdaptiveStatisticState):
 
         self.set_up_stats()
 
+    def __str__(self):
+        return "Prefix"
     def get_num_workloads(self):
         return len(self.workload_positions)
 

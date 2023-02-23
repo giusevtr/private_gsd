@@ -48,7 +48,8 @@ class ChainedStatistics:
         stat_id = int(stat_id)
         workload_id = int(workload_id)
         workload_fn = self.stat_modules[stat_id]._get_workload_fn(workload_ids=[workload_id])
-        self.selected_workloads[stat_id].append((workload_id, workload_fn, noised_workload_statistics, true_workload_statistics))
+        self.selected_workloads[stat_id].append(
+            (workload_id, workload_fn, noised_workload_statistics, true_workload_statistics))
 
     def __get_selected_workload_ids(self, stat_id: int):
         return jnp.array([tup[0] for tup in self.selected_workloads[stat_id]]).astype(int)
@@ -110,8 +111,10 @@ class ChainedStatistics:
         for stat_mod in self.stat_modules:
             stat_mod: AdaptiveStatisticState
             workload_fn_list.append(stat_mod._get_workload_fn())
+
         def chained_workload(X):
             return jnp.concatenate([fn(X) for fn in workload_fn_list], axis=0)
+
         return chained_workload
 
     def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
@@ -137,8 +140,7 @@ class ChainedStatistics:
                 sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_marginal)))
                 gau_noise = jax.random.normal(key_gaussian, shape=stats.shape) * sigma_gaussian
                 selected_noised_stat = jnp.clip(stats + gau_noise, 0, 1)
-                self.__add_stats(stat_id, workload_id,selected_noised_stat, stats)
-
+                self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
 
     def get_sync_data_errors(self, X):
         max_errors = []
@@ -185,10 +187,10 @@ class ChainedStatistics:
         stat_id_pos = []
         workload_id_pos = []
         for stat_id in range(len(self.stat_modules)):
-
             stat_errors = errors[stat_id]
 
-            noise = rs.gumbel(scale=(np.sqrt(sample_num) / (np.sqrt(2 * rho_per_round) * self.N)), size=stat_errors.shape)
+            noise = rs.gumbel(scale=(np.sqrt(sample_num) / (np.sqrt(2 * rho_per_round) * self.N)),
+                              size=stat_errors.shape)
             # noise = jnp.array(noise)
             stat_errors_noise = stat_errors + noise
 
@@ -210,9 +212,7 @@ class ChainedStatistics:
         errors_noise_flatten = errors_noise.flatten()
         top_k_indices = (-errors_noise_flatten).argsort()[:sample_num]
 
-
         for flatten_id in top_k_indices:
-
             stat_id = stat_id_pos[flatten_id]
             workload_id = workload_id_pos[flatten_id]
 
@@ -233,6 +233,12 @@ class ChainedStatistics:
             selected_noised_stat = jnp.clip(stats + gau_noise, 0, 1)
             self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
 
+    def reselect_stats(self):
+        self.selected_workloads = []
+        for stat_id in range(len(self.stat_modules)):
+            self.selected_workloads.append([])
+
+
 def exponential_mechanism(key: jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
     dist = jax.nn.softmax(2 * eps0 * scores / (2 * sensitivity))
     cumulative_dist = jnp.cumsum(dist)
@@ -240,13 +246,11 @@ def exponential_mechanism(key: jnp.ndarray, scores: jnp.ndarray, eps0: float, se
     return max_query_idx[0]
 
 
-
 if __name__ == "__main__":
     from stats import Marginals
-    from dev.toy_datasets.classification import  get_classification
+    from dev.toy_datasets.classification import get_classification
 
     data = get_classification()
-
 
     marginal_module1, _ = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[2, 4])
     marginal_module2, _ = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4])
@@ -255,7 +259,6 @@ if __name__ == "__main__":
     marginal_module2.fit(data)
     alls_stats0 = jnp.concatenate([marginal_module1.get_all_true_statistics(),
                                    marginal_module2.get_all_true_statistics()])
-
 
     chained_module = ChainedStatistics([marginal_module1, marginal_module2])
     chained_module.fit(data)
@@ -270,6 +273,3 @@ if __name__ == "__main__":
     print(all_stats1)
     print(all_stats2)
     print(all_stats3)
-
-
-
