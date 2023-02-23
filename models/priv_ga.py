@@ -204,8 +204,10 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
 
         # temp = jax.random.randint(rng_temp, minval=0, maxval=2, shape=new_rows.shape)
 
-        num_row_mates = jax.random.randint(rng_mate1, minval=0, maxval=d, shape=(1, ))
-        temp = jnp.repeat(jnp.array([1, 0]), jnp.array([num_row_mates[0], d - num_row_mates[0]]), total_repeat_length=d)
+        # num_row_mates = jax.random.randint(rng_mate1, minval=0, maxval=d, shape=(1, ))
+        # temp = jnp.repeat(jnp.array([1, 0]), jnp.array([num_row_mates[0], d - num_row_mates[0]]), total_repeat_length=d)
+        num_row_mates = [1]
+        temp = jnp.repeat(jnp.array([1, 0]), jnp.array([1, d - 1]), total_repeat_length=d)
         temp = jnp.repeat(temp.reshape(1, -1), new_rows.shape[0])
         temp = jax.random.permutation(rng_mate2, temp)
 

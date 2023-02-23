@@ -1,18 +1,10 @@
 import os.path
-
-import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
-
-from models import PrivGA, SimpleGAforSyncData
-from stats import ChainedStatistics, Halfspace, Marginals
-# from utils.utils_data import get_data
-import jax.numpy as jnp
-# from dp_data.data import get_data
+import seaborn as sns
 from dp_data import load_domain_config, load_df, get_evaluate_ml
 from utils import timer, Dataset, Domain
-from utils.cdp2adp import cdp_rho, cdp_eps
-import numpy as np
+
 
 def filter_outliers(df_train, df_test):
     domain = Domain.fromdict(config)
@@ -42,6 +34,50 @@ def filter_outliers(df_train, df_test):
 
     return df_train, df_test
 
+
+
+def print_mean(df_real, df_sync, config):
+    domain = Domain.fromdict(config)
+
+    num_cols = domain.get_numeric_cols()
+    real_target = df_real['PINCP']
+    sync_target = df_sync['PINCP']
+
+    print('real:')
+    print(df_real[num_cols + ['PINCP']].corr())
+    print('sync:')
+    print(df_sync[num_cols + ['PINCP']].corr())
+    print(f'{"col":<7}: {"real mean":<10}|{"sync mean":<10}||{"real std":<10}|{"sync std":<10}')
+    return 0
+    for c in domain.get_numeric_cols():
+        mean_real = df_real[c].mean()
+        std_real = df_real[c].std()
+        mean_sync = df_sync[c].mean()
+        std_sync = df_sync[c].std()
+        print(f'{c:<7}: {mean_real:<10.4f}|{mean_sync:<10.4f}||{std_real:<10.4f}|{std_sync:<10.4f}')
+
+
+        real = df_real[[c, 'PINCP']]
+        real.loc[:, 'Type'] = 'Real'
+        sync = df_sync[[c, 'PINCP']]
+        sync.loc[:, 'Type'] = 'Sync'
+
+        df = pd.concat([real.sample(n=2000), sync])
+        # sns.histplot(data=df, x=c, hue='PINCP')
+        # sns.histplot(data=df, x=c, hue='Type')
+
+        g = sns.FacetGrid(df, row='PINCP', hue='Type')
+        g.map(plt.hist, c, alpha=0.5)
+        g.set(yscale='log')
+
+        plt.show()
+
+        print()
+
+
+
+
+
 if __name__ == "__main__":
     algo = 'RAP'
     module = 'Ranges'
@@ -51,6 +87,7 @@ if __name__ == "__main__":
     # algo = 'PrivGA'
     epochs = [3, 4, 5, 6, 7, 8, 9, 10, 20, 25, 40, 50, 60, 75, 80, 100]
     # module = 'Prefix'
+    # module = 'Halfspaces'
 
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
     seeds = [0, 1, 2]
@@ -61,25 +98,12 @@ if __name__ == "__main__":
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
-
-    # df_train.drop('ESR', axis=1)
-    # df_test.drop('ESR', axis=1)
-    # df_train, df_test = filter_outliers(df_train, df_test)
-    # df_train = df_train.sample(n=5000)
-    # print(f'train size: {df_train.shape}')
-    # print(f'test size:  {df_test.shape}')
-    # domain = Domain.fromdict(config)
-    # data = Dataset(df_train, domain)
-    # targets = ['JWMNP_bin', 'PINCP', 'ESR', 'MIG', 'PUBCOV']
-    targets = ['PINCP',  'PUBCOV']
+    targets = ['PINCP',  'PUBCOV', 'ESR']
 
     ml_eval_fn = get_evaluate_ml(df_test, config, targets=targets, models=['LogisticRegression'])
 
-    # results = ml_eval_fn(df_train, 0, verbose=True)
-    # print(f'Original train:')
-    # results = results[results['Metric'] == 'f1_macro']
-    # print(results)
-
+    orig_results = ml_eval_fn(df_train.sample(n=20000), 0 )
+    print(orig_results)
     sync_dir = f'../../sync_data/{algo}/{module}'
 
     Res = []
@@ -98,6 +122,8 @@ if __name__ == "__main__":
                 Res.append(results)
                 print()
                 print(results)
+                if eps == 1.0 and e == 80:
+                    print_mean(df_train, df_sync, config)
 
     all_results = pd.concat(Res)
 
