@@ -47,10 +47,6 @@ if __name__ == "__main__":
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
 
-    df_train = df_train.sample(n=50000)
-    halfspace_samples = 1000
-
-
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
     domain = Domain.fromdict(config)
@@ -68,7 +64,8 @@ if __name__ == "__main__":
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
     module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
-    module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key, num_random_halfspaces=1000)
+    module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
+                            num_random_halfspaces=50000)
     stat_module = ChainedStatistics([module0, module1])
     stat_module.fit(data)
 
@@ -80,9 +77,9 @@ if __name__ == "__main__":
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
-    for eps in [1.00]:
+    for eps in [1.00, 0.07]:
     # for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
-        # for seed in [0, 1, 2]:
+    #     for seed in [0, 1, 2]:
         for seed in [0]:
             key = jax.random.PRNGKey(seed)
             t0 = timer()
@@ -95,13 +92,17 @@ if __name__ == "__main__":
                 n_sync = len(sync_data.df)
                 visualize(df_real=df_train.sample(n=n_sync), df_sync=sync_data.df, msg=f'epoch={i}')
 
+
+            num_sample = 10
+            if eps == 0.07:
+                num_sample = 3
             sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta,
-                                             rounds=30,
-                                             num_sample=20,
+                                             rounds=70,
+                                             num_sample=num_sample,
                                              debug_fn=debug
                                     )
 
-            sync_data.df.to_csv(f'{dataset_name}_sync_{eps:.2f}_{seed}.csv', index=False)
+            sync_data.df.to_csv(f'rap++_{dataset_name}_sync_{eps:.2f}_{seed}.csv', index=False)
             errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
             print(f'RAP++: eps={eps:.2f}, seed={seed}'
                   f'\t max error = {errors.max():.5f}'

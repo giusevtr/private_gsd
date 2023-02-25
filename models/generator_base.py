@@ -109,9 +109,9 @@ class Generator:
             key, key_fit = jax.random.split(key, 2)
             dataset: Dataset
             if start_sync:
-                sync_dataset = self.fit(key_fit, stat_module, sync_dataset, tolerance=tolerance)
+                new_sync_dataset = self.fit(key_fit, stat_module, sync_dataset, tolerance=tolerance)
             else:
-                sync_dataset = self.fit(key_fit, stat_module, tolerance=tolerance)
+                new_sync_dataset = self.fit(key_fit, stat_module, tolerance=tolerance)
             fit_time = timer() - fit_time
 
             if print_progress:
@@ -119,21 +119,26 @@ class Generator:
                 priv_stats = stat_module.get_selected_noised_statistics()
                 selected_true_stats = stat_module.get_selected_statistics_without_noise()
                 stat_fn = stat_module.get_selected_dataset_statistics_fn()
-                sync_stats = stat_fn(sync_dataset)
-                round_errors = jnp.abs(selected_true_stats - sync_stats)
+                init_round_errors = jnp.abs(selected_true_stats - stat_fn(sync_dataset))
+                round_errors = jnp.abs(selected_true_stats - stat_fn(new_sync_dataset))
                 gau_error = jnp.abs(selected_true_stats - priv_stats)
 
                 # Get errors for debugging. This is
                 all_true_stats = stat_module.get_all_true_statistics()
                 all_sync_stat_fn = stat_module.get_dataset_statistics_fn()
-                all_sync_stats = all_sync_stat_fn(sync_dataset)
+                all_sync_stats = all_sync_stat_fn(new_sync_dataset)
                 all_errors = jnp.abs(all_true_stats - all_sync_stats)
 
                 print(f'Epoch {i:03}: '
                       f'\tTotal: error(max/avg) is {all_errors.max():.4f}/{all_errors.mean():.7f}.\t ||'
-                      f'\tRound: True error(max/l2) is {round_errors.max():.5f}/{round_errors.mean():.7f}.'
+                      f'\tRound init: True error(max/l2) is {init_round_errors.max():.5f}/{init_round_errors.mean():.7f}.'
+                      f'\tRound final: True error(max/l2) is {round_errors.max():.5f}/{round_errors.mean():.7f}.'
                       f'\tGaussian error(max/l2) is {gau_error.max():.5f}/{gau_error.mean():.7f}.'
                       f'\tElapsed time(fit/select)={fit_time:>7.3f}/{select_time:.3f}')
+
+
+            sync_dataset = new_sync_dataset
+
             if debug_fn is not None:
                 debug_fn(i, sync_dataset)
 

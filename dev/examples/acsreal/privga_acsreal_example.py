@@ -11,17 +11,12 @@ from dp_data import load_domain_config, load_df, get_evaluate_ml
 from utils import timer, Dataset, Domain
 import pandas as pd
 import seaborn as sns
+import numpy as np
 
 
 
 def visualize(df_real, df_sync, msg=''):
     domain = Domain.fromdict(config)
-
-
-    print('Real:')
-    print(df_real['PINCP'].value_counts())
-    print('Sync:')
-    print(df_sync['PINCP'].value_counts())
 
     for num_col in domain.get_numeric_cols():
         col_real = df_real[num_col].to_frame()
@@ -41,6 +36,23 @@ def visualize(df_real, df_sync, msg=''):
 
     return df_train, df_test
 
+def rescale(df, num_cols):
+
+    for c in num_cols:
+        mean = df[c].mean()
+        std = df[c].std()
+
+        temp = (df[c] - mean) / (4 * std) + 0.5
+        temp_np = np.clip(temp.values, 0, 1)
+        df[c] = temp_np
+
+        df[c].hist()
+        plt.title(f'Rescale {c}')
+        plt.show()
+        print(f'Done with {c}')
+
+    return df
+
 if __name__ == "__main__":
     dataset_name = 'folktables_2018_real_CA'
     root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
@@ -51,15 +63,19 @@ if __name__ == "__main__":
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
     domain = Domain.fromdict(config)
-    data = Dataset(df_train, domain)
-    df_train = df_train.sample(n=50000)
-    halfspace_samples = 10000
+    # df_train = df_train.sample(n=50000)
+    halfspace_samples = 50000
 
+    df_train = rescale(df_train, domain.get_numeric_cols())
+    df_test = rescale(df_test, domain.get_numeric_cols())
+
+
+    data = Dataset(df_train, domain)
 
     targets = ['PINCP',  'PUBCOV', 'ESR']
     #############
     ## ML Function
-    ml_eval_fn = get_evaluate_ml(df_test, config, targets=targets, models=['LogisticRegression'])
+    ml_eval_fn = get_evaluate_ml(df_test, config, targets=targets, models=['LogisticRegression'], rescale=False)
 
     orig_train_results = ml_eval_fn(df_train, 0)
     print(f'Original train data ML results:')
@@ -67,9 +83,7 @@ if __name__ == "__main__":
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
-    module = Halfspace.get_kway_random_halfspaces(data.domain, k=1, rng=key, random_hs=halfspace_samples)
-    # module = Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key, random_prefixes=halfspace_samples)
-
+    module = Halfspace(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key, num_random_halfspaces=halfspace_samples)
     stat_module = ChainedStatistics([module])
     stat_module.fit(data)
 
@@ -83,7 +97,7 @@ if __name__ == "__main__":
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
-    for eps in [100.00]:
+    for eps in [1.00]:
     # for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
         # for seed in [0, 1, 2]:
         for seed in [0]:
@@ -100,8 +114,8 @@ if __name__ == "__main__":
 
 
             sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta,
-                                             rounds=30,
-                                             num_sample=20,
+                                             rounds=50,
+                                             num_sample=10,
                                              debug_fn=debug
                                     )
             sync_data.df.to_csv(f'{dataset_name}_sync_{eps:.2f}_{seed}.csv', index=False)
