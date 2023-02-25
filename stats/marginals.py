@@ -243,7 +243,7 @@ class MarginalsDiff(AdaptiveStatisticState):
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, these_queries), None
 
-        def stat_fn(X):
+        def stat_fn(X, sigmoid=None):
             out = jax.eval_shape(temp_stat_fn, X[0], these_queries)
             stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]
             return stats / X.shape[0]
@@ -251,6 +251,11 @@ class MarginalsDiff(AdaptiveStatisticState):
         return stat_fn
 
 
+    @staticmethod
+    def get_all_kway_categorical_combinations(domain, k, bins=(32,)):
+        atts = domain.get_categorical_cols()
+        kway_combinations = [list(idx) for idx in itertools.combinations(atts, k)]
+        return MarginalsDiff(domain, kway_combinations, k, bins=bins)
 
     @staticmethod
     def get_all_kway_combinations(domain, k, bins=(32,)):

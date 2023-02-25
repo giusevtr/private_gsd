@@ -48,7 +48,7 @@ def print_mean(df_real, df_sync, config):
     print('sync:')
     print(df_sync[num_cols + ['PINCP']].corr())
     print(f'{"col":<7}: {"real mean":<10}|{"sync mean":<10}||{"real std":<10}|{"sync std":<10}')
-    return 0
+    # return 0
     for c in domain.get_numeric_cols():
         mean_real = df_real[c].mean()
         std_real = df_real[c].std()

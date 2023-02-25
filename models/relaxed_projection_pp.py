@@ -67,18 +67,22 @@ class RelaxedProjectionPP(Generator):
             def compute_loss(params, sigmoid):
                 w = params['w']
                 # Distance to the target statistics
-                l1 = jnp.linalg.norm(diff_stat_fn(softmax_fn(w), sigmoid=sigmoid) - target_stats) ** 2
+                loss = jnp.linalg.norm(diff_stat_fn(softmax_fn(w), sigmoid=sigmoid) - target_stats) ** 2
                 # Add a penalty if any numeric features moves outsize the range [0,1]
-                l2 = jnp.sum(jax.nn.sigmoid(sigmoid * (w[:, num_idx] - 1)))
-                l3 = jnp.sum(jax.nn.sigmoid(-sigmoid * (w[:, num_idx])))
-                return l1 + l2 + l3
-
+                loss += jnp.sum(jax.nn.sigmoid(sigmoid * (w[:, num_idx] - 1)))
+                loss += jnp.sum(jax.nn.sigmoid(-sigmoid * (w[:, num_idx])))
+                return loss
+            # def debug_compute_loss(params):
+            #     w = params['w']
+            #     # Distance to the target statistics
+            #     max_error = jnp.abs(diff_stat_fn(softmax_fn(w)) - target_stats).max()
+            #     return max_error
             compute_loss_jit = jax.jit(compute_loss)
             update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)
             update_fn_jit = jax.jit(update_fn)
             # update_fn_jit = (update_fn)
 
-            params = self.fit_help(params, opt_state, compute_loss_jit, update_fn_jit, lr)
+            params = self.fit_help(params, opt_state, compute_loss_jit, update_fn_jit)
             sync = softmax_fn(params['w'])
             loss = jnp.linalg.norm(target_stats - diff_stat_fn(sync))
             if min_loss is None or loss < min_loss:
@@ -91,7 +95,7 @@ class RelaxedProjectionPP(Generator):
         oh = Dataset.get_sample_onehot(key2, self.domain, X_relaxed=self.init_sync, num_samples=20)
         return Dataset.from_onehot_to_dataset(self.domain, oh)
 
-    def fit_help(self, params, opt_state, compute_loss_jit, update_fn_jit, lr):
+    def fit_help(self, params, opt_state, compute_loss_jit, update_fn_jit):
 
         stop_early = self.stop_early
 
@@ -108,6 +112,7 @@ class RelaxedProjectionPP(Generator):
             for t in range(self.iterations):
                 iters += 1
                 loss = compute_loss_jit(params, 2048)
+                # debug_loss = debug_compute_loss(params)
                 loss_hist.append(loss)
                 updates, opt_state = update_fn_jit(params, sigmoid, opt_state)
                 params = optax.apply_updates(params, updates)
