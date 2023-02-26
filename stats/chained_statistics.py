@@ -251,10 +251,8 @@ class ChainedStatistics:
             gau_noise = jax.random.normal(key_gaussian, shape=stats.shape) * sigma_gaussian
             selected_noised_stat = jnp.clip(stats + gau_noise, 0, 1)
             self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
-            self.first_adaptive_round += 1
 
     def reselect_stats(self):
-        self.first_adaptive_round = 0
         self.selected_workloads = []
         for stat_id in range(len(self.stat_modules)):
             self.selected_workloads.append([])

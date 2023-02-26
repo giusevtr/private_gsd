@@ -46,7 +46,7 @@ class Generator:
         return stop_early
 
     def fit(self, key: jax.random.PRNGKeyArray, stat: ChainedStatistics, init_data: Dataset = None,
-            tolerance: float = 0) -> Dataset:
+            tolerance: float = 0, adaptive_epoch: int = 1) -> Dataset:
         pass
 
     def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics, epsilon: float, delta: float,
@@ -59,8 +59,10 @@ class Generator:
     def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics, rho: float,
                  init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         key_stats, key_fit = jax.random.split(key)
+        stat_module.reselect_stats()
         stat_module.private_measure_all_statistics(key_stats, rho)
-        return self.fit(key_fit, stat_module, init_data, tolerance)
+
+        return self.fit(key_fit, stat_module, init_data, tolerance, adaptive_epoch=1)
 
     def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray,
                         stat_module: ChainedStatistics, rounds,
@@ -109,9 +111,9 @@ class Generator:
             key, key_fit = jax.random.split(key, 2)
             dataset: Dataset
             if start_sync:
-                new_sync_dataset = self.fit(key_fit, stat_module, sync_dataset, tolerance=tolerance)
+                new_sync_dataset = self.fit(key_fit, stat_module, sync_dataset, tolerance=tolerance, adaptive_epoch=i)
             else:
-                new_sync_dataset = self.fit(key_fit, stat_module, tolerance=tolerance)
+                new_sync_dataset = self.fit(key_fit, stat_module, tolerance=tolerance, adaptive_epoch=i)
             fit_time = timer() - fit_time
 
             if print_progress:

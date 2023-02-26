@@ -280,3 +280,8 @@ class MarginalsDiff(AdaptiveStatisticState):
 
         return MarginalsDiff(domain, kway_combinations, k, bins=bins)
 
+
+    @staticmethod
+    def get_kway_categorical(domain: Domain, k):
+        kway_combinations = [list(idx) for idx in itertools.combinations(domain.get_categorical_cols(), k)]
+        return MarginalsDiff(domain, kway_combinations, k, bins=[2])

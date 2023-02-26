@@ -107,7 +107,7 @@ if __name__ == "__main__":
                   f'\t avg error = {errors.mean():.5f}'
                   f'\t time = {timer() - t0:.4f}')
             print('Final ML Results:')
-            debug(-1, sync_data.df)
+            debug(-1, sync_data)
 
         print()
 

@@ -36,7 +36,7 @@ class RelaxedProjectionPP(Generator):
     def __str__(self):
         return 'RAP++'
 
-    def fit(self, key, adaptive_statistic: ChainedStatistics, init_data: Dataset=None, tolerance=0):
+    def fit(self, key, adaptive_statistic: ChainedStatistics, init_data: Dataset=None, tolerance=0, adaptive_epoch=1):
 
         softmax_fn = lambda X: Dataset.apply_softmax(self.domain, X)
         data_dim = self.domain.get_dimension()
@@ -44,9 +44,9 @@ class RelaxedProjectionPP(Generator):
 
         # Check if this is the first adaptive round. If so, then initialize a synthetic data
         # selected_workloads = len(adaptive_statistic.selected_workloads)
-        if adaptive_statistic.first_adaptive_round > 1:
-            if self.print_progress: print('Initializing relaxed dataset')
-            self.init_sync = softmax_fn(jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))
+        # if adaptive_epoch == 1:
+        if self.print_progress: print('Initializing relaxed dataset')
+        self.init_sync = softmax_fn(jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))
 
         target_stats = adaptive_statistic.get_selected_noised_statistics()
         diff_stat_fn = adaptive_statistic.get_selected_statistics_fn()
@@ -69,8 +69,8 @@ class RelaxedProjectionPP(Generator):
                 # Distance to the target statistics
                 loss = jnp.linalg.norm(diff_stat_fn(softmax_fn(w), sigmoid=sigmoid) - target_stats) ** 2
                 # Add a penalty if any numeric features moves outsize the range [0,1]
-                loss += jnp.sum(jax.nn.sigmoid(sigmoid * (w[:, num_idx] - 1)))
-                loss += jnp.sum(jax.nn.sigmoid(-sigmoid * (w[:, num_idx])))
+                loss += jnp.sum(jax.nn.sigmoid(2**15 * (w[:, num_idx] - 1)))
+                loss += jnp.sum(jax.nn.sigmoid(-2**15 * (w[:, num_idx])))
                 return loss
             # def debug_compute_loss(params):
             #     w = params['w']

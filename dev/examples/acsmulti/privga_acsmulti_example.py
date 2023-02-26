@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
-from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff
+from stats import ChainedStatistics, Halfspace, Prefix, Marginals
 # from utils.utils_data import get_data
 from utils import timer
 import jax.numpy as jnp
@@ -63,26 +63,26 @@ if __name__ == "__main__":
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
-    module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
-    # module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
-    #                         num_random_halfspaces=50000)
+    module0 = Marginals.get_kway_categorical(data.domain, k=2)
+    module1 = Halfspace(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
+                            num_random_halfspaces=50000)
     stat_module = ChainedStatistics([module0,
-                                     # module1
+                                     module1
                                      ])
     stat_module.fit(data)
 
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = RelaxedProjectionPP(domain=data.domain, data_size=1000, iterations=1000, learning_rate=[0.01], print_progress=False)
+    algo = PrivGA(num_generations=40000, print_progress=False, stop_early=True, strategy=SimpleGAforSyncData(domain=data.domain, elite_size=5, data_size=2000))
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
-    for eps in [1.00, 0.07]:
-    # for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
-    #     for seed in [0, 1, 2]:
-        for seed in [0]:
+    # for eps in [1.00, 0.07]:
+    for eps in [0.07, 0.23, 1.0]:
+        for seed in [0, 1, 2]:
+        # for seed in [0]:
             key = jax.random.PRNGKey(seed)
             t0 = timer()
 
@@ -92,19 +92,19 @@ if __name__ == "__main__":
                 results = results[results['Eval Data'] == 'Test']
                 print(results)
                 n_sync = len(sync_data.df)
-                visualize(df_real=df_train.sample(n=n_sync), df_sync=sync_data.df, msg=f'epoch={i}')
+                # visualize(df_real=df_train.sample(n=n_sync), df_sync=sync_data.df, msg=f'epoch={i}')
 
 
-            num_sample = 1
+            num_sample = 10
             sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta,
-                                             rounds=20,
+                                             rounds=70,
                                              num_sample=num_sample,
                                              debug_fn=debug
                                     )
 
-            sync_data.df.to_csv(f'rap++_{dataset_name}_sync_{eps:.2f}_{seed}.csv', index=False)
+            sync_data.df.to_csv(f'sync_data/privga_{dataset_name}_sync_{eps:.2f}_{seed}.csv', index=False)
             errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
-            print(f'RAP++: eps={eps:.2f}, seed={seed}'
+            print(f'PrivGA: eps={eps:.2f}, seed={seed}'
                   f'\t max error = {errors.max():.5f}'
                   f'\t avg error = {errors.mean():.5f}'
                   f'\t time = {timer() - t0:.4f}')

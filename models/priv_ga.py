@@ -263,7 +263,8 @@ class PrivGA(Generator):
     def __str__(self):
         return f'PrivGA'
 
-    def fit(self, key, adaptive_statistic: ChainedStatistics, sync_dataset: Dataset=None, tolerance: float = 0.0):
+    def fit(self, key, adaptive_statistic: ChainedStatistics,
+            sync_dataset: Dataset=None, tolerance: float = 0.0, adaptive_epoch=1):
         """
         Minimize error between real_stats and sync_stats
         """
