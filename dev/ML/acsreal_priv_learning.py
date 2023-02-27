@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
 
     # Preprocess data.
-    df_train, df_test = filter_outliers(df_train, df_test, config, visualize_columns=True)
+    df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=True)
     scale_real_valued = True
 
     domain = Domain.fromdict(config)
@@ -71,7 +71,7 @@ if __name__ == "__main__":
                 Res.append(['NP-LogReg', target, eps, 'Accuracy', seed,  orig_acc])
 
 
-                clf = PrivLogisticRegression(epsilon=eps, data_norm=data_norm, max_iter=5000)
+                clf = PrivLogisticRegression(epsilon=eps, data_norm=data_norm, max_iter=5000, C=1)
                 clf.fit(X_train, y_train)
                 y_pred = clf.predict(X_test)
                 rep = classification_report(y_test, y_pred, output_dict=True)

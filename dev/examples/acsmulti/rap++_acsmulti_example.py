@@ -46,7 +46,7 @@ if __name__ == "__main__":
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
 
-    df_train, df_test = filter_outliers(df_train, df_test, config, visualize_columns=False)
+    df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=False)
 
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
