@@ -74,13 +74,13 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = PrivGA(num_generations=40000, print_progress=False, stop_early=True, strategy=SimpleGAforSyncData(domain=data.domain, elite_size=5, data_size=2000))
+    algo = PrivGA(num_generations=80000, print_progress=False, stop_early=True, strategy=SimpleGAforSyncData(domain=data.domain, elite_size=5, data_size=2000))
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
-    # for eps in [1.00, 0.07]:
-    for eps in [0.07, 0.23, 1.0]:
+    for eps in [10]:
+    # for eps in [0.07, 0.23, 1.0]:
         for seed in [0, 1, 2]:
         # for seed in [0]:
             key = jax.random.PRNGKey(seed)
@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
             num_sample = 10
             sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta,
-                                             rounds=70,
+                                             rounds=200,
                                              num_sample=num_sample,
                                              debug_fn=debug
                                     )

@@ -9,9 +9,8 @@ from utils import timer
 import jax.numpy as jnp
 # from dp_data.data import get_data
 from dp_data import load_domain_config, load_df, get_evaluate_ml
-from utils import timer, Dataset, Domain
+from utils import timer, Dataset, Domain, filter_outliers
 import seaborn as sns
-
 def visualize(df_real, df_sync, msg=''):
     domain = Domain.fromdict(config)
 
@@ -47,6 +46,8 @@ if __name__ == "__main__":
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
 
+    df_train, df_test = filter_outliers(df_train, df_test, config, visualize_columns=False)
+
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
     domain = Domain.fromdict(config)
@@ -64,10 +65,11 @@ if __name__ == "__main__":
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
     module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
-    # module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
-    #                         num_random_halfspaces=50000)
+    module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
+                            num_random_halfspaces=1000000)
+    # HalfspaceDiff.ge
     stat_module = ChainedStatistics([module0,
-                                     # module1
+                                     module1
                                      ])
     stat_module.fit(data)
 
@@ -91,13 +93,13 @@ if __name__ == "__main__":
                 results = ml_eval_fn(sync_data.df, seed)
                 results = results[results['Eval Data'] == 'Test']
                 print(results)
-                n_sync = len(sync_data.df)
-                visualize(df_real=df_train.sample(n=n_sync), df_sync=sync_data.df, msg=f'epoch={i}')
+                # n_sync = len(sync_data.df)
+                # visualize(df_real=df_train.sample(n=n_sync), df_sync=sync_data.df, msg=f'epoch={i}')
 
 
-            num_sample = 1
+            num_sample = 10
             sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta,
-                                             rounds=20,
+                                             rounds=70,
                                              num_sample=num_sample,
                                              debug_fn=debug
                                     )
