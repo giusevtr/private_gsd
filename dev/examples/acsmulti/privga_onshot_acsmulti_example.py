@@ -14,41 +14,21 @@ from dp_data import load_domain_config, load_df, get_evaluate_ml
 from utils import timer, Dataset, Domain, filter_outliers
 import seaborn as sns
 
-def visualize(df_real, df_sync, msg=''):
-    domain = Domain.fromdict(config)
-
-    for num_col in domain.get_numeric_cols():
-        real_mean = df_real[num_col].mean()
-        real_std = df_real[num_col].std()
-        sync_mean = df_sync[num_col].mean()
-        sync_std = df_sync[num_col].std()
-        print(f'{num_col:<10}. real.mean={real_mean:<5.3}, real.std={real_std:<5.3}, '
-              f'sync.mean={sync_mean:<5.3f}, sync.std={sync_std:<5.3f}')
-
-        col_real = df_real[num_col].to_frame()
-        col_real['Type'] = 'real'
-        col_sync = df_sync[num_col].to_frame()
-        col_sync['Type'] = 'sync'
-
-        df = pd.concat([col_real, col_sync])
-
-        g = sns.FacetGrid(df,  hue='Type')
-        g.map(plt.hist, num_col, alpha=0.5)
-        g.fig.subplots_adjust(top=0.9)  # adjust the Figure in rp
-        g.fig.suptitle(msg)
-        g.add_legend()
-        # g.set(yscale='log')
-        plt.show()
-
-    return df_train, df_test
-
 if __name__ == "__main__":
+    clipped_data = False
+    # epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
+    epsilon_vals = [0.23, 0.52, 0.74, 1]
+
+
     dataset_name = 'folktables_2018_multitask_NY'
     root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
     # df_train, df_test = filter_outliers(df_train, df_test, quantile=0.02, config=config)
+    if clipped_data:
+        df_train, df_test = filter_outliers(df_train, df_test, quantile=0.02, config=config)
+        dataset_name = dataset_name + "_clipped"
 
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
@@ -79,7 +59,7 @@ if __name__ == "__main__":
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     # for eps in [1]:
-    for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
+    for eps in epsilon_vals:
         for seed in [0, 1, 2]:
         # for seed in [0]:
             sync_dir = f'sync_data/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/'
@@ -93,7 +73,6 @@ if __name__ == "__main__":
                 results = ml_eval_fn(sync_data.df, seed)
                 results = results[results['Eval Data'] == 'Test']
                 print(results)
-                n_sync = len(sync_data.df)
 
             sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=eps, delta=delta)
 

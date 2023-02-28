@@ -50,14 +50,13 @@ def filter_outliers(df_train, df_test, config, quantile=0.01, visualize_columns=
 
     return df_train, df_test
 
-
 def separate_cat_and_num_cols(domain, features):
     # train_cols = [c for c in domain.attrs if c != target]
     train_cols_num = [c for c in features if domain[c] == 1]
     train_cols_cat = [c for c in features if c not in train_cols_num]
     return train_cols_num, train_cols_cat
 def get_Xy(domain: Domain, features: list, target, df_train: pd.DataFrame, df_test: pd.DataFrame,
-           scale_real_valued=True):
+           rescale=True):
     cols_num, cols_cat = separate_cat_and_num_cols(domain, features)
     y_train = df_train[target].values
     y_test = df_test[target].values
@@ -78,7 +77,8 @@ def get_Xy(domain: Domain, features: list, target, df_train: pd.DataFrame, df_te
     if len(cols_num) > 0:
         X_num_train = df_train[cols_num].values
         X_num_test = df_test[cols_num].values
-        if scale_real_valued:
+
+        if rescale:
             scaler = StandardScaler()
             scaler.fit(X_num_train)
             X_num_train = scaler.transform(X_num_train)
@@ -90,6 +90,12 @@ def get_Xy(domain: Domain, features: list, target, df_train: pd.DataFrame, df_te
         else:
             X_train = X_num_train
             X_test = X_num_test
+
+    # if rescale:
+    #     scaler = StandardScaler()
+    #     scaler.fit(X_train)
+    #     X_train = scaler.transform(X_train)
+    #     X_test = scaler.transform(X_test)
 
     assert X_train is not None
     assert X_test is not None
