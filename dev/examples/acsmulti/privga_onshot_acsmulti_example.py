@@ -82,7 +82,7 @@ if __name__ == "__main__":
     for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
         for seed in [0, 1, 2]:
         # for seed in [0]:
-            sync_dir = f'sync_data/{dataset_name}/PrivGA/oneshot/{eps:.2f}/'
+            sync_dir = f'sync_data/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)
 
             key = jax.random.PRNGKey(seed)
