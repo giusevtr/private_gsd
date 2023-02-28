@@ -19,7 +19,7 @@ from ml_utils import filter_outliers
 
 if __name__ == "__main__":
     # epsilon_vals = [0.07, 0.1, 0.15, 0.23, 0.52 ,0.74, 1, 2, 5, 10]
-    epsilon_vals = [0.07, 0.15, 0.52,0.74, 1]
+    epsilon_vals = [0.07, 0.15, 0.52,0.74, 1, 5, 10]
 
     # dataset_name = 'folktables_2018_real_NY'
     dataset_name = 'folktables_2018_multitask_NY'
@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
 
     # Preprocess data.
-    df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=True)
+    # df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=False)
     scale_real_valued = True
 
     domain = Domain.fromdict(config)

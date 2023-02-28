@@ -1,9 +1,11 @@
+import os
+
 import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
-from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff
+from stats import ChainedStatistics, Halfspace, Prefix, Marginals
 # from utils.utils_data import get_data
 from utils import timer
 import jax.numpy as jnp
@@ -11,6 +13,7 @@ import jax.numpy as jnp
 from dp_data import load_domain_config, load_df, get_evaluate_ml
 from utils import timer, Dataset, Domain, filter_outliers
 import seaborn as sns
+
 def visualize(df_real, df_sync, msg=''):
     domain = Domain.fromdict(config)
 
@@ -45,8 +48,7 @@ if __name__ == "__main__":
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
-
-    df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=False)
+    # df_train, df_test = filter_outliers(df_train, df_test, quantile=0.02, config=config)
 
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
@@ -64,27 +66,25 @@ if __name__ == "__main__":
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
-    module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
-    module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
-                            num_random_halfspaces=1000000)
-    # HalfspaceDiff.ge
-    stat_module = ChainedStatistics([module0,
-                                     module1
-                                     ])
+    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    stat_module = ChainedStatistics([module0])
     stat_module.fit(data)
 
     true_stats = stat_module.get_all_true_statistics()
-    stat_fn = stat_module.get_dataset_statistics_fn()
+    stat_fn = stat_module._get_workload_fn()
 
-    algo = RelaxedProjectionPP(domain=data.domain, data_size=1000, iterations=1000, learning_rate=[0.01], print_progress=False)
+    algo = PrivGA(num_generations=20000, print_progress=False, stop_early=True, strategy=SimpleGAforSyncData(domain=data.domain, elite_size=2, data_size=1000))
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
-    for eps in [1.00, 0.07]:
-    # for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
-    #     for seed in [0, 1, 2]:
-        for seed in [0]:
+    # for eps in [1]:
+    for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
+        for seed in [0, 1, 2]:
+        # for seed in [0]:
+            sync_dir = f'sync_data/{dataset_name}/PrivGA/oneshot/{eps:.2f}/'
+            os.makedirs(sync_dir, exist_ok=True)
+
             key = jax.random.PRNGKey(seed)
             t0 = timer()
 
@@ -93,20 +93,13 @@ if __name__ == "__main__":
                 results = ml_eval_fn(sync_data.df, seed)
                 results = results[results['Eval Data'] == 'Test']
                 print(results)
-                # n_sync = len(sync_data.df)
-                # visualize(df_real=df_train.sample(n=n_sync), df_sync=sync_data.df, msg=f'epoch={i}')
+                n_sync = len(sync_data.df)
 
+            sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=eps, delta=delta)
 
-            num_sample = 10
-            sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta,
-                                             rounds=70,
-                                             num_sample=num_sample,
-                                             debug_fn=debug
-                                    )
-
-            sync_data.df.to_csv(f'rap++_{dataset_name}_sync_{eps:.2f}_{seed}.csv', index=False)
-            errors = jnp.abs(true_stats - stat_fn(sync_data))
-            print(f'RAP++: eps={eps:.2f}, seed={seed}'
+            sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+            errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
+            print(f'PrivGA(oneshot): eps={eps:.2f}, seed={seed}'
                   f'\t max error = {errors.max():.5f}'
                   f'\t avg error = {errors.mean():.5f}'
                   f'\t time = {timer() - t0:.4f}')
