@@ -139,7 +139,7 @@ class ChainedStatistics:
     def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
         pass
 
-    def private_measure_all_statistics(self, key: chex.PRNGKey, rho: float):
+    def private_measure_all_statistics(self, key: chex.PRNGKey, rho: float, stat_ids: list = None):
         self.selected_workloads = []
         for stat_id in range(len(self.stat_modules)):
             self.selected_workloads.append([])
@@ -147,7 +147,10 @@ class ChainedStatistics:
         m = self.get_num_workloads()
         rho_per_marginal = rho / m
 
-        for stat_id in range(len(self.stat_modules)):
+        # Choose the statistic modules to measure with zCDP
+        measure_stats_ids = range(len(self.stat_modules)) if stat_ids is None else stat_ids
+
+        for stat_id in measure_stats_ids:
             stat_mod = self.stat_modules[stat_id]
             true_stats = self.modules_all_statistics[stat_id]
 

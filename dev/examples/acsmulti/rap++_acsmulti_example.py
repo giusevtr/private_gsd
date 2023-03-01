@@ -9,8 +9,13 @@ from utils import timer
 import jax.numpy as jnp
 # from dp_data.data import get_data
 from dp_data import load_domain_config, load_df, get_evaluate_ml
-from utils import timer, Dataset, Domain, filter_outliers
+from utils import timer, Dataset, Domain , get_Xy
 import seaborn as sns
+from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
+from sklearn.linear_model import LogisticRegression
+
+
+
 def visualize(df_real, df_sync, msg=''):
     domain = Domain.fromdict(config)
 
@@ -39,34 +44,47 @@ def visualize(df_real, df_sync, msg=''):
 
     return df_train, df_test
 
+
+def ml_eval_fn(df_test, features, target, domain):
+
+    def fn(df_train):
+        X_train, y_train, X_test, y_test = get_Xy(domain, features=features, target=target, df_train=df_train,
+                                                  df_test=df_test, rescale=True)
+        clf = LogisticRegression(max_iter=5000, random_state=0)
+        clf.fit(X_train, y_train)
+        rep = classification_report(y_test, clf.predict(X_test), output_dict=True)
+        f1 = rep['macro avg']['f1-score']
+        return f1
+
+    return fn
+
 if __name__ == "__main__":
     dataset_name = 'folktables_2018_multitask_NY'
     root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
-
-    df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=False)
-
-    print(f'train size: {df_train.shape}')
-    print(f'test size:  {df_test.shape}')
     domain = Domain.fromdict(config)
     data = Dataset(df_train, domain)
 
     targets = ['PINCP',  'PUBCOV', 'ESR']
+    features = []
+    for f in domain.attrs:
+        if f not in targets:
+            features.append(f)
     #############
     ## ML Function
-    ml_eval_fn = get_evaluate_ml(df_test, config, targets=targets, models=['LogisticRegression'])
+    ml_eval_fn = ml_eval_fn(df_test, features, 'PINCP', domain)
 
-    orig_train_results = ml_eval_fn(df_train, 0)
-    print(f'Original train data ML results:')
-    print(orig_train_results)
+    orig_train_results = ml_eval_fn(df_train)
+    print(f'Original train data ML results:', orig_train_results)
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
     module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
-    module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
-                            num_random_halfspaces=1000000)
+    # module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
+    #                         num_random_halfspaces=10000)
+    module1 = HalfspaceDiff.get_kway_random_halfspaces(data.domain, k=1, rng=key, random_hs=200000)
     # HalfspaceDiff.ge
     stat_module = ChainedStatistics([module0,
                                      module1
@@ -81,25 +99,24 @@ if __name__ == "__main__":
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
-    for eps in [1.00, 0.07]:
-    # for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
-    #     for seed in [0, 1, 2]:
-        for seed in [0]:
+    # for eps in [1.00, 0.07]:
+    for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
+        for seed in [0, 1, 2]:
+        # for seed in [0]:
             key = jax.random.PRNGKey(seed)
             t0 = timer()
 
             def debug(i, sync_data: Dataset):
-                print(f'results epoch {i}:')
-                results = ml_eval_fn(sync_data.df, seed)
-                results = results[results['Eval Data'] == 'Test']
-                print(results)
+                print(f'epoch {i}, ML f1 score :', ml_eval_fn(sync_data.df))
                 # n_sync = len(sync_data.df)
                 # visualize(df_real=df_train.sample(n=n_sync), df_sync=sync_data.df, msg=f'epoch={i}')
 
-
             num_sample = 10
-            sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=delta,
-                                             rounds=70,
+            sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module,
+                                           oneshot_stats_ids=[0],
+                                           oneshot_share=0.4,
+                                           rounds=50,
+                                           epsilon=eps, delta=delta,
                                              num_sample=num_sample,
                                              debug_fn=debug
                                     )

@@ -15,9 +15,8 @@ from utils import timer, Dataset, Domain, filter_outliers
 import seaborn as sns
 
 if __name__ == "__main__":
-    clipped_data = False
     # epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
-    epsilon_vals = [0.23, 0.52, 0.74, 1]
+    epsilon_vals = [1, 10]
 
 
     dataset_name = 'folktables_2018_multitask_NY'
@@ -25,10 +24,6 @@ if __name__ == "__main__":
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
-    # df_train, df_test = filter_outliers(df_train, df_test, quantile=0.02, config=config)
-    if clipped_data:
-        df_train, df_test = filter_outliers(df_train, df_test, quantile=0.02, config=config)
-        dataset_name = dataset_name + "_clipped"
 
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
@@ -53,7 +48,7 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = PrivGA(num_generations=20000, print_progress=False, stop_early=True, strategy=SimpleGAforSyncData(domain=data.domain, elite_size=2, data_size=1000))
+    algo = PrivGA(num_generations=40000, print_progress=False, stop_early=True, strategy=SimpleGAforSyncData(domain=data.domain, elite_size=2, data_size=1000))
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2

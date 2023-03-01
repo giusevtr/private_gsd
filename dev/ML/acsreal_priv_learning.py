@@ -69,11 +69,11 @@ if __name__ == "__main__":
                 f1 = rep['macro avg']['f1-score']
                 acc = rep['accuracy']
                 print(f'{dataset_name}, target={target}, eps={eps}, f1={f1}')
-                Res.append([dataset_name, 'Yes', 'DP-LR', target, eps, 'F1', seed, f1])
-                Res.append([dataset_name, 'Yes', 'DP-LR', target, eps, 'Accuracy', seed, acc])
+                Res.append([dataset_name, 'Yes', 'DP-Obj-Per', 'LR', target, eps, 'F1', seed, f1])
+                Res.append([dataset_name, 'Yes', 'DP-Obj-Per', 'LR', target, eps, 'Accuracy', seed, acc])
 
 
-    results = pd.DataFrame(Res, columns=['Dataset', 'Is DP', 'Method', 'Target', 'Epsilon', 'Metric', 'Seed', 'Score'])
+    results = pd.DataFrame(Res, columns=['Dataset', 'Is DP', 'Method', 'Model', 'Target', 'Epsilon', 'Metric', 'Seed', 'Score'])
 
     if os.path.exists('results.csv'):
         results_pre = pd.read_csv('results.csv', index_col=None)

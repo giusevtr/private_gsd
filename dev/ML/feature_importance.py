@@ -6,6 +6,7 @@ import seaborn as sns
 from dp_data import load_domain_config, load_df
 from utils import timer, Dataset, Domain, get_Xy
 import numpy as np
+from sklearn.inspection import permutation_importance
 
 
 # from diffprivlib.models import  LogisticRegression  as PrivLogisticRegression
@@ -18,11 +19,6 @@ from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
 from ml_utils import filter_outliers
 
 if __name__ == "__main__":
-    # epsilon_vals = [0.07, 0.1, 0.15, 0.23, 0.52 ,0.74, 1, 2, 5, 10]
-    epsilon_vals = [0.07, 0.23, 0.52,0.74, 1]
-    Method = 'PrivGA(oneshot)'
-
-    # dataset_name = 'folktables_2018_real_NY'
     dataset_name = 'folktables_2018_multitask_NY'
     root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
@@ -43,14 +39,41 @@ if __name__ == "__main__":
         if f not in targets:
             features.append(f)
 
-    sync_path = f'../examples/acsmulti/sync_data/{dataset_name}/PrivGA/Ranges/oneshot/1.00/sync_data_0.csv'
+    sync_path = f'../examples/acsmulti/sync_data/{dataset_name}/PrivGA/Ranges/oneshot/0.52/sync_data_0.csv'
     df_sync = pd.read_csv(sync_path, index_col=None)
     #
-    X_train, y_train, X_test, y_test = get_Xy(domain, features=features, target='PINCP', df_train=df_sync,
+    X_train, y_train, X_test, y_test = get_Xy(domain, features=features, target='PINCP',
+                                              df_train=df_train,
                                                       df_test=df_test, rescale=True)
 
     clf = RandomForestClassifier(random_state=0)
     clf.fit(X_train, y_train)
+    result = permutation_importance(clf, X_train, y_train, n_repeats=10, random_state=0)
+
+    importances = result.importances_mean
+    std = result.importances_std
+
+    indices = np.argsort(importances)[::-1]
+    indices = indices[:25]
+
+
+    # importances = clf.feature_importances_
+    # std = np.std([tree.feature_importances_ for tree in clf.estimators_], axis=0)
+    # indices = np.argsort(importances)[::-1]
+    #
+    # indices = indices[:25]
+    # # Plot the impurity-based feature importances of the forest
+    #
+    x_labels = [f'f={x}' for x in indices]
+    plt.figure()
+    plt.title("Feature importances")
+    plt.bar(x=x_labels, height=importances[indices],
+            color="r", yerr=std[indices], align="center")
+    plt.xticks(rotation=60)
+    # plt.xlim([-1, X_train.shape[1]])
+    plt.xlim([-1, 25])
+    plt.show()
+
     #                 y_pred = clf.predict(X_test)
     #                 rep = classification_report(y_test, y_pred, output_dict=True)
     #                 f1 = rep['macro avg']['f1-score']

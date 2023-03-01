@@ -21,7 +21,7 @@ if __name__ == "__main__":
     # epsilon_vals = [0.07, 0.1, 0.15, 0.23, 0.52 ,0.74, 1, 2, 5, 10]
     evaluate_original = False
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1, 10]
-    seeds = [0]
+    seeds = [0, 1, 2]
     Method = 'PrivGA'
     # Method = 'RAP'
 
@@ -35,8 +35,8 @@ if __name__ == "__main__":
     targets = ['PINCP',  'PUBCOV', 'ESR']
 
 
-    models = [('LG', lambda :LogisticRegression(max_iter=5000, random_state=0)),
-              ('RF', lambda : RandomForestClassifier(random_state=0))]
+    models = [('LR', lambda :LogisticRegression(max_iter=5000, random_state=0)),
+              ('RF', lambda : RandomForestClassifier( random_state=0))]
     # Preprocess data.
     # df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=False)
     scale_real_valued = True
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     Res = []
     for target in ['PINCP', 'PUBCOV']:
-        X_train, y_train, X_test, y_test = get_Xy(domain, features=features, target=target, df_train=df_train,
+        X_train_orig, y_train_orig, X_test_orig, y_test_orig = get_Xy(domain, features=features, target=target, df_train=df_train,
                                                   df_test=df_test, rescale=scale_real_valued)
 
         #############################
@@ -58,9 +58,9 @@ if __name__ == "__main__":
         if evaluate_original:
             for model_name, model in models:
                 clf = model()
-                clf.fit(X_train, y_train)
-                y_pred = clf.predict(X_test)
-                rep = classification_report(y_test, y_pred, output_dict=True)
+                clf.fit(X_train_orig, y_train_orig)
+                y_pred = clf.predict(X_test_orig)
+                rep = classification_report(y_test_orig, y_pred, output_dict=True)
                 f1 = rep['macro avg']['f1-score']
                 acc = rep['accuracy']
                 method = model_name
@@ -80,29 +80,44 @@ if __name__ == "__main__":
                 if not os.path.exists(sync_path): continue
                 df_sync = pd.read_csv(sync_path, index_col=None)
 
-                X_train, y_train, X_test, y_test = get_Xy(domain, features=features, target=target, df_train=df_sync,
-                                                          df_test=df_test, rescale=scale_real_valued)
+                # X_train_temp, y_train_temp, X_test_temp, y_test_temp = get_Xy(domain, features=features, target=target,
+                #                                                               df_train=df_train,
+                #                                                               df_test=df_sync,
+                #                                                               rescale=scale_real_valued)
+
+
+                X_train, y_train, X_test, y_test = get_Xy(domain, features=features, target=target,
+                                                        df_train=df_sync, df_test=df_test, rescale=scale_real_valued)
 
                 for model_name, model in models:
+
+
+                    clf = model()
+                    clf.fit(X_train, y_train)
+                    y_pred_train = clf.predict(X_train)
+                    rep_train = classification_report(y_train, y_pred_train, output_dict=True)
+                    f1_train = rep_train['macro avg']['f1-score']
+                    acc_train = rep_train['accuracy']
+
                     clf = model()
                     clf.fit(X_train, y_train)
                     y_pred = clf.predict(X_test)
                     rep = classification_report(y_test, y_pred, output_dict=True)
                     f1 = rep['macro avg']['f1-score']
                     acc = rep['accuracy']
-                    method = Method+'+'+model_name
-                    print(f'{dataset_name}, {method}, target={target},  eps={eps}, f1={f1}')
-                    Res.append([dataset_name, 'Yes', method, target, eps, 'F1', seed, f1])
-                    Res.append([dataset_name, 'Yes', method, target, eps, 'Accuracy', seed, acc])
+                    print(f'{dataset_name}, {Method}+{model_name}, target={target},  eps={eps}:'
+                          f'\tacc_train={acc_train:.3f}, f1_train={f1_train:.3f}\t acc_test={acc:.3f}, f1_test={f1:.3f}')
+                    Res.append([dataset_name, 'Yes', Method, model_name, target, eps, 'F1', seed, f1])
+                    Res.append([dataset_name, 'Yes', Method, model_name, target, eps, 'Accuracy', seed, acc])
 
 
-    results = pd.DataFrame(Res, columns=['Dataset', 'Is DP', 'Method', 'Target', 'Epsilon', 'Metric', 'Seed', 'Score'])
+    results = pd.DataFrame(Res, columns=['Dataset', 'Is DP', 'Method', 'Model', 'Target', 'Epsilon', 'Metric', 'Seed', 'Score'])
     print(results)
     if os.path.exists('results.csv'):
         results_pre = pd.read_csv('results.csv', index_col=None)
         results = results_pre.append(results)
-    print(f'Saving results.csv')
-    results.to_csv('results.csv', index=False)
+    # print(f'Saving results.csv')
+    # results.to_csv('results.csv', index=False)
 
     # df_sync1 = pd.read_csv('folktables_2018_multitask_NY_sync_0.07_0.csv')
     # df_sync2 = pd.read_csv('folktables_2018_multitask_NY_sync_1.00_0.csv')
