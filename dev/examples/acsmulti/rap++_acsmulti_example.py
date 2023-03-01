@@ -1,7 +1,7 @@
 import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import os
 from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
 from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff
 # from utils.utils_data import get_data
@@ -85,7 +85,6 @@ if __name__ == "__main__":
     # module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
     #                         num_random_halfspaces=10000)
     module1 = HalfspaceDiff.get_kway_random_halfspaces(data.domain, k=1, rng=key, random_hs=200000)
-    # HalfspaceDiff.ge
     stat_module = ChainedStatistics([module0,
                                      module1
                                      ])
@@ -95,40 +94,32 @@ if __name__ == "__main__":
     stat_fn = stat_module.get_dataset_statistics_fn()
 
     algo = RelaxedProjectionPP(domain=data.domain, data_size=1000, iterations=1000, learning_rate=[0.01], print_progress=False)
-    # Choose algorithm parameters
 
+    num_sample = 10
     delta = 1.0 / len(data) ** 2
-    # Generate differentially private synthetic data with ADAPTIVE mechanism
     # for eps in [1.00, 0.07]:
-    for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
+    for eps in [0.07, 0.23, 0.52, 0.74, 1.0, 10.0]:
         for seed in [0, 1, 2]:
-        # for seed in [0]:
-            key = jax.random.PRNGKey(seed)
-            t0 = timer()
-
-            def debug(i, sync_data: Dataset):
-                print(f'epoch {i}, ML f1 score :', ml_eval_fn(sync_data.df))
-                # n_sync = len(sync_data.df)
-                # visualize(df_real=df_train.sample(n=n_sync), df_sync=sync_data.df, msg=f'epoch={i}')
-
-            num_sample = 10
-            sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module,
-                                           oneshot_stats_ids=[0],
-                                           oneshot_share=0.4,
-                                           rounds=50,
-                                           epsilon=eps, delta=delta,
-                                             num_sample=num_sample,
-                                             debug_fn=debug
-                                    )
-
-            sync_data.df.to_csv(f'rap++_{dataset_name}_sync_{eps:.2f}_{seed}.csv', index=False)
-            errors = jnp.abs(true_stats - stat_fn(sync_data))
-            print(f'RAP++: eps={eps:.2f}, seed={seed}'
-                  f'\t max error = {errors.max():.5f}'
-                  f'\t avg error = {errors.mean():.5f}'
-                  f'\t time = {timer() - t0:.4f}')
-            print('Final ML Results:')
-            debug(-1, sync_data)
+            for rounds in [30, 50]:
+                key = jax.random.PRNGKey(seed)
+                t0 = timer()
+                sync_dir = f'sync_data/{dataset_name}/RAP++/Halfspaces/{rounds}/{num_sample}/{eps:.2f}/'
+                os.makedirs(sync_dir, exist_ok=True)
+                sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module,
+                            oneshot_stats_ids=[0],
+                            oneshot_share=0.4,
+                            rounds=rounds,
+                            epsilon=eps, delta=delta,
+                            num_sample=num_sample,
+                            debug_fn=lambda i, sync_data: print(f'epoch {i}, ML f1 score :', ml_eval_fn(sync_data.df))
+                            )
+                sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+                errors = jnp.abs(true_stats - stat_fn(sync_data))
+                print(f'RAP++: eps={eps:.2f}, seed={seed}'
+                      f'\t max error = {errors.max():.5f}'
+                      f'\t avg error = {errors.mean():.5f}'
+                      f'\t time = {timer() - t0:.4f}')
+                print(f'Final ML Results: :', ml_eval_fn(sync_data.df))
 
         print()
 
