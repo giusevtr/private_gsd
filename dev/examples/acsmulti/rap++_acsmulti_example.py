@@ -84,7 +84,10 @@ if __name__ == "__main__":
     module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
     # module1 = HalfspaceDiff(domain=data.domain, k_cat=1, cat_kway_combinations=[('PINCP',),  ('PUBCOV', )], rng=key,
     #                         num_random_halfspaces=10000)
-    module1 = HalfspaceDiff.get_kway_random_halfspaces(data.domain, k=1, rng=key, random_hs=200000)
+    # module1 = HalfspaceDiff.get_kway_random_halfspaces(data.domain, k=1, rng=key, random_hs=200000)
+    module1 = HalfspaceDiff(domain=data.domain, k_cat=1,
+                            cat_kway_combinations=[('PINCP',),  ('PUBCOV', ), ('ERS', )], rng=key,
+                            num_random_halfspaces=1000000)
     stat_module = ChainedStatistics([module0,
                                      module1
                                      ])
