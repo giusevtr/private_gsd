@@ -83,7 +83,7 @@ if __name__ == "__main__":
     #
     # Res = []
     #         for seed in [0, 1, 2]:
-    #             sync_path = f'../examples/acsmulti/sync_data/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/sync_data_{seed}.csv'
+    #             sync_path = f'../examples/acsmulti/sync_data/{dataset_name}/PrivateGSD/Ranges/oneshot/{eps:.2f}/sync_data_{seed}.csv'
     #
     #             df_sync = pd.read_csv(sync_path, index_col=None)
     #

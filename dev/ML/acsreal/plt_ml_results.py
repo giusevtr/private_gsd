@@ -8,10 +8,10 @@ import seaborn as sns
 if __name__ == '__main__':
     # results = pd.read_csv('acsreal_results_Halfspaces.csv', index_col=0)
     results_privga = pd.read_csv('acsreal_results_PrivGA_Halfspaces.csv', index_col=0)
-    results_privga['Method'] = 'PrivGA(HS)'
+    results_privga['Method'] = 'PrivateGSD(HS)'
 
     results_privga_pr = pd.read_csv('acsreal_results_PrivGA_Prefix.csv', index_col=0)
-    results_privga_pr['Method'] = 'PrivGA(Prefix)'
+    results_privga_pr['Method'] = 'PrivateGSD(Prefix)'
 
     results_rappp = pd.read_csv('acsreal_results_RAP++_Halfspaces.csv', index_col=0)
     results_rappp['Method'] = 'RAP++(HS)'

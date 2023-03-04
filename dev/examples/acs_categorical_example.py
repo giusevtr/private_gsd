@@ -1,5 +1,5 @@
 import jax.random
-from models import PrivGA, SimpleGAforSyncData
+from models import GeneticSD, GeneticStrategy
 from stats import Marginals, ChainedStatistics, Halfspace, Prefix
 from utils import timer
 import jax.numpy as jnp
@@ -29,8 +29,8 @@ if __name__ == "__main__":
     stat_fn = marginal_module._get_workload_fn()
 
     # Choose algorithm parameters
-    algo = PrivGA(num_generations=20000, print_progress=True,
-                    strategy=SimpleGAforSyncData(domain=data.domain, data_size=2000))
+    algo = GeneticSD(num_generations=20000, print_progress=True,
+                     strategy=GeneticStrategy(domain=data.domain, data_size=2000))
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism

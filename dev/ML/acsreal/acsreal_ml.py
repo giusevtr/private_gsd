@@ -84,7 +84,7 @@ if __name__ == "__main__":
     # epochs = [3, 4, 5, 6, 7, 8, 9]
 
 
-    # algo = 'PrivGA'
+    # algo = 'PrivateGSD'
     epochs = [3, 4, 5, 6, 7, 8, 9, 10, 20, 25, 40, 50, 60, 75, 80, 100]
     # module = 'Prefix'
     # module = 'Halfspaces'

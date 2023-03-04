@@ -24,7 +24,7 @@ type_label = 'Data Type'
 real_data_label = 'Real Data'
 synthetic_data_label = 'Synthetic Data'
 
-PRIVGA = pd.read_csv('../sync_data/PrivGA/Prefix/100/1.00/sync_data_0.csv')
+PRIVGA = pd.read_csv('../sync_data/PrivateGSD/Prefix/100/1.00/sync_data_0.csv')
 RAPpp = pd.read_csv('../sync_data/RAP++/10/1.00/sync_data_0.csv')
 # RAP = pd.read_csv('../sync_data/RAP/Ranges/80/1.00/sync_data_0.csv')
 df_list = []
@@ -37,7 +37,7 @@ for col in data.domain.get_numeric_cols():
     privga_df = PRIVGA[col].copy().to_frame()
     privga_df = privga_df.rename(columns={col: 'Values'})
     privga_df[feat_label] = col
-    privga_df[gen_label] = 'PrivGA'
+    privga_df[gen_label] = 'PrivateGSD'
     privga_df[type_label] = synthetic_data_label
 
     rappp_df = RAPpp[col].copy().to_frame()
@@ -57,7 +57,7 @@ for col in data.domain.get_numeric_cols():
     df_real1 = data.df[col].copy().to_frame()
     df_real1 = df_real1.rename(columns={col: 'Values'})
     df_real1[feat_label] = col
-    df_real1[gen_label] = 'PrivGA'
+    df_real1[gen_label] = 'PrivateGSD'
     df_real1[type_label] = real_data_label
     df_real2 = data.df[col].copy().to_frame()
     df_real2 = df_real2.rename(columns={col: 'Values'})
@@ -98,8 +98,8 @@ g = sns.FacetGrid(data=df,
                   row=feat_label, col=gen_label,  hue=type_label,
                   sharey='row', sharex=True,
                   aspect=2.0,
-                  # col_order=['PrivGA', 'RAP++', 'RAP'],
-                  col_order=['PrivGA', 'RAP++'],
+                  # col_order=['PrivateGSD', 'RAP++', 'RAP'],
+                  col_order=['PrivateGSD', 'RAP++'],
                   legend_out=False)
 g.map(custom_plot, 'Values')
 plt.subplots_adjust(top=0.95, bottom=0.05)
@@ -112,7 +112,7 @@ for ax in g.axes.flat:
     title = ax.get_title()
     algorithm = title.split(' ')[-1]
     feature = title.split(' ')[2]
-    if algorithm == 'PrivGA':
+    if algorithm == 'PrivateGSD':
         ax.set_title(f'{algorithm}', fontsize=28, weight='bold')
     else:
         ax.set_title(f'{algorithm}', fontsize=28)

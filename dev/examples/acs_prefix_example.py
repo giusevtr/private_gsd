@@ -1,5 +1,5 @@
 import jax.random
-from models import PrivGA, SimpleGAforSyncData
+from models import GeneticSD, GeneticStrategy
 <<<<<<< HEAD:dev/examples/acs_prefix_example.py
 from stats import Marginals, ChainedStatistics, Halfspace, Prefix
 from utils.utils_data import get_data

@@ -1,6 +1,6 @@
 import itertools
 import jax
-from models import Generator, PrivGA, SimpleGAforSyncData
+from models import Generator, GeneticSD, GeneticStrategy
 from stats import Halfspace, ChainedStatistics
 from dev.toy_datasets.sparse import get_sparse_dataset
 import time
@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     data_size = 500
 
-    algo = PrivGA(num_generations=40000, print_progress=False, stop_early=True, strategy=SimpleGAforSyncData(domain=data.domain, elite_size=5, data_size=2000))
+    algo = GeneticSD(num_generations=40000, print_progress=False, stop_early=True, strategy=GeneticStrategy(domain=data.domain, elite_size=5, data_size=2000))
 
     RESULTS = []
     for eps, seed in itertools.product(EPSILON, SEEDS):

@@ -23,13 +23,13 @@ def read_result(data_path, error_type='max error'):
 
     df = df.groupby(['data', 'T', 'epsilon', 'error type'], as_index=False)[error_lbl].mean()
     df = df.groupby(['data', 'epsilon', 'error type'], as_index=False)[error_lbl].min()
-    # privga_df['generator'] = 'PrivGA'
+    # privga_df['generator'] = 'PrivateGSD'
     return df
 
 
 def show_result(df):
     fontsize = 24
-    gens = ['PrivGA', 'GEM', 'RAP', 'PGM', 'RAP++']
+    gens = ['PrivateGSD', 'GEM', 'RAP', 'PGM', 'RAP++']
 
     gens_in_df = df['generator'].unique()
     hue_order = []

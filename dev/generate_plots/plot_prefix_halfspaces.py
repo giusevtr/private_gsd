@@ -7,17 +7,17 @@ for error_type in ['max error', 'l1 error']:
    # error_type = 'l1 error'
    ##################################################
    privga_hs_df = read_result('../ICML/prefix_halfspaces_results/result_mix_privga_halfspaces.csv', error_type)
-   privga_hs_df['generator'] = 'PrivGA'
+   privga_hs_df['generator'] = 'GSD'
    privga_hs_df['Statistics'] = 'Halfspaces'
 
    privga_hs_df2 = read_result('../ICML/prefix_halfspaces_results/result_mix_PrivGA_Halfspaces_1000.csv', error_type)
-   privga_hs_df['generator'] = 'PrivGA'
+   privga_hs_df['generator'] = 'GSD'
    privga_hs_df['Statistics'] = 'Halfspaces'
 
 
    privga_pr_df = read_result('../ICML/prefix_halfspaces_results/result_mix_privga_prefix.csv', error_type)
    privga_pr_df['Statistics'] = 'Prefixes'
-   privga_pr_df['generator'] = 'PrivGA'
+   privga_pr_df['generator'] = 'GSD'
 
 
    rap_prefix_df = read_result('../ICML/prefix_halfspaces_results/result_mix_RAP_Prefix.csv', error_type)

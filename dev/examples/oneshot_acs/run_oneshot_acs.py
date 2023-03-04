@@ -1,7 +1,7 @@
 import os
 
 import jax.random
-from models import PrivGA, SimpleGAforSyncData
+from models import GeneticSD, GeneticStrategy
 from stats import Marginals, ChainedStatistics
 from utils.utils_data import get_data
 from utils import timer
@@ -33,10 +33,10 @@ if __name__ == "__main__":
         stat_fn = marginal_module._get_workload_fn()
 
         # Choose algorithm parameters
-        priv_ga = PrivGA(
+        priv_ga = GeneticSD(
                         num_generations=15000,
                         print_progress=False,
-                        strategy=SimpleGAforSyncData(
+                        strategy=GeneticStrategy(
                                 domain=data.domain,
                                 data_size=SYNC_DATA_SIZE,
                                 population_size=100,
@@ -55,8 +55,8 @@ if __name__ == "__main__":
                 t0 = timer()
                 sync_data = priv_ga.fit_dp(key, stat_module=marginal_module, epsilon=eps, delta=delta, )
                 errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
-                Res.append([data_name, 'PrivGA', eps, seed, float(errors.max()), float(errors.mean()), timer() - t0])
-                print(f'{data_name}, PrivGA: eps={eps:.2f}, seed={seed}'
+                Res.append([data_name, 'PrivateGSD', eps, seed, float(errors.max()), float(errors.mean()), timer() - t0])
+                print(f'{data_name}, PrivateGSD: eps={eps:.2f}, seed={seed}'
                       f'\t max error = {errors.max():.5f}'
                       f'\t avg error = {errors.mean():.5f}'
                       f'\t time = {timer() - t0:.4f}')

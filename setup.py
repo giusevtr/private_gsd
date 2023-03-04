@@ -1,9 +1,9 @@
 from setuptools import setup
 
 setup(
-    name='PrivGA',
+    name='PrivateGSD',
     version='1.0',
-    description='PrivGA',
+    description='PrivateGSD',
     url='https://github.com/giusevtr/private_genetic_algorithm.git',
     author='Giuseppe Vietri, Jingwu Tang, Terrence Liu',
     license='MIT',

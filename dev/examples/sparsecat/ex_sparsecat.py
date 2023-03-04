@@ -1,5 +1,5 @@
 import jax
-from models import PrivGA, SimpleGAforSyncData
+from models import GeneticSD, GeneticStrategy
 from stats import Marginals, ChainedStatistics
 from dev.toy_datasets.sparsecat import get_sparsecat
 import time
@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
 
     marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
-    priv_ga = PrivGA( num_generations=100000, print_progress=False, strategy=SimpleGAforSyncData(
+    priv_ga = GeneticSD(num_generations=100000, print_progress=False, strategy=GeneticStrategy(
                         domain=data.domain, data_size=2000,
                         population_size=200))
     run(data, priv_ga, marginal_module, eps=5, seed=1)

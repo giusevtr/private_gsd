@@ -1,7 +1,7 @@
 import jax.random
 import matplotlib.pyplot as plt
 
-from models import PrivGA, SimpleGAforSyncData
+from models import GeneticSD, GeneticStrategy
 from stats import ChainedStatistics, Halfspace
 # from utils.utils_data import get_data
 from utils import timer
@@ -34,9 +34,9 @@ if __name__ == "__main__":
     #                         data_size=1000, iterations=1000, learning_rate=0.01,)
     # Choose algorithm parameters
     SYNC_DATA_SIZE = 2000
-    algo = PrivGA(num_generations=12000,
-                    print_progress=False, stop_early=True,
-                    strategy=SimpleGAforSyncData(domain=data.domain, elite_size=5, data_size=SYNC_DATA_SIZE))
+    algo = GeneticSD(num_generations=12000,
+                     print_progress=False, stop_early=True,
+                     strategy=GeneticStrategy(domain=data.domain, elite_size=5, data_size=SYNC_DATA_SIZE))
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism

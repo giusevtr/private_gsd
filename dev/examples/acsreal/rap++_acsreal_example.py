@@ -2,7 +2,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
+from models import GeneticSD, GeneticStrategy, RelaxedProjectionPP
 from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix
 # from utils.utils_data import get_data
 from utils import timer

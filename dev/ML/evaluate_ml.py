@@ -11,18 +11,17 @@ import numpy as np
 # from diffprivlib.models import  LogisticRegression  as PrivLogisticRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.datasets import make_classification
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
+
 from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
 from ml_utils import filter_outliers
 
 if __name__ == "__main__":
     # epsilon_vals = [0.07, 0.1, 0.15, 0.23, 0.52 ,0.74, 1, 2, 5, 10]
     evaluate_original = False
+    save_results = True
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1, 10]
     seeds = [0, 1, 2]
-    Method = 'PrivGA'
+    Method = 'PrivateGSD'
     # Method = 'RAP'
 
     # dataset_name = 'folktables_2018_real_NY'
@@ -66,14 +65,15 @@ if __name__ == "__main__":
                 method = model_name
                 print(f'{dataset_name}, {method}, target={target},  Non-Private, f1={f1}')
                 for eps in epsilon_vals:
-                    Res.append([dataset_name, 'No', method, target, eps, 'F1', 0, f1])
-                    Res.append([dataset_name, 'No', method, target, eps, 'Accuracy', 0, acc])
+                    Res.append([dataset_name, 'No', 'Original', method, target, eps,0, 'F1', f1])
+                    Res.append([dataset_name, 'No', 'Original', method, target, eps, 0, 'Accuracy', acc])
 
         for eps in epsilon_vals:
             for seed in seeds:
                 sync_path = ''
-                if Method == 'PrivGA':
-                    sync_path = f'../examples/acsmulti/sync_data/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/sync_data_{seed}.csv'
+                if Method == 'PrivateGSD':
+                    sync_path = f'../sync_data/{dataset_name}/PrivateGSD/Ranges/oneshot/{eps:.2f}/sync_data_{seed}.csv'
+                    # sync_path = f'../examples/acsmulti/sync_data/{dataset_name}/PrivateGSD/Ranges/oneshot/{eps:.2f}/sync_data_{seed}.csv'
                 elif Method == 'RAP':
                     sync_path = f'../sync_data/{dataset_name}/RAP/Ranges/oneshot/{eps:.2f}/sync_data_{seed}.csv'
 
@@ -107,17 +107,18 @@ if __name__ == "__main__":
                     acc = rep['accuracy']
                     print(f'{dataset_name}, {Method}+{model_name}, target={target},  eps={eps}:'
                           f'\tacc_train={acc_train:.3f}, f1_train={f1_train:.3f}\t acc_test={acc:.3f}, f1_test={f1:.3f}')
-                    Res.append([dataset_name, 'Yes', Method, model_name, target, eps, 'F1', seed, f1])
-                    Res.append([dataset_name, 'Yes', Method, model_name, target, eps, 'Accuracy', seed, acc])
+                    Res.append([dataset_name, 'Yes', Method, model_name, target, eps, seed, 'F1',  f1])
+                    Res.append([dataset_name, 'Yes', Method, model_name, target, eps, seed, 'Accuracy',  acc])
 
 
-    results = pd.DataFrame(Res, columns=['Dataset', 'Is DP', 'Method', 'Model', 'Target', 'Epsilon', 'Metric', 'Seed', 'Score'])
+    results = pd.DataFrame(Res, columns=['Dataset', 'Is DP', 'Method', 'Model', 'Target', 'Epsilon', 'Seed', 'Metric', 'Score'])
     print(results)
     if os.path.exists('results.csv'):
         results_pre = pd.read_csv('results.csv', index_col=None)
         results = results_pre.append(results)
-    # print(f'Saving results.csv')
-    # results.to_csv('results.csv', index=False)
+    if save_results:
+        print(f'Saving results.csv')
+        results.to_csv('results.csv', index=False)
 
     # df_sync1 = pd.read_csv('folktables_2018_multitask_NY_sync_0.07_0.csv')
     # df_sync2 = pd.read_csv('folktables_2018_multitask_NY_sync_1.00_0.csv')

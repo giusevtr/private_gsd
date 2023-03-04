@@ -14,7 +14,7 @@ def read_result(data_path, ml_model):
     # data_path = f'{data_dir}/mix/privga/result_mix_privga.csv'
     df = pd.read_csv(data_path, index_col=0)
     df = df.rename(columns={"algo":"generator"})
-    df['generator'] = df['generator'].replace("PrivGA(Halfspaces)", "PrivGA(HS)")
+    df['generator'] = df['generator'].replace("PrivateGSD(Halfspaces)", "PrivateGSD(HS)")
     df['model'] = ml_model
     df[target_label] = df['error type'].apply(lambda s: s.split()[0])
     # df[clf_error_label] = 1 - df['private accuracy']
@@ -35,14 +35,14 @@ def read_result(data_path, ml_model):
     # df.melt(id_vars=['data',  'algo', 'T', 'epsilon', 'seed'], )
     df = df.groupby(['generator', 'T', 'epsilon', target_label, 'model'], as_index=False)[clf_error_label].mean()
     df = df.groupby(['generator', 'epsilon', target_label, 'model'], as_index=False)[clf_error_label].min()
-    # privga_df['generator'] = 'PrivGA'
+    # privga_df['generator'] = 'PrivateGSD'
 
 
     final_df = pd.concat([df, orig_df], ignore_index=True)
 
     # final_df = final_df.set_index('generator')
     # # reorder the index with the order given in list 'months_ordered'
-    # months_ordered = ['Original', 'PrivGA(HS)', 'PrivGA(Prefix)', 'RAP(Ranges)', 'GEM(Range)']
+    # months_ordered = ['Original', 'PrivateGSD(HS)', 'PrivateGSD(Prefix)', 'RAP(Ranges)', 'GEM(Range)']
     # final_df = final_df.reindex(months_ordered)
 
 
@@ -51,8 +51,8 @@ def read_result(data_path, ml_model):
 
 def show_result(df):
 
-    gen = ['Original', 'PrivGA(HS)', 'PrivGA(Prefix)', 'RAP(Ranges)', 'GEM(Range)']
-    # gen_bold = ['Original', r'\textbf{PrivGA(HS)}', 'PrivGA(Prefix)', 'RAP(Ranges)', 'GEM(Range)']
+    gen = ['Original', 'PrivateGSD(HS)', 'PrivateGSD(Prefix)', 'RAP(Ranges)', 'GEM(Range)']
+    # gen_bold = ['Original', r'\textbf{PrivateGSD(HS)}', 'PrivateGSD(Prefix)', 'RAP(Ranges)', 'GEM(Range)']
 
     # sns.barplot(data=df, x='generator', y='ML accuracy', hue='ML method type', row='epsilon')
     g = sns.relplot(data=df,
@@ -66,7 +66,7 @@ def show_result(df):
                     style='model',
                     hue='model',
                     # mar
-                    # hue_order=['PrivGA(Halfspaces)', 'PrivGA(Prefix)', 'RAP(Ranges)', 'GEM(Ranges)',  'Original'],
+                    # hue_order=['PrivateGSD(Halfspaces)', 'PrivateGSD(Prefix)', 'RAP(Ranges)', 'GEM(Ranges)',  'Original'],
                     facet_kws={'sharey': True, 'sharex': False, 'legend_out': False},
                     # sharey=False,
                     s=200,

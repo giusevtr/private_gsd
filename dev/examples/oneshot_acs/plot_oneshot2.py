@@ -14,7 +14,7 @@ def show_oneshot_result(df):
 
 
     fontsize = 24
-    gens = ['PrivGA',  'RAP']
+    gens = ['PrivateGSD',  'RAP']
 
     gens_in_df = df['generator'].unique()
     hue_order = []
@@ -76,13 +76,13 @@ def show_oneshot_result(df):
     plt.show()
 
 priv_ga_1_2way = pd.read_csv('privga_1_and_2way_results.csv')
-priv_ga_1_2way['generator'] = 'PrivGA'
+priv_ga_1_2way['generator'] = 'PrivateGSD'
 priv_ga_1_2way['queries'] = '(1 and 2)-way'
 
 # priv_ga = pd.read_csv('../ICML/one_shot/privga_oneshot.csv')
 priv_ga_2way = pd.read_csv('privga_2way_only_results.csv')
 # priv_ga = pd.read_csv('privga_1_2way_results.csv')
-priv_ga_2way['generator'] = 'PrivGA'
+priv_ga_2way['generator'] = 'PrivateGSD'
 priv_ga_2way['queries'] = '2-way only'
 # df = pd.concat(res_df, ignore_index=True)
 # dataname = 'folktables_2018_mobility_CA'

@@ -6,7 +6,7 @@ res_df = []
 for error_type in ['max error', 'l1 error']:
     ##################################################
     privga_df = read_result('../results/cat_ranges_results/privga/result_cat_privga.csv', error_type)
-    privga_df['generator'] = 'PrivGA'
+    privga_df['generator'] = 'PrivateGSD'
     # gem_df = read_result('../ICML/cat_ranges_results/gem/gem.csv', error_type)
     # gem_df['generator'] = 'GEM'
     # rap_df = read_result('../ICML/cat_ranges_results/rap/rap.csv', error_type)
@@ -22,7 +22,7 @@ for error_type in ['max error', 'l1 error']:
 
     ##################################################
     # privga_df = read_result(f'../ICML/mix_results/privga/result_mix_privga.csv', error_type)
-    # privga_df['generator'] = 'PrivGA'
+    # privga_df['generator'] = 'PrivateGSD'
     # gem_df = read_result(f'../ICML/mix_results/gem/gem.csv', error_type)
     # gem_df['generator'] = 'GEM'
     # rap_df = read_result(f'../ICML/mix_results/rap/rap.csv', error_type)

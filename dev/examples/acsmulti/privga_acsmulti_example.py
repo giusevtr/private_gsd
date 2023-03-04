@@ -2,7 +2,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
+from models import GeneticSD, GeneticStrategy, RelaxedProjectionPP
 from stats import ChainedStatistics, Halfspace, Prefix, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = PrivGA(num_generations=80000, print_progress=False, stop_early=True, strategy=SimpleGAforSyncData(domain=data.domain, elite_size=5, data_size=2000))
+    algo = GeneticSD(num_generations=80000, print_progress=False, stop_early=True, strategy=GeneticStrategy(domain=data.domain, elite_size=5, data_size=2000))
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2

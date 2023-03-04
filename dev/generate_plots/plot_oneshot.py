@@ -11,7 +11,7 @@ error_lbl = 'error_max'
 
 def show_oneshot_result(df):
     fontsize = 24
-    gens = ['PrivGA',  'RAP']
+    gens = ['PrivateGSD',  'RAP']
 
     gens_in_df = df['generator'].unique()
     hue_order = []
@@ -78,7 +78,7 @@ def show_oneshot_result(df):
 priv_ga_df = pd.read_csv('../results/privga_evaluate_3way_results.csv')
 priv_ga_df = priv_ga_df.melt(id_vars=['data_name', 'generator', 'epsilon', 'seed', 'subgroup'], var_name='error type', value_name='error')
 priv_ga_df = priv_ga_df.rename(columns={'data_name': 'data'})
-# priv_ga_df['generator'] = 'PrivGA'
+# priv_ga_df['generator'] = 'PrivateGSD'
 # df = pd.concat(res_df, ignore_index=True)
 # dataname = 'folktables_2018_mobility_CA'
 # df = df.loc[df['data'] == dataname, :]

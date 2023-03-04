@@ -40,7 +40,7 @@ def get_best_fitness_member(
     )
     return best_member, best_fitness
 
-class SimpleGAforSyncData:
+class GeneticStrategy:
     def __init__(self, domain: Domain,
                  data_size: int,
                  population_size: int = 100,
@@ -66,6 +66,7 @@ class SimpleGAforSyncData:
         self.muta_rate = muta_rate
         self.mate_rate = mate_rate
         self.debugging = debugging
+        self.null_samples = 0.02
 
     def initialize(
             self, rng: chex.PRNGKey
@@ -95,7 +96,7 @@ class SimpleGAforSyncData:
     @partial(jax.jit, static_argnums=(0,))
     def initialize_elite_population(self, rng: chex.PRNGKey):
         d = len(self.domain.attrs)
-        pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng)
+        pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng, null_values=self.null_samples)
         initialization = pop.reshape((self.elite_size, self.data_size, d))
         return initialization
 
@@ -164,7 +165,7 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
 
     # numeric_idx=jnp.array([0, 1])
     d = len(domain.attrs)
-    numeric_idx = domain.get_attribute_indices(domain.get_numeric_cols()).astype(int)
+    numeric_idx = domain.get_attribute_indices(domain.get_numerical_cols()).astype(int)
     mask = jnp.zeros(d)
     mask = mask.at[numeric_idx].set(1)
     mask = mask.reshape((1, d))
@@ -245,11 +246,11 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
 
 
 # @dataclass
-class PrivGA(Generator):
+class GeneticSD(Generator):
 
     def __init__(self,
                  num_generations,
-                 strategy: SimpleGAforSyncData,
+                 strategy: GeneticStrategy,
                  print_progress=False,
                  stop_early=True
                  ):
@@ -419,9 +420,9 @@ def test_jit_ask():
     marginals, _ = Marginals.get_all_kway_combinations(domain, k=k, bins=[2])
     marginals.fit(data)
     get_stats_vmap = lambda x: marginals.get_stats_jax_vmap(x)
-    strategy = SimpleGAforSyncData(domain, population_size=200, elite_size=10, data_size=2000,
-                                   muta_rate=1,
-                                   mate_rate=0, debugging=True)
+    strategy = GeneticStrategy(domain, population_size=200, elite_size=10, data_size=2000,
+                               muta_rate=1,
+                               mate_rate=0, debugging=True)
     t0 = timer()
     key = jax.random.PRNGKey(0)
 

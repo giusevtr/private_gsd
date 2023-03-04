@@ -30,7 +30,7 @@ class Marginals(AdaptiveStatisticState):
 
     def is_workload_numeric(self, cols):
         for c in cols:
-            if c in self.domain.get_numeric_cols():
+            if c in self.domain.get_numerical_cols() or c in self.domain.get_ordinal_cols():
                 return True
         return False
 
@@ -42,18 +42,25 @@ class Marginals(AdaptiveStatisticState):
         for marginal in tqdm(self.kway_combinations, desc='Setting up Marginals.'):
             assert len(marginal) == self.k
             indices = self.domain.get_attribute_indices(marginal)
-            indices_onehot = [self.domain.get_attribute_onehot_indices(att) for att in marginal]
             bins = self.bins if self.is_workload_numeric(marginal) else [-1]
             start_pos = len(queries)
-            for bin in bins:
+            for bin_number, bin in enumerate(bins):
                 intervals = []
                 for att in marginal:
                     size = self.domain.size(att)
-                    if size > 1:
+                    if self.domain.type(att) == 'categorical':
                         upper = np.linspace(0, size, num=size+1)[1:]
                         lower = np.linspace(0, size, num=size+1)[:-1]
                         # lower = lower.at[0].set(-0.01)
                         interval = list(np.vstack((upper, lower)).T - 0.1)
+                        intervals.append(interval)
+                    elif self.domain.type(att) == 'ordinal':
+                        ord_bins = (size + 1) // (2**bin_number)
+                        ord_bins = max(ord_bins, 3)  # There must be at least 3 bins
+                        upper = np.linspace(0, size, num=ord_bins)[1:]
+                        lower = np.linspace(0, size, num=ord_bins)[:-1]
+                        # lower = lower.at[0].set(-0.01)
+                        interval = list(np.vstack((upper, lower)).T - 0.0001)
                         intervals.append(interval)
                     else:
                         upper = np.linspace(0, 1, num=bin+1)[1:]
@@ -160,6 +167,16 @@ class Marginals(AdaptiveStatisticState):
 ######################################################################
 ## TEST
 ######################################################################
+
+
+
+
+
+
+
+
+
+
 
 
 

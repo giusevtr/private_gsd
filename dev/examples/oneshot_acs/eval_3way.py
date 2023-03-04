@@ -59,7 +59,7 @@ if __name__ == "__main__":
             errors_given_black = jnp.abs(statistics_for_blacks - sync_statistics_for_blacks)
 
             errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
-            print(f'PrivGA: eps={eps:.2f}, seed={seed}'
+            print(f'PrivateGSD: eps={eps:.2f}, seed={seed}'
                   f'\t max error = {errors.max():.5f}'
                   f'\t avg error = {errors.mean():.5f}'
                   f'\t max error|white = {errors_given_white.max():.5f}'
@@ -67,9 +67,9 @@ if __name__ == "__main__":
                   f'\t max error|black = {errors_given_black.max():.5f}'
                   f'\t avg error|black = {errors_given_black.mean():.5f}'
                   )
-            Res.append(['PrivGA', eps, seed, k, 'all', float(errors.max()), float(errors.mean())])
-            Res.append(['PrivGA', eps, seed, k, 'white', float(errors_given_white.max()), float(errors_given_white.mean())])
-            Res.append(['PrivGA', eps, seed, k, 'black', float(errors_given_black.max()), float(errors_given_black.mean())])
+            Res.append(['PrivateGSD', eps, seed, k, 'all', float(errors.max()), float(errors.mean())])
+            Res.append(['PrivateGSD', eps, seed, k, 'white', float(errors_given_white.max()), float(errors_given_white.mean())])
+            Res.append(['PrivateGSD', eps, seed, k, 'black', float(errors_given_black.max()), float(errors_given_black.mean())])
 
         print()
     cols = ['generator', 'epsilon', 'seed', 'k', 'subgroup', 'error_max', 'error_mean']
