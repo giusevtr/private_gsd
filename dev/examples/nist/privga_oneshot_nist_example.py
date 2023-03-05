@@ -34,7 +34,7 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = GeneticSD(num_generations=50000, print_progress=True, stop_early=True, strategy=GeneticStrategy(domain=data.domain, elite_size=2, data_size=2000))
+    algo = GeneticSD(num_generations=50000, print_progress=True, stop_early=True, strategy=GeneticStrategy(domain=data.domain, elite_size=2, data_size=1000))
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2
