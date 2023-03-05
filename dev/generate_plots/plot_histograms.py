@@ -24,9 +24,10 @@ type_label = 'Data Type'
 real_data_label = 'Real Data'
 synthetic_data_label = 'Synthetic Data'
 
-PRIVGA = pd.read_csv('../sync_data/PrivGA/Prefix/100/1.00/sync_data_0.csv')
-RAPpp = pd.read_csv('../sync_data/RAP++/10/1.00/sync_data_0.csv')
-# RAP = pd.read_csv('../sync_data/RAP/Ranges/80/1.00/sync_data_0.csv')
+PRIVGA = pd.read_csv('../sync_data/folktables_2018_acsreal_CA/GSD/Prefix/100/1.00/sync_data_0.csv')
+# pd.read_csv('../sync_data/')
+# RAPpp = pd.read_csv('../sync_data/RAP++/10/1.00/sync_data_0.csv')
+RAP = pd.read_csv('../sync_data/folktables_2018_acsreal_CA/RAP/Ranges/80/1.00/sync_data_0.csv')
 df_list = []
 
 BINS = 64
@@ -40,17 +41,17 @@ for col in data.domain.get_numeric_cols():
     privga_df[gen_label] = 'PrivGA'
     privga_df[type_label] = synthetic_data_label
 
-    rappp_df = RAPpp[col].copy().to_frame()
-    rappp_df = rappp_df.rename(columns={col: 'Values'})
-    rappp_df[feat_label] = col
-    rappp_df[gen_label] = 'RAP++'
-    rappp_df[type_label] = synthetic_data_label
+    # rappp_df = RAPpp[col].copy().to_frame()
+    # rappp_df = rappp_df.rename(columns={col: 'Values'})
+    # rappp_df[feat_label] = col
+    # rappp_df[gen_label] = 'RAP++'
+    # rappp_df[type_label] = synthetic_data_label
 
-    # rap_df = RAP[col].copy().to_frame()
-    # rap_df = rap_df.rename(columns={col: 'Values'})
-    # rap_df[feat_label] = col
-    # rap_df[gen_label] = 'RAP'
-    # rap_df[type_label] = synthetic_data_label
+    rap_df = RAP[col].copy().to_frame()
+    rap_df = rap_df.rename(columns={col: 'Values'})
+    rap_df[feat_label] = col
+    rap_df[gen_label] = 'RAP'
+    rap_df[type_label] = synthetic_data_label
 
 
 
@@ -73,8 +74,8 @@ for col in data.domain.get_numeric_cols():
 
 
     df_list.append(privga_df)
-    # df_list.append(rap_df)
-    df_list.append(rappp_df)
+    df_list.append(rap_df)
+    # df_list.append(rappp_df)
     df_list.append(df_real1)
     df_list.append(df_real2)
     # df_list.append(df_real3)
@@ -99,7 +100,7 @@ g = sns.FacetGrid(data=df,
                   sharey='row', sharex=True,
                   aspect=2.0,
                   # col_order=['PrivGA', 'RAP++', 'RAP'],
-                  col_order=['PrivGA', 'RAP++'],
+                  col_order=['PrivGA', 'RAP'],
                   legend_out=False)
 g.map(custom_plot, 'Values')
 plt.subplots_adjust(top=0.95, bottom=0.05)
