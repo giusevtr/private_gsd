@@ -59,7 +59,7 @@ def ml_eval_fn(df_test, features, target, domain):
     return fn
 
 if __name__ == "__main__":
-    dataset_name = 'folktables_2018_multitask_NY'
+    dataset_name = 'folktables_2018_multitask_NY_clipped'
     root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
