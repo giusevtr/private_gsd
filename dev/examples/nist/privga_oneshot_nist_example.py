@@ -24,8 +24,8 @@ if __name__ == "__main__":
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8])
-    module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[100, 200, 400])
+    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[50, 100, 200])
+    module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[1000])
     module2 = NullCounts(domain)
 
     stat_module = ChainedStatistics([module0, module1, module2])
