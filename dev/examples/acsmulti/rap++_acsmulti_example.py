@@ -9,7 +9,7 @@ from utils import timer
 import jax.numpy as jnp
 # from dp_data.data import get_data
 from dp_data import load_domain_config, load_df, get_evaluate_ml
-from utils import timer, Dataset, Domain , get_Xy
+from utils import timer, Dataset, Domain , get_Xy, filter_outliers
 import seaborn as sns
 from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
 from sklearn.linear_model import LogisticRegression
@@ -59,13 +59,20 @@ def ml_eval_fn(df_test, features, target, domain):
     return fn
 
 if __name__ == "__main__":
-    dataset_name = 'folktables_2018_multitask_NY_clipped'
+    clipped = True
+    dataset_name = 'folktables_2018_multitask_NY'
+
     root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
+
+
     domain = Domain.fromdict(config)
     data = Dataset(df_train, domain)
+    if clipped:
+        dataset_name = dataset_name + '_clipped'
+        df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03)
 
     targets = ['PINCP',  'PUBCOV', 'ESR']
     features = []
@@ -86,8 +93,8 @@ if __name__ == "__main__":
     #                         num_random_halfspaces=10000)
     # module1 = HalfspaceDiff.get_kway_random_halfspaces(data.domain, k=1, rng=key, random_hs=200000)
     module1 = HalfspaceDiff(domain=data.domain, k_cat=1,
-                            cat_kway_combinations=[('PINCP',),  ('PUBCOV', ), ('ERS', )], rng=key,
-                            num_random_halfspaces=1000000)
+                            cat_kway_combinations=[('PINCP',),  ('PUBCOV', ), ('ESR', )], rng=key,
+                            num_random_halfspaces=200000)
     stat_module = ChainedStatistics([module0,
                                      module1
                                      ])
@@ -100,10 +107,11 @@ if __name__ == "__main__":
 
     num_sample = 10
     delta = 1.0 / len(data) ** 2
-    # for eps in [1.00, 0.07]:
-    for eps in [0.07, 0.23, 0.52, 0.74, 1.0, 10.0]:
-        for seed in [0, 1, 2]:
-            for rounds in [30, 50]:
+    for eps in [1.00]:
+    # for eps in [0.07, 0.23, 0.52, 0.74, 1.0, 10.0]:
+        for seed in [0]:
+        # for seed in [0, 1, 2]:
+            for rounds in [50]:
                 key = jax.random.PRNGKey(seed)
                 t0 = timer()
                 sync_dir = f'sync_data/{dataset_name}/RAP++/Halfspaces/{rounds}/{num_sample}/{eps:.2f}/'
