@@ -3,7 +3,7 @@ import jax.random
 import pandas as pd
 
 from models import GeneticSD, GeneticStrategy
-from stats import ChainedStatistics,  Marginals, NullCounts
+from stats import ChainedStatistics,  Marginals, NullCounts, Prefix
 import jax.numpy as jnp
 from dp_data import load_domain_config, load_df
 from utils import timer, Dataset, Domain, filter_outliers
@@ -24,11 +24,19 @@ if __name__ == "__main__":
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[50, 100, 200])
-    module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[1000])
+    # One-shot queries
+    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32, 64])
+
+
+    # Adaptive queries
+    module1 = Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, random_prefixes=50000, rng=key)
+    module3 = Marginals.get_all_kway_combinations(data.domain, k=3, bins=[2, 4, 8, 16, 32, 64])
+    # module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[50, 100, 200])
+    # module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[2500, 5000, 10000])
+
     module2 = NullCounts(domain)
 
-    stat_module = ChainedStatistics([module0, module1, module2])
+    stat_module = ChainedStatistics([module0, module1, module2, module3])
     stat_module.fit(data)
 
     true_stats = stat_module.get_all_true_statistics()
@@ -50,7 +58,12 @@ if __name__ == "__main__":
             t0 = timer()
 
 
-            sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=eps, delta=delta)
+            sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module, oneshot_stats_ids=[0],
+                                oneshot_share=0.7,
+                               rounds=20,
+                               epsilon=eps,
+                               delta=delta)
+            # sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=eps, delta=delta)
 
             # post_sync_data = preprocessor.inverse_transform(sync_data.df)
             sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)

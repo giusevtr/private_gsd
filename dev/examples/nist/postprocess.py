@@ -40,6 +40,8 @@ with open(preprocessor_path, 'rb') as handle:
     # preprocessor:
     preprocessor = pickle.load(handle)
     temp: pd.DataFrame
+    # df_orig.fillna('N', inplace=True)
+    # df_orig = df_orig.astype('str')
     temp = preprocessor.inverse_transform(df_orig)
     print(temp)
 
@@ -48,7 +50,8 @@ domain = Domain(config)
 
 data = Dataset(df_orig, domain)
 
-df = pd.read_csv('sync_data/national2019/GSD/Ranges/oneshot/10.00/sync_data_0.csv')
+# df = pd.read_csv('sync_data/national2019/GSD/Ranges/oneshot/10.00/sync_data_0.csv')
+df = pd.read_csv('sync_national.csv')
 
 nulls_module = NullCounts(domain)
 nulls_fn = nulls_module._get_dataset_statistics_fn()
