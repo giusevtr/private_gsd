@@ -245,6 +245,7 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
 ######################################################################
 
 
+
 # @dataclass
 class GeneticSD(Generator):
 
