@@ -65,9 +65,13 @@ class NullCounts(AdaptiveStatisticState):
         #         these_queries.append(self.queries[a:b, :])
         #     these_queries = jnp.concatenate(these_queries, axis=0)
         temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
-
-        dim = len(self.domain.attrs)
-        attrs_indices = jnp.arange(dim)
+        if workload_ids is None:
+            dim = len(self.domain.attrs)
+            attrs_indices = jnp.arange(dim)
+        else :
+            attrs_indices = jnp.array(workload_ids)
+        # dim = len(self.domain.attrs)
+        # attrs_indices = jnp.arange(dim)
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, attrs_indices), None
         def stat_fn(X):

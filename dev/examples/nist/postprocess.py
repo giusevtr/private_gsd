@@ -50,8 +50,8 @@ domain = Domain(config)
 
 data = Dataset(df_orig, domain)
 
-# df = pd.read_csv('sync_data/national2019/GSD/Ranges/oneshot/10.00/sync_data_0.csv')
-df = pd.read_csv('sync_national.csv')
+df = pd.read_csv('sync_data/national2019/GSD/Ranges/oneshot/10.00/sync_data_0.csv')
+# df = pd.read_csv('sync_national.csv')
 
 nulls_module = NullCounts(domain)
 nulls_fn = nulls_module._get_dataset_statistics_fn()
@@ -121,4 +121,3 @@ df_post[ints] = df_post[ints].replace('N', 0).astype(float).round().astype(int)
 df_post = df_post.sample(n=len(df_orig), replace=True)
 df_post.to_csv('gsd_national.csv', index=False)
 print(df_post)
-

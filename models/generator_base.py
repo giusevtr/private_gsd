@@ -191,7 +191,7 @@ class Generator:
 
         key, key_init = jax.random.split(key, 2)
         init_seed = int(jax.random.randint(key_init, minval=0, maxval=2 ** 20, shape=(1,))[0])
-        sync_dataset = Dataset.synthetic(stat_module.get_domain(), N=self.data_size, seed=init_seed)
+        sync_dataset = Dataset.synthetic(stat_module.get_domain(), N=self.data_size, seed=init_seed, null_values=0.02)
 
 
         for i in range(1, rounds + 1):

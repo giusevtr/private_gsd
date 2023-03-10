@@ -70,7 +70,6 @@ class ChainedStatistics:
             if len(temp) > 0:
                 temp = jnp.concatenate(temp)
                 selected_chained_stats.append(temp)
-
         return jnp.concatenate(selected_chained_stats)
 
     def get_selected_statistics_without_noise(self):
@@ -143,8 +142,13 @@ class ChainedStatistics:
         self.selected_workloads = []
         for stat_id in range(len(self.stat_modules)):
             self.selected_workloads.append([])
-
-        m = self.get_num_workloads()
+        if stat_ids is None:
+            m = self.get_num_workloads()
+        else:
+            m = 0
+            for stat_id in stat_ids:
+                stat_mod = self.stat_modules[stat_id]
+                m += stat_mod.get_num_workloads()
         rho_per_marginal = rho / m
 
         # Choose the statistic modules to measure with zCDP
