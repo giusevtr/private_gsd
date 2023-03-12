@@ -5,6 +5,8 @@ from utils import timer, Dataset, Domain, filter_outliers
 import pickle
 from stats import NullCounts
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 ALL_COLS = ["PUMA",
         "AGEP",
@@ -50,8 +52,25 @@ domain = Domain(config)
 
 data = Dataset(df_orig, domain)
 
-df = pd.read_csv('sync_data/national2019/GSD/Ranges/oneshot/10.00/sync_data_0.csv')
+# df = pd.read_csv('sync_data/national2019/GSD/Ranges/oneshot/10.00/sync_data_0.csv')
+df = pd.read_csv('sync_data_adaptive_10000.csv')
+df = pd.read_csv('sync_data_0_adaptive.csv')
 # df = pd.read_csv('sync_national.csv')
+
+
+
+cutoff=0.05
+sync = df.sample(n=len(df_orig), replace=True)
+real = df_orig[df_orig['PINCP'] < cutoff]['PINCP'].to_frame()
+real['Type'] = 'Real'
+temp = sync[sync['PINCP'] < cutoff]['PINCP'].to_frame()
+temp['Type'] = 'Sync'
+df_income = pd.concat([real, temp])
+sns.histplot(data=df_income, x='PINCP', hue='Type', bins=100)
+plt.show()
+
+
+
 
 nulls_module = NullCounts(domain)
 nulls_fn = nulls_module._get_dataset_statistics_fn()
@@ -65,8 +84,6 @@ temp_cat_cols = ['RAC1P', 'DEAR', 'SEX', 'PUMA', 'DEYE', 'HOUSING_TYPE']
 df[temp_cat_cols] = df[temp_cat_cols].fillna(0).astype(int)
 
 df_post = preprocessor.inverse_transform(df)
-
-
 
 
 
@@ -119,5 +136,8 @@ df_post[ints] = df_post[ints].replace('N', 0).astype(float).round().astype(int)
 
 
 df_post = df_post.sample(n=len(df_orig), replace=True)
-df_post.to_csv('gsd_national.csv', index=False)
-print(df_post)
+# df_post.to_csv('gsd_national.csv', index=False)
+# print(df_post)
+
+
+
