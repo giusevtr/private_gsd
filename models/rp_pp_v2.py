@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from utils import Dataset, Domain, timer
 from stats import Marginals, AdaptiveStatisticState, ChainedStatistics
 
+from jax.example_libraries import optimizers
 @dataclass
 class RelaxedProjectionPP(Generator):
     # domain: Domain
@@ -80,6 +81,28 @@ class RelaxedProjectionPP(Generator):
                 # loss += jnp.sum(jax.nn.sigmoid(-2**15 * (w[:, num_idx])))
                 return loss
             compute_loss_jit = jax.jit(compute_loss)
+
+            def update_fn(params, sigmoid):
+                D_prime = get_params(state)
+                value, grads = value_and_grad(loss_fn, argnums=0)(
+                    D_prime, sigmoid_param, queries_idx, private_target_answers
+                )
+                # grads = clip_continuous(grads, feats_idx, -args.clip_grad, args.clip_grad)
+                state = opt_update(opt_lr, grads, state)
+
+                unpacked_state = optimizers.unpack_optimizer_state(state)
+                new_D_prime = unpacked_state.subtree[0]
+                new_D_prime = sparsemax_project(new_D_prime, feats_idx)
+                new_D_prime = self._clip_array(new_D_prime)
+                unpacked_state.subtree = (
+                    new_D_prime,
+                    unpacked_state.subtree[1],
+                    unpacked_state.subtree[2],
+                )
+                updated_state = optimizers.pack_optimizer_state(unpacked_state)
+
+                return updated_state, get_params(updated_state), valu
+
             update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)
             update_fn_jit = jax.jit(update_fn)
             params = self.fit_help(params, opt_state, compute_loss_jit, update_fn_jit, clip_numeric)

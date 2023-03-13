@@ -294,7 +294,184 @@ class Dataset:
     #     return X_onehot
 
 
+    @staticmethod
+    def apply_softmax(domain: Domain, X_relaxed: jnp.ndarray) -> jnp.ndarray:
+        # Takes as input relaxed dataset
+        # Then outputs a dataset consistent with data schema self.domain
+        X_softmax = []
+        i = 0
+        for attr, num_classes in zip(domain.attrs, domain.shape):
+            logits = X_relaxed[:, i:i+num_classes]
+            i += num_classes
 
+            if num_classes > 1:
+                X_col = jax.nn.softmax(x=logits, axis=1)
+                X_softmax.append(X_col)
+            else:
+                # logits_clipped = jnp.clip(logits, a_min=0, a_max=1)
+                # X_softmax.append(logits_clipped)
+                X_softmax.append(logits)
+
+
+        X_softmax = jnp.concatenate(X_softmax, axis=1)
+        return X_softmax
+
+    @staticmethod
+    def normalize_categorical(domain: Domain, X_relaxed: jnp.ndarray) -> jnp.ndarray:
+        # Takes as input relaxed dataset
+        # Then outputs a dataset consistent with data schema self.domain
+        X_softmax = []
+        i = 0
+        for attr, num_classes in zip(domain.attrs, domain.shape):
+            logits = X_relaxed[:, i:i+num_classes]
+            i += num_classes
+
+            if num_classes > 1:
+                # logits = logits < 0.0001
+                # min_r = jnp.min(jnp.array([0, jnp.min(logits)]))
+                # min_r = jnp.min(logits)
+                # logits = logits - min_r
+
+                sum_r = jnp.sum(logits, axis=1)
+                temp = jnp.array([sum_r, 0.00001 * jnp.ones_like(sum_r)])
+                sum_r = jnp.max(temp, axis=0)
+                X_col = logits / sum_r.reshape(-1, 1)
+                X_softmax.append(X_col)
+            else:
+                # maxval = logits.max()
+                # minval = logits.min()
+                # range_vals = maxval - minval
+                # logits_norm = (logits + minval) / range_vals
+
+                X_softmax.append(logits)
+
+
+        X_softmax = jnp.concatenate(X_softmax, axis=1)
+        return X_softmax
+
+    @staticmethod
+    def get_sample_onehot(key, domain, X_relaxed: jnp.ndarray, num_samples=1) -> jnp.ndarray:
+
+        keys = jax.random.split(key, len(domain.attrs))
+        X_onehot = []
+        i = 0
+        for attr, num_classes, subkey in zip(domain.attrs, domain.shape, keys):
+            logits = X_relaxed[:, i:i+num_classes]
+            i += num_classes
+            if num_classes > 1:
+                row_one_hot = []
+                for _ in range(num_samples):
+
+                    sum_r = jnp.sum(logits, axis=1)
+                    temp = jnp.array([sum_r, 0.00001 * jnp.ones_like(sum_r)])
+                    sum_r = jnp.max(temp, axis=0)
+                    logits = logits / sum_r.reshape(-1, 1)
+
+                    subkey, subsubkey = jax.random.split(subkey, 2)
+                    categories = jax.random.categorical(subsubkey, jnp.log(logits), axis=1)
+                    onehot_col = jax.nn.one_hot(categories.astype(int), num_classes)
+                    row_one_hot.append(onehot_col)
+                X_onehot.append(jnp.concatenate(row_one_hot, axis=0))
+            else:
+                row_one_hot = []
+                # Add numerical column
+                for _ in range(num_samples):
+                    row_one_hot.append(logits)
+
+                X_onehot.append(jnp.concatenate(row_one_hot, axis=0))
+
+
+        X_onehot = jnp.concatenate(X_onehot, axis=1)
+        return X_onehot
+
+
+    def discretize(self, num_bins=10):
+        """
+        Discretize real-valued columns using an equal sized binning strategy
+        """
+        numerical_cols = self.domain.get_numeric_cols()
+        bin_edges = np.linspace(0, 1, num_bins+1)[1:]
+        cols = []
+        domain_shape = []
+        for col, shape in zip(self.domain.attrs, self.domain.shape) :
+            col_values = self.df[col].values
+            if col in numerical_cols:
+                discrete_col_values = np.digitize(col_values, bin_edges)
+                cols.append(discrete_col_values)
+                domain_shape.append(num_bins)
+            else:
+                cols.append(col_values)
+                domain_shape.append(shape)
+
+        discrete_domain = Domain(self.domain.attrs, domain_shape)
+        df = pd.DataFrame(np.column_stack(cols), columns=self.domain.attrs)
+        return Dataset(df, discrete_domain)
+
+    def normalize_real_values(self):
+        """
+        Map real-valued to [0, 1]
+        """
+        numerical_cols = self.domain.get_numeric_cols()
+        cols = []
+        col_range = {}
+        for col, shape in zip(self.domain.attrs, self.domain.shape):
+            col_values = self.df[col].values
+            if col in numerical_cols:
+                min_val = col_values.min()
+                max_val = col_values.max()
+                normed_col_values = (col_values-min_val) / (max_val - min_val)
+                cols.append(normed_col_values)
+                col_range[col] = (min_val, max_val)
+            else:
+                cols.append(col_values)
+        df = pd.DataFrame(np.column_stack(cols), columns=self.domain.attrs)
+        return Dataset(df, self.domain), col_range
+
+    def inverse_map_real_values(self, col_range: dict):
+        """
+        Map real-values to original range
+        :param col_range: A dictionary where each entry is the range of each real-valued column
+        """
+        numerical_cols = self.domain.get_numeric_cols()
+        cols = []
+        for col, shape in zip(self.domain.attrs, self.domain.shape):
+            col_values = np.array(self.df[col].values)
+            if col in numerical_cols:
+                min_val, max_val = col_range[col]
+                orginal_range_col_values = col_values * (max_val - min_val) + min_val
+                cols.append(orginal_range_col_values)
+            else:
+                cols.append(col_values)
+        df = pd.DataFrame(np.column_stack(cols), columns=self.domain.attrs)
+        return Dataset(df, self.domain)
+
+    @staticmethod
+    def to_numeric(data, numeric_features: list):
+        cols = []
+        domain_shape = []
+        """ when called on a discretized dataset it turns discretized features into numeric features """
+        for col, shape in zip(data.domain.attrs, data.domain.shape):
+            col_values = data.df_real[col].values
+
+            if col in numeric_features:
+                rand_values = np.random.rand(col_values.shape[0]) / shape
+                numeric_values = col_values / shape
+                numeric_values = numeric_values + rand_values
+                cols.append(numeric_values)
+                domain_shape.append(1)
+            else:
+                cols.append(col_values)
+                domain_shape.append(shape)
+        numeric_domain = Domain(data.domain.attrs, domain_shape)
+        df = pd.DataFrame(np.column_stack(cols), columns=data.domain.attrs)
+        return Dataset(df, numeric_domain)
+
+    def split(self, p, seed=0):
+        np.random.seed(seed)
+        msk = np.random.rand(len(self.df)) < p
+        train = self.df[msk]
+        test = self.df[~msk]
+        return Dataset(train, self.domain), Dataset(test, self.domain)
 ##################################################
 # Test
 ##################################################

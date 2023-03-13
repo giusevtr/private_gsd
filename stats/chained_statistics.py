@@ -91,6 +91,7 @@ class ChainedStatistics:
 
         def chained_workload(X, **kwargs):
             return jnp.concatenate([fn(X, **kwargs) for fn in workload_fn_list], axis=0)
+
         return chained_workload
 
     def get_selected_dataset_statistics_fn(self):
@@ -100,8 +101,10 @@ class ChainedStatistics:
             workload_ids = self.__get_selected_workload_ids(stat_id)
             if workload_ids.shape[0] > 0:
                 workload_fn_list.append(stat_mod._get_dataset_statistics_fn(workload_ids))
+
         def chained_workload(data: Dataset, **kwargs):
             return jnp.concatenate([fn(data, **kwargs) for fn in workload_fn_list], axis=0)
+
         return chained_workload
 
     def get_domain(self):
@@ -130,10 +133,11 @@ class ChainedStatistics:
         for stat_mod in self.stat_modules:
             stat_mod: AdaptiveStatisticState
             workload_fn_list.append(stat_mod._get_dataset_statistics_fn())
+
         def chained_workload(data):
             return jnp.concatenate([fn(data) for fn in workload_fn_list], axis=0)
-        return chained_workload
 
+        return chained_workload
 
     def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
         pass
@@ -142,6 +146,7 @@ class ChainedStatistics:
         self.selected_workloads = []
         for stat_id in range(len(self.stat_modules)):
             self.selected_workloads.append([])
+<<<<<<< HEAD
         if stat_ids is None:
             m = self.get_num_workloads()
         else:
@@ -150,10 +155,19 @@ class ChainedStatistics:
                 stat_mod = self.stat_modules[stat_id]
                 m += stat_mod.get_num_workloads()
         rho_per_marginal = rho / m
+=======
+>>>>>>> main
 
         # Choose the statistic modules to measure with zCDP
         measure_stats_ids = range(len(self.stat_modules)) if stat_ids is None else stat_ids
-
+        if stat_ids is None:
+            m = self.get_num_workloads()
+        else:
+            m = 0
+            for stat_id in measure_stats_ids:
+                stat_mod = self.stat_modules[stat_id]
+                m += stat_mod.get_num_workloads()
+        rho_per_marginal = rho / m
         for stat_id in measure_stats_ids:
             stat_mod = self.stat_modules[stat_id]
             true_stats = self.modules_all_statistics[stat_id]
