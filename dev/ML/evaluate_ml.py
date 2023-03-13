@@ -19,7 +19,9 @@ from ml_utils import filter_outliers
 
 if __name__ == "__main__":
     # epsilon_vals = [0.07, 0.1, 0.15, 0.23, 0.52 ,0.74, 1, 2, 5, 10]
-    evaluate_original = False
+    evaluate_original =True
+
+    scale_real_valued = True
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1, 10]
     seeds = [0, 1, 2]
     Method = 'PrivGA'
@@ -35,11 +37,12 @@ if __name__ == "__main__":
     targets = ['PINCP',  'PUBCOV', 'ESR']
 
 
-    models = [('LR', lambda :LogisticRegression(max_iter=5000, random_state=0)),
-              ('RF', lambda : RandomForestClassifier( random_state=0))]
+    models = [
+        ('LR', lambda :LogisticRegression(penalty='l1', solver="liblinear")),
+              # ('RF', lambda : RandomForestClassifier( random_state=0))
+              ]
     # Preprocess data.
     # df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=False)
-    scale_real_valued = True
 
     domain = Domain.fromdict(config)
     features = []
@@ -64,7 +67,8 @@ if __name__ == "__main__":
                 f1 = rep['macro avg']['f1-score']
                 acc = rep['accuracy']
                 method = model_name
-                print(f'{dataset_name}, {method}, target={target},  Non-Private, f1={f1}')
+                print(f'{dataset_name}, {method}, target={target},  Non-Private, acc={acc:.5f}, f1={f1:.5f}')
+                print(rep)
                 for eps in epsilon_vals:
                     Res.append([dataset_name, 'No', method, target, eps, 'F1', 0, f1])
                     Res.append([dataset_name, 'No', method, target, eps, 'Accuracy', 0, acc])
@@ -116,8 +120,8 @@ if __name__ == "__main__":
     if os.path.exists('results.csv'):
         results_pre = pd.read_csv('results.csv', index_col=None)
         results = results_pre.append(results)
-    # print(f'Saving results.csv')
-    # results.to_csv('results.csv', index=False)
+    print(f'Saving results.csv')
+    results.to_csv('results.csv', index=False)
 
     # df_sync1 = pd.read_csv('folktables_2018_multitask_NY_sync_0.07_0.csv')
     # df_sync2 = pd.read_csv('folktables_2018_multitask_NY_sync_1.00_0.csv')
