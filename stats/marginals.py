@@ -10,13 +10,19 @@ import numpy as np
 
 class Marginals(AdaptiveStatisticState):
 
-    def __init__(self, domain, kway_combinations, k, bins=(32,)):
+    def __init__(self, domain, kway_combinations, k, bins=None, levels=3):
         self.domain = domain
         self.kway_combinations = kway_combinations
         self.k = k
-        self.bins = list(bins)
+        self.levels = levels
         self.workload_positions = []
         self.workload_sensitivity = []
+
+        self.bins = bins if bins is not None else {}
+        for num_col in domain.get_numerical_cols():
+            if num_col not in self.bins:
+                self.bins[num_col] = np.linspace(0, 1, 64)
+
         self.set_up_stats()
 
     def __str__(self):
@@ -42,9 +48,9 @@ class Marginals(AdaptiveStatisticState):
         for marginal in tqdm(self.kway_combinations, desc='Setting up Marginals.'):
             assert len(marginal) == self.k
             indices = self.domain.get_attribute_indices(marginal)
-            bins = self.bins if self.is_workload_numeric(marginal) else [-1]
+            levels = self.levels if self.is_workload_numeric(marginal) else 1
             start_pos = len(queries)
-            for bin_number, bin in enumerate(bins):
+            for level in range(levels):
                 intervals = []
                 for att in marginal:
                     size = self.domain.size(att)
@@ -55,7 +61,7 @@ class Marginals(AdaptiveStatisticState):
                         interval = list(np.vstack((upper, lower)).T - 0.1)
                         intervals.append(interval)
                     elif self.domain.type(att) == 'ordinal':
-                        ord_bins = (size + 1) // (2**bin_number)
+                        ord_bins = (size + 1) // (2**level)
                         ord_bins = max(ord_bins, 3)  # There must be at least 3 bins
                         upper = np.linspace(0, size, num=ord_bins)[1:]
                         lower = np.linspace(0, size, num=ord_bins)[:-1]
@@ -63,12 +69,21 @@ class Marginals(AdaptiveStatisticState):
                         interval = list(np.vstack((upper, lower)).T - 0.0001)
                         intervals.append(interval)
                     else:
-                        upper = np.linspace(0, 1, num=bin+1)[1:]
-                        lower = np.linspace(0, 1, num=bin+1)[:-1]
+                        bins_att = self.bins[att]
+                        num_bins = bins_att.shape[0]
+
+                        part = 2**level
+                        if num_bins // part < 3:
+                            part = num_bins // 2
+                        upper = bins_att[part::part]
+                        lower = bins_att[:-part:part]
+                        # upper = np.linspace(0, 1, num=bin+1)[1:]
+                        # lower = np.linspace(0, 1, num=bin+1)[:-1]
                         upper[-1] = 1.01
                         # upper = upper.at[-1].set(1.01)
                         interval = list(np.vstack((upper, lower)).T)
                         intervals.append(interval)
+
                 for v in itertools.product(*intervals):
                     v_arr = np.array(v)
                     upper = v_arr.flatten()[::2]
@@ -141,9 +156,9 @@ class Marginals(AdaptiveStatisticState):
         return Marginals(domain, kway_combinations, k, bins=[2])
 
     @staticmethod
-    def get_all_kway_combinations(domain, k, bins=(32,)):
+    def get_all_kway_combinations(domain, k, bins=None, levels=3):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
-        return Marginals(domain, kway_combinations, k, bins=bins)
+        return Marginals(domain, kway_combinations, k, bins=bins, levels=levels)
 
     @staticmethod
     def get_all_kway_mixed_combinations_v1(domain, k, bins=(32,)):

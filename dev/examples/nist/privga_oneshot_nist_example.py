@@ -1,11 +1,12 @@
 import os
 import jax.random
 import pandas as pd
-
+import numpy as np
 from models import GeneticSD, GeneticStrategy
 from stats import ChainedStatistics,  Marginals, NullCounts, Prefix
 import jax.numpy as jnp
 from dp_data import load_domain_config, load_df
+from dp_data.data_preprocessor import DataPreprocessor
 from utils import timer, Dataset, Domain, filter_outliers
 import pickle
 
@@ -21,22 +22,27 @@ if __name__ == "__main__":
 
     domain = Domain(config)
     data = Dataset(df_train, domain)
+    preprocessor_path = os.path.join(root_path + dataset_name, 'preprocessor.pkl')
+
+    bins = {}
+    with open(preprocessor_path, 'rb') as handle:
+        # preprocessor:
+        preprocessor = pickle.load(handle)
+        temp: pd.DataFrame
+        preprocessor: DataPreprocessor
+        min_val, max_val = preprocessor.mappings_num['PINCP']
+        print(min_val, max_val)
+        inc_bins = np.array([-10000, -1000, -100, 0, 10, 100, 1000, 10000, 100000, 1000000, 2000000])
+        inc_bins = (inc_bins - min_val) / (max_val - min_val)
+        bins['PINCP'] = inc_bins
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
     # One-shot queries
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32, 64])
-
-
-    # Adaptive queries
-    module1 = Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, random_prefixes=50000, rng=key)
-    module3 = Marginals.get_all_kway_combinations(data.domain, k=3, bins=[2, 4, 8, 16, 32, 64])
-    # module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[50, 100, 200])
-    # module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[2500, 5000, 10000])
-
-    module2 = NullCounts(domain)
-
-    stat_module = ChainedStatistics([module0, module1, module2, module3])
+    # module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32, 64])
+    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=bins, levels=3)
+    module1 = NullCounts(domain)
+    stat_module = ChainedStatistics([module0, module1])
     stat_module.fit(data)
 
     true_stats = stat_module.get_all_true_statistics()
@@ -47,25 +53,17 @@ if __name__ == "__main__":
 
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
-    # for eps in [1]:
     for eps in epsilon_vals:
         for seed in [0]:
-        # for seed in [0]:
-            sync_dir = f'sync_data/{dataset_name}/GSD/Ranges/oneshot/{eps:.2f}/'
-            os.makedirs(sync_dir, exist_ok=True)
-
             key = jax.random.PRNGKey(seed)
             t0 = timer()
 
-
-            sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module, oneshot_stats_ids=[0],
-                                oneshot_share=0.7,
-                               rounds=20,
+            sync_data = algo.fit_dp(key, stat_module=stat_module,
                                epsilon=eps,
                                delta=delta)
-            # sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=eps, delta=delta)
 
-            # post_sync_data = preprocessor.inverse_transform(sync_data.df)
+            sync_dir = f'sync_data/{dataset_name}/{eps:.2f}/oneshot'
+            os.makedirs(sync_dir, exist_ok=True)
             sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
             errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
             print(f'GSD(oneshot): eps={eps:.2f}, seed={seed}'

@@ -67,6 +67,7 @@ class GeneticStrategy:
         self.mate_rate = mate_rate
         self.debugging = debugging
         self.null_samples = 0.02
+        self.real_value_gaussian_perturbation = 0
 
     def initialize(
             self, rng: chex.PRNGKey
@@ -83,7 +84,8 @@ class GeneticStrategy:
         rng1, rng2 = jax.random.split(rng, 2)
         random_numbers = jax.random.permutation(rng1, self.data_size, independent=True)
         mute_mate = get_mutate_mating_fn(self.domain, mate_rate=self.mate_rate, muta_rate=self.muta_rate,
-                                         random_numbers=random_numbers)
+                                         random_numbers=random_numbers,
+                                         real_value_gaussian_perturbation=self.real_value_gaussian_perturbation)
         self.mate_mutate_vmap = jax.jit(jax.vmap(mute_mate, in_axes=(0, 0, 0, 0)))
         # self.mate_mutate_vmap = (jax.vmap(mute_mate, in_axes=(0, 0, 0, 0)))
 
@@ -160,7 +162,8 @@ class GeneticStrategy:
         ), idx
 
 
-def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_numbers):
+def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_numbers,
+                         real_value_gaussian_perturbation: float):
     # muta_rate = 1
 
     # numeric_idx=jnp.array([0, 1])
@@ -194,7 +197,7 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
 
 
         new_rows = elite_rows[add_rows_idx]
-        noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d)) * 0.01
+        noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d)) * real_value_gaussian_perturbation
         new_rows = new_rows + noise
         new_rows = new_rows.at[:, numeric_idx].set(jnp.clip(new_rows[:, numeric_idx], 0, 1))
 

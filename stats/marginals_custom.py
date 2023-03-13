@@ -8,10 +8,12 @@ from tqdm import tqdm
 import numpy as np
 
 
-config_example={
-    'PINCP' : {'type': 'real', 'sensitivity': np.sqrt(2), 'bins': [(0, 0.5), (0.5, 1.0)]},
-    'RACE': {'type': 'cat', 'sensitivity': np.sqrt(2)}
-}
+# config_example=[
+#     {'features': ['RACE', 'AGE'], 'sensitivity': np.sqrt(2)},
+#     {'features': ['PINCP'], 'sensitivity': np.sqrt(2)},
+#     'PINCP' : {'type': 'real', 'sensitivity': np.sqrt(2), 'bins': [(0, 0.5), (0.5, 1.0)]},
+#     'RACE': {'type': 'cat', 'sensitivity': np.sqrt(2)}
+# ]
 class Marginals(AdaptiveStatisticState):
 
     def __init__(self, domain, config):
@@ -33,7 +35,7 @@ class Marginals(AdaptiveStatisticState):
 
     def is_workload_numeric(self, cols):
         for c in cols:
-            if c in self.domain.get_numeric_cols():
+            if c in self.domain.get_numerical_cols() or c in self.domain.get_ordinal_cols():
                 return True
         return False
 
@@ -45,7 +47,6 @@ class Marginals(AdaptiveStatisticState):
         for marginal in tqdm(self.kway_combinations, desc='Setting up Marginals.'):
             assert len(marginal) == self.k
             indices = self.domain.get_attribute_indices(marginal)
-            indices_onehot = [self.domain.get_attribute_onehot_indices(att) for att in marginal]
             bins = self.bins if self.is_workload_numeric(marginal) else [-1]
             start_pos = len(queries)
             for bin in bins:

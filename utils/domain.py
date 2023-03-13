@@ -95,10 +95,11 @@ class Domain:
 
     def __eq__(self, other):
         return self.config == other.config
+
     def get_numerical_cols(self):
         n_cols = []
         for c in self.attrs:
-            if  self.config[c]['type'] == 'numerical':
+            if self.config[c]['type'] == 'numerical':
                 n_cols.append(c)
         return n_cols
 

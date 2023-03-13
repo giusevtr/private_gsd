@@ -146,17 +146,6 @@ class ChainedStatistics:
         self.selected_workloads = []
         for stat_id in range(len(self.stat_modules)):
             self.selected_workloads.append([])
-<<<<<<< HEAD
-        if stat_ids is None:
-            m = self.get_num_workloads()
-        else:
-            m = 0
-            for stat_id in stat_ids:
-                stat_mod = self.stat_modules[stat_id]
-                m += stat_mod.get_num_workloads()
-        rho_per_marginal = rho / m
-=======
->>>>>>> main
 
         # Choose the statistic modules to measure with zCDP
         measure_stats_ids = range(len(self.stat_modules)) if stat_ids is None else stat_ids
