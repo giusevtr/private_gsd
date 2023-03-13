@@ -20,7 +20,9 @@ from dev.dataloading.data_functions.acs import get_acs_all
 
 if __name__ == "__main__":
     # epsilon_vals = [0.07, 0.1, 0.15, 0.23, 0.52 ,0.74, 1, 2, 5, 10]
-    evaluate_original = False
+    evaluate_original =True
+
+    scale_real_valued = True
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1, 10]
     seeds = [0, 1, 2]
     Method = 'PrivGA'
@@ -38,26 +40,14 @@ if __name__ == "__main__":
         data_container.test
     )
 
-
     cat_cols = domain.get_categorical_cols()
     num_cols = domain.get_numeric_cols()
-    # dataset_name = 'folktables_2018_real_NY'
-    # dataset_name = 'folktables_2018_multitask_NY'
-    # root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
-    # config = load_domain_config(dataset_name, root_path=root_path)
-    #
-    # df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
-    # df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
     targets = ['PINCP', 'PUBCOV', 'ESR']
-
     models = [('LR', lambda: LogisticRegression(max_iter=5000, random_state=0,
                                                 solver='liblinear', penalty='l1')),
               # ('RF', lambda: RandomForestClassifier(random_state=0))
               ]
-    # Preprocess data.
-    # df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03, visualize_columns=False)
-    scale_real_valued = False
-    # domain = Domain.fromdict(config)
+
     features = []
     for f in domain.attrs:
         if f not in targets:
@@ -99,6 +89,9 @@ if __name__ == "__main__":
     print(results)
     if os.path.exists('results.csv'):
         results_pre = pd.read_csv('results.csv', index_col=None)
-        results = pd.concat([results_pre, results], ignore_index=True)
+
+        results = results_pre.append(results)
     print(f'Saving results.csv')
     results.to_csv('results.csv', index=False)
+
+
