@@ -45,7 +45,7 @@ if __name__ == "__main__":
     num_cols = domain.get_numeric_cols()
 
     # dataset_name = 'folktables_2018_real_NY'
-    targets = ['PINCP',  'PUBCOV', 'ESR']
+    targets = ['PINCP',  'PUBCOV', 'ESR', 'MIG', 'JWMNP']
 
     features = []
     for f in domain.attrs:

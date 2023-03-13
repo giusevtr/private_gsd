@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # epsilon_vals = [1, 10]
     dataset_name = 'folktables_2018_multitask_NY'
 
-    data_container_fn = get_acs_all(state='NY')
+    data_all, data_container_fn = get_acs_all(state='NY')
     data_container = data_container_fn(seed=0)
 
     domain = data_container.train.domain
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # Create statistics and evaluate
 
     key = jax.random.PRNGKey(0)
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    module0 = Marginals.get_kway_categorical(data.domain, k=2)
     module1 = Halfspace(domain=data.domain, k_cat=1,
                         cat_kway_combinations=[(tar,) for tar in targets], rng=key,
                         num_random_halfspaces=10000)
@@ -71,11 +71,13 @@ if __name__ == "__main__":
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     # for eps in [1]:
+    rounds = 50
+    num_samples = 10
     for eps in epsilon_vals:
         for seed in [0, 1, 2]:
         # for seed in [0]:
-            sync_dir = f'sync_data/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/'
-            sync_dir_post = f'sync_data_post/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/'
+            sync_dir = f'sync_data/{dataset_name}/PrivGA/Halfspaces/{rounds}/{num_samples}/{eps:.2f}/'
+            sync_dir_post = f'sync_data_post/{dataset_name}/PrivGA/Halfspaces/{rounds}/{num_samples}/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)
             os.makedirs(sync_dir_post, exist_ok=True)
 
@@ -95,12 +97,20 @@ if __name__ == "__main__":
                                                            endmodel=clf)
                 print(ml_result)
 
+            num_adaptive_queries = rounds * num_samples
+            oneshot_share = module0.get_num_workloads() / (module0.get_num_workloads() + num_adaptive_queries)
+            print(f'oneshot_share={oneshot_share:.4f}')
 
-
-
-            sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=eps, delta=delta)
+            sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module, epsilon=eps, delta=delta,
+                                           rounds=rounds, num_sample=num_samples,
+                                           oneshot_share=oneshot_share,
+                                           oneshot_stats_ids=[0]
+                                            )
 
             sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+            sync_data_post_df = data_container.from_dataset_to_df_fn(sync_data)
+            sync_data_post_df.to_csv(f'{sync_dir_post}/sync_data_{seed}.csv', index=False)
+
             errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
             print(f'PrivGA(oneshot): eps={eps:.2f}, seed={seed}'
                   f'\t max error = {errors.max():.5f}'

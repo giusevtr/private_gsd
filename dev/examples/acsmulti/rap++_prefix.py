@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
-from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff,
+from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff, PrefixDiff
 # from utils.utils_data import get_data
 from utils import timer
 import jax.numpy as jnp
@@ -46,7 +46,6 @@ from dev.dataloading.data_functions.acs import get_acs_all
 
 
 if __name__ == "__main__":
-    clipped = True
     dataset_name = 'folktables_2018_multitask_NY'
     data_all, data_container_fn = get_acs_all(state='NY')
 
@@ -56,20 +55,18 @@ if __name__ == "__main__":
 
     data_container = data_container_fn(seed=0)
     data = data_container.train
-    target = 'PINCP'
-    targets = ['PINCP',  'PUBCOV', 'ESR']
-    features = []
-    for f in domain.attrs:
-        if f not in targets:
-            features.append(f)
 
+    targets = ['PINCP',  'PUBCOV', 'ESR', 'MIG', 'JWMNP']
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
     module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
-    module1 = Pre
-    module1 = HalfspaceDiff(domain=data.domain, k_cat=1,
-                            cat_kway_combinations=[('PINCP',),  ('PUBCOV', ), ('ESR', )], rng=key,
-                            num_random_halfspaces=200000)
+    module1 = PrefixDiff(domain, k_cat=1,
+                         cat_kway_combinations=[(cat, ) for cat in targets],
+                         rng=key,
+                         k_prefix=2, num_random_prefixes=20000)
+    # module1 = HalfspaceDiff(domain=data.domain, k_cat=1,
+    #                         cat_kway_combinations=[('PINCP',),  ('PUBCOV', ), ('ESR', )], rng=key,
+    #                         num_random_halfspaces=200000)
     stat_module = ChainedStatistics([module0,
                                      module1
                                      ])
@@ -78,7 +75,8 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module.get_dataset_statistics_fn()
 
-    algo = RelaxedProjectionPP(domain=data.domain, data_size=1000, iterations=1000, learning_rate=[0.01], print_progress=False)
+    algo = RelaxedProjectionPP(domain=data.domain, data_size=1000,
+                               iterations=1000, learning_rate=[0.01], print_progress=False)
 
     num_sample = 10
     delta = 1.0 / len(data) ** 2
@@ -87,13 +85,17 @@ if __name__ == "__main__":
         for eps in [1.00]:
     # for eps in [0.07, 0.23, 0.52, 0.74, 1.0, 10.0]:
             for rounds in [50]:
+                num_adaptive_queries = rounds * num_sample
+                oneshot_share = module0.get_num_workloads() / (module0.get_num_workloads() + num_adaptive_queries)
+                print(f'oneshot_share={oneshot_share:.4f}')
+
                 key = jax.random.PRNGKey(seed)
                 t0 = timer()
-                sync_dir = f'sync_data/{dataset_name}/RAP++/Halfspaces/{rounds}/{num_sample}/{eps:.2f}/'
+                sync_dir = f'sync_data/{dataset_name}/RAP++/Prefix/{rounds}/{num_sample}/{eps:.2f}/'
                 os.makedirs(sync_dir, exist_ok=True)
                 sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module,
                             oneshot_stats_ids=[0],
-                            oneshot_share=0.4,
+                            oneshot_share=oneshot_share,
                             rounds=rounds,
                             epsilon=eps, delta=delta,
                             num_sample=num_sample,
@@ -104,7 +106,6 @@ if __name__ == "__main__":
                       f'\t max error = {errors.max():.5f}'
                       f'\t avg error = {errors.mean():.5f}'
                       f'\t time = {timer() - t0:.4f}')
-                print(f'Final ML Results: :', ml_eval_fn(sync_data.df))
 
         print()
 

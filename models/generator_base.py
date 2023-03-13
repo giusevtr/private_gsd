@@ -179,9 +179,7 @@ class Generator:
         rho_oneshot = oneshot_share * rho
         rho_adaptive = rho - rho_oneshot
 
-
-
-        ## Oneshot
+        # Oneshot
         key, key_oneshot = jax.random.split(key, 2)
         stat_module.private_measure_all_statistics(key_oneshot, rho_oneshot, stat_ids=oneshot_stats_ids)
 
@@ -192,7 +190,6 @@ class Generator:
         key, key_init = jax.random.split(key, 2)
         init_seed = int(jax.random.randint(key_init, minval=0, maxval=2 ** 20, shape=(1,))[0])
         sync_dataset = Dataset.synthetic(stat_module.get_domain(), N=self.data_size, seed=init_seed)
-
 
         for i in range(1, rounds + 1):
             if i < rounds:
