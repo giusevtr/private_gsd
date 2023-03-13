@@ -3,20 +3,20 @@ import os.path
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from dp_data import load_domain_config, load_df
 from utils import timer, Dataset, Domain, get_Xy
 
 import numpy as np
 
 
-from diffprivlib.models import LogisticRegression  as PrivLogisticRegression
+from diffprivlib.models import LogisticRegression as PrivLogisticRegression
 from sklearn.linear_model import LogisticRegression
 
 from sklearn.datasets import make_classification
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
-from ml_utils import filter_outliers
+from dev.dataloading.data_functions.acs import get_acs_all
+from ml_utils import filter_outliers, evaluate_machine_learning_task
 
 if __name__ == "__main__":
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1, 10]
@@ -24,20 +24,29 @@ if __name__ == "__main__":
     seeds = [0, 1, 2]
 
     scale_real_valued = True
+    evaluate_original = True
     # epsilon_vals = [10]
     # seeds = [0]
 
+    # dataset_name = 'acs_multitask_NY'
+    dataset_name = 'folktables_2018_multitask_NY'
+    data_container_fn = get_acs_all(state='NY')
+    data_container = data_container_fn(seed=0)
+
+    domain = data_container.train.domain
+    df_train = data_container.from_dataset_to_df_fn(
+        data_container.train
+    )
+    df_test = data_container.from_dataset_to_df_fn(
+        data_container.test
+    )
+
+    cat_cols = domain.get_categorical_cols()
+    num_cols = domain.get_numeric_cols()
 
     # dataset_name = 'folktables_2018_real_NY'
-    dataset_name = 'folktables_2018_multitask_NY'
-    root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
-    config = load_domain_config(dataset_name, root_path=root_path)
-
-    df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
-    df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
     targets = ['PINCP',  'PUBCOV', 'ESR']
 
-    domain = Domain.fromdict(config)
     features = []
     for f in domain.attrs:
         if f not in targets:
@@ -52,20 +61,42 @@ if __name__ == "__main__":
 
     print(f'Private Logistic Regression:')
     Res = []
-    # for target in ['PINCP']:
-    for target in ['PUBCOV']:
+    for target in ['PINCP']:
+    # for target in ['PUBCOV']:
 
-        X_train, y_train, X_test, y_test = get_Xy(domain, features=features, target=target, df_train=df_train,
-                                                  df_test=df_test, rescale=scale_real_valued)
+
+        if evaluate_original:
+
+
+            for seed in seeds:
+                clf = LogisticRegression(max_iter=5000, random_state=seed,
+                                         solver='liblinear', penalty='l1')
+
+                ml_result = evaluate_machine_learning_task(df_train, df_test,
+                                               feature_columns=features,
+                                               label_column=target,
+                                               cat_columns=cat_cols,
+                                               num_columns=num_cols,
+                                               endmodel=clf)
+                method = 'LR'
+                f1 = ml_result['macro avg']['f1-score']
+                acc = ml_result['accuracy']
+                print(f'{dataset_name}, {method}, target={target},  Non-Private, f1={f1}')
+                for eps in epsilon_vals:
+                    Res.append([dataset_name, 'No', 'Original', method, target, eps, 'F1', 0, f1])
+                    Res.append([dataset_name, 'No', 'Original', method, target, eps, 'Accuracy', 0, acc])
 
 
         for seed in seeds:
             for eps in epsilon_vals:
-
                 clf = PrivLogisticRegression(epsilon=eps, data_norm=data_norm, max_iter=5000, C=1)
-                clf.fit(X_train, y_train)
-                y_pred = clf.predict(X_test)
-                rep = classification_report(y_test, y_pred, output_dict=True)
+                rep = evaluate_machine_learning_task(df_train, df_test,
+                                                           feature_columns=features,
+                                                           label_column=target,
+                                                           cat_columns=cat_cols,
+                                                           num_columns=num_cols,
+                                                           endmodel=clf,
+                                                     scale_real_valued=True)
                 f1 = rep['macro avg']['f1-score']
                 acc = rep['accuracy']
                 print(f'{dataset_name}, target={target}, eps={eps}, f1={f1}')

@@ -31,11 +31,12 @@ if __name__ == "__main__":
     cat_cols = domain.get_categorical_cols()
     num_cols = domain.get_numeric_cols()
     target = 'PINCP'
-    targets = ['PINCP',  'PUBCOV', 'ESR']
+    targets = ['PINCP',  'PUBCOV', 'ESR', 'MIG', 'JWMNP' ]
     features = []
     for f in domain.attrs:
         if f not in targets:
             features.append(f)
+
 
     # df_train = data_container.from_dataset_to_df_fn(
     #     data_container.train
@@ -49,10 +50,17 @@ if __name__ == "__main__":
     ## ML Function
 
     # Create statistics and evaluate
+
     key = jax.random.PRNGKey(0)
     module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
-    stat_module = ChainedStatistics([module0])
+    module1 = Halfspace(domain=data.domain, k_cat=1,
+                        cat_kway_combinations=[(tar,) for tar in targets], rng=key,
+                        num_random_halfspaces=10000)
+    stat_module = ChainedStatistics([module0,
+                                     module1
+                                     ])
     stat_module.fit(data)
+
 
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()

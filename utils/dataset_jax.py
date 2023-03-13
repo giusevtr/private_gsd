@@ -380,6 +380,12 @@ class Dataset:
         df = pd.DataFrame(np.column_stack(cols), columns=data.domain.attrs)
         return Dataset(df, numeric_domain)
 
+    def split(self, p, seed=0):
+        np.random.seed(seed)
+        msk = np.random.rand(len(self.df)) < p
+        train = self.df[msk]
+        test = self.df[~msk]
+        return Dataset(train, self.domain), Dataset(test, self.domain)
 ##################################################
 # Test
 ##################################################

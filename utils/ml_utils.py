@@ -56,9 +56,10 @@ def get_Xy(domain: Domain, features: list, target, df_train: pd.DataFrame, df_te
     if len(cols_cat) > 0:
         X_cat_train = df_train[cols_cat].values
         X_cat_test = df_test[cols_cat].values
+        X_cat_all = np.vstack((X_cat_train, X_cat_test))
         categories = [np.arange(domain[c]) for c in cols_cat]
         enc = OneHotEncoder(categories=categories)
-        enc.fit(X_cat_train)
+        enc.fit(X_cat_all)
         X_cat_train = enc.transform(X_cat_train).toarray()
         X_cat_test = enc.transform(X_cat_test).toarray()
         X_train = X_cat_train
