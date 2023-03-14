@@ -56,7 +56,7 @@ if __name__ == "__main__":
     key = jax.random.PRNGKey(0)
     # One-shot queries
     # module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32, 64])
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=bins, levels=5)
+    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=bins, levels=5)
     stat_module = ChainedStatistics([module0])
     stat_module.fit(data)
 
@@ -116,30 +116,15 @@ if __name__ == "__main__":
         # num_violations += (~is_minor) & (~has_income)  # Adults must have income
 
         return num_violations
-
     # Dataset consistency count function
     row_inconsistency_vmap = jax.vmap(row_inconsistency, in_axes=(0, ))
     def count_inconsistency_fn(X):
         inconsistencies = row_inconsistency_vmap(X)
         return jnp.sum(inconsistencies)
-
-    # Population(of synthetic data sets) consistency count function
     count_inconsistency_population_fn = jax.jit(jax.vmap(count_inconsistency_fn, in_axes=(0, )))
 
 
-
-    ## TEST
-    data_size = 1000
-    sync = Dataset.synthetic_jax_rng(domain, N=data_size, rng=key, null_values=0.1)
-    sync_row=sync[10, :]
-    print(f'Sync Data inconsistencies count:')
-    print(row_inconsistency(sync_row))
-    ## END TEST
-
-
-
-
-    algo = GeneticSD(num_generations=20000, print_progress=True, stop_early=True,
+    algo = GeneticSD(num_generations=70000, print_progress=True, stop_early=True,
                      inconsistency_fn=count_inconsistency_population_fn,
                      strategy=GeneticStrategy(domain=data.domain, elite_size=2, data_size=2000))
     # Choose algorithm parameters

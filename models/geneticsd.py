@@ -310,100 +310,108 @@ class GeneticSD(Generator):
 
 
         if self.print_progress: timer(init_time, '\tSetup time = ')
-
-
-        t_init = timer()
-        key, subkey = jax.random.split(key, 2)
-        state = self.strategy.initialize(subkey)
-
+        init_sync = None
         if sync_dataset is not None:
             init_sync = sync_dataset.to_numpy()
-            temp = init_sync.reshape((1, init_sync.shape[0], init_sync.shape[1]))
-            new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
-            state = state.replace(archive=new_archive)
-        if self.print_progress: timer(t_init, '\tInit strategy time = ')
+        for consistency_weight in [1/self.data_size,
+                                   selected_noised_statistics.shape[0]]:
+            t_init = timer()
+            key, subkey = jax.random.split(key, 2)
+            state = self.strategy.initialize(subkey)
 
-        # Init slite statistics here
+            if init_sync is not None:
+                # init_sync = sync_dataset.to_numpy()
+                temp = init_sync.reshape((1, init_sync.shape[0], init_sync.shape[1]))
+                new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
+                state = state.replace(archive=new_archive)
+            if self.print_progress: timer(t_init, '\tInit strategy time = ')
 
-        t_elite = timer()
-        elite_stats = self.data_size * elite_population_fn(state.archive)
-        if self.print_progress: timer(t_elite, '\tElite population statistics time = ')
-        assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - elite_stats).max() < 1, f'archive stats error'
+            # Init slite statistics here
 
-        @jax.jit
-        def tell_elite_stats(a, old_elite_stats, new_elite_idx):
-            temp_stats = jnp.concatenate([a, old_elite_stats])
-            elite_stats = temp_stats[new_elite_idx]
-            return elite_stats
+            t_elite = timer()
+            elite_stats = self.data_size * elite_population_fn(state.archive)
+            if self.print_progress: timer(t_elite, '\tElite population statistics time = ')
+            assert jnp.abs(elite_population_fn(state.archive) * self.strategy.data_size - elite_stats).max() < 1, f'archive stats error'
 
-        self.early_stop_init()  # Initiate time-based early stop system
+            @jax.jit
+            def tell_elite_stats(a, old_elite_stats, new_elite_idx):
+                temp_stats = jnp.concatenate([a, old_elite_stats])
+                elite_stats = temp_stats[new_elite_idx]
+                return elite_stats
 
-        best_fitness_total = 100000
-        ask_time = 0
-        fit_time = 0
-        tell_time = 0
-        last_fitness = None
+            self.early_stop_init()  # Initiate time-based early stop system
 
-        self.fitness_record = []
-        for t in range(self.num_generations):
+            best_fitness_total = 10000000
+            ask_time = 0
+            fit_time = 0
+            tell_time = 0
 
-            # ASK
-            t0 = timer()
-            key, ask_subkey = jax.random.split(key, 2)
-            x, elite_ids, removed_rows, added_rows, state = self.strategy.ask(ask_subkey, state)
-            _, num_rows, _ = removed_rows.shape
-            ask_time += timer() - t0
+            self.fitness_record = []
+            best_fitness_total = 1000000000
+            last_fitness = None
 
-            # FIT
-            t0 = timer()
-            # Compute statistics of rows that changed
-            removed_stats = num_rows * population1_fn(removed_rows)
-            added_stats = num_rows * population1_fn(added_rows)
-            # Fitness of each dataset in the population
-            fitness, a = fitness_vmap_fn(elite_stats, elite_ids, removed_stats, added_stats)
-            inconsistency_counts = self.inconsistency_fn(x)
-            fit_time += timer() - t0
+            for t in range(self.num_generations):
 
-            # TELL
-            t0 = timer()
-            total_fitness = fitness + fitness.shape[0] * inconsistency_counts
-            state, new_elite_idx = self.strategy.tell(x, total_fitness, state)
-            elite_stats = tell_elite_stats(a, elite_stats, new_elite_idx)
-            tell_time += timer() - t0
+                # ASK
+                t0 = timer()
+                key, ask_subkey = jax.random.split(key, 2)
+                x, elite_ids, removed_rows, added_rows, state = self.strategy.ask(ask_subkey, state)
+                _, num_rows, _ = removed_rows.shape
+                ask_time += timer() - t0
 
-            best_pop_idx = total_fitness.argmin()
-            best_fitness = fitness[best_pop_idx]
-            best_inconsistency_count = inconsistency_counts[best_pop_idx]
-            self.fitness_record.append(best_fitness)
+                # FIT
+                t0 = timer()
+                # Compute statistics of rows that changed
+                removed_stats = num_rows * population1_fn(removed_rows)
+                added_stats = num_rows * population1_fn(added_rows)
+                # Fitness of each dataset in the population
+                fitness, a = fitness_vmap_fn(elite_stats, elite_ids, removed_stats, added_stats)
+                inconsistency_counts = self.inconsistency_fn(x)
+                fit_time += timer() - t0
 
-            # EARLY STOP
-            best_fitness_total = min(best_fitness_total, best_fitness)
+                # TELL
+                t0 = timer()
+                total_fitness = fitness + consistency_weight * inconsistency_counts
+                state, new_elite_idx = self.strategy.tell(x, total_fitness, state)
+                elite_stats = tell_elite_stats(a, elite_stats, new_elite_idx)
+                tell_time += timer() - t0
 
-            stop_early = False
-            if self.stop_early and t > int( self.data_size):
-                if self.early_stop(t, best_fitness_total):
-                    stop_early = True
+                best_pop_idx = total_fitness.argmin()
+                best_fitness_with_consistency = total_fitness[best_pop_idx]
+                best_fitness = fitness[best_pop_idx]
+                best_inconsistency_count = inconsistency_counts[best_pop_idx]
+                self.fitness_record.append(best_fitness)
 
-            if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
-                if self.print_progress:
-                    elapsed_time = timer() - init_time
-                    X_sync = state.best_member
+                # EARLY STOP
+                best_fitness_total = min(best_fitness_total, best_fitness_with_consistency)
 
-                    print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
-                    print(f'\tinconsistencies={best_inconsistency_count:.0f}, ', end=' ')
-                    p_inf, p_avg, p_l2 = private_loss(X_sync)
-                    print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})',end='')
-                    t_inf, t_avg, p_l2 = true_loss(X_sync)
-                    print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})',end='')
-                    print(f'\t|time={elapsed_time:.4f}(s):', end='')
-                    print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
-                    print()
-                last_fitness = best_fitness_total
+                stop_early = False
+                if self.stop_early and t > int( self.data_size):
+                    if self.early_stop(t, best_fitness_total):
+                        stop_early = True
 
-            if stop_early:
-                if self.print_progress:
-                    print(f'\t\tStop early at t={t}')
-                break
+                if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
+                    if self.print_progress:
+                        elapsed_time = timer() - init_time
+                        X_sync = state.best_member
+
+                        print(f'\tGen {t:05}, fitness+consistency={best_fitness_total:.6f}, ', end=' ')
+                        print(f'\tfitness={best_fitness:.2f}, ', end=' ')
+                        print(f'\tinconsistencies={best_inconsistency_count:.0f}, ', end=' ')
+                        p_inf, p_avg, p_l2 = private_loss(X_sync)
+                        print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})',end='')
+                        t_inf, t_avg, p_l2 = true_loss(X_sync)
+                        print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})',end='')
+                        print(f'\t|time={elapsed_time:.4f}(s):', end='')
+                        print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
+                        print()
+                    last_fitness = best_fitness_total
+
+                if stop_early:
+                    if self.print_progress:
+                        print(f'\t\tStop early at t={t}')
+                    break
+            init_sync = state.best_member
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
