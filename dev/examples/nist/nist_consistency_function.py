@@ -9,7 +9,7 @@ from dp_data import load_domain_config, load_df
 from utils import timer, Dataset, Domain, filter_outliers
 import pickle
 
-
+from privga_oneshot_nist_example import
 if __name__ == "__main__":
     # epsilon_vals = [10]
     epsilon_vals = [10]

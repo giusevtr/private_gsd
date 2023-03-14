@@ -66,7 +66,7 @@ class GeneticStrategy:
         self.muta_rate = muta_rate
         self.mate_rate = mate_rate
         self.debugging = debugging
-        self.null_samples = 0.02
+        self.null_samples = 0.05
         self.real_value_gaussian_perturbation = 0
 
     def initialize(

@@ -112,7 +112,7 @@ def post_nist(df):
     # df_post["AGEP"].replace('N', 0).astype(float).round().astype(int)
 
     ints = [
-            "AGEP",
+            "OWN_RENT",
             "SEX",
             "HISP",
             "RAC1P",
@@ -123,8 +123,16 @@ def post_nist(df):
             "PWGTP",
             "WGTP"
     ]
+    for int_feat in ints:
+        int_col = df_post[int_feat]
+
+        new_col = int_col.replace('N', 0)
+        new_col2 = new_col.astype(float).round().astype(int)
+        df_post[int_feat] = new_col2.values
+
     # Manual fix: These integer features are not allowed to have null values. Remove all null values.
-    df_post[ints] = df_post[ints].replace('N', 0).astype(float).round().astype(int)
+    # df_post.loc[ints].replace('N', 0, inplace=True)
+    # df_post = df_post.astype(float).round().astype(int)
 
 
     df_post = df_post.sample(n=len(df_orig), replace=True)
