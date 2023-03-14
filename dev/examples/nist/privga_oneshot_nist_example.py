@@ -34,9 +34,9 @@ if __name__ == "__main__":
         min_val, max_val = preprocessor.mappings_num['PINCP']
         print(min_val, max_val)
         # inc_bins = np.array([-10000, -1000, -100, 0, 10, 100, 1000, 10000, 100000, 1000000, 2000000])
-        inc_bins_pre = np.array([-10000, -100, 0, 10, 100, 200, 500, 700, 1000, 2000, 3000, 4500, 8000, 9000, 10000,
+        inc_bins_pre = np.array([-10000, -100, -10, 0, 5, 10, 50, 100, 200, 500, 700, 1000, 2000, 3000, 4500, 8000, 9000, 10000,
                                  10800, 12000, 14390, 15000, 18010,
-                                 20000,23000, 25000,
+                                 20000, 23000, 25000,
                              27800, 30000, 33000, 35000, 37000, 40000, 45000, 47040, 50000, 55020, 60000, 65000,
                                  67000, 70000, 75000, 80000, 85000, 90000, 95000, 100000, 101300, 140020,
                                  200000, 300000, 4000000, 500000, 1166000])
@@ -64,7 +64,52 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = GeneticSD(num_generations=80000, print_progress=True, stop_early=True, strategy=GeneticStrategy(domain=data.domain, elite_size=2, data_size=1000))
+
+
+    ## Inconsistensies
+    age_idx = domain.get_attribute_indices(['AGEP']).squeeze().astype(int)
+    married_idx = domain.get_attribute_indices(['MSP']).squeeze().astype(int)
+    income_idx = domain.get_attribute_indices(['PINCP']).squeeze().astype(int)
+    indp_idx = domain.get_attribute_indices(['INDP']).squeeze().astype(int)
+    indp_cat_idx = domain.get_attribute_indices(['INDP_CAT']).squeeze().astype(int)
+    noc_idx = domain.get_attribute_indices(['NOC']).squeeze().astype(int) # Number of children
+    npf_idx = domain.get_attribute_indices(['NPF']).squeeze().astype(int) # Family size
+    edu_idx = domain.get_attribute_indices(['EDU']).squeeze().astype(int) # Family size
+
+
+    def row_inconsistency(x: jnp.ndarray):
+        is_minor = x[age_idx] <= 15
+        is_married = x[married_idx] == 4
+        has_income = ~(x[income_idx] == jnp.nan)
+        has_indp = ~(x[indp_idx] == jnp.nan)
+        has_indp_cat = ~(x[indp_cat_idx] == jnp.nan)
+        num_violations = 0
+        num_violations += (is_minor & is_married)  # Children cannot be married
+        num_violations += (is_minor & has_income)  # Children cannot have income
+        num_violations += (x[indp_idx] == jnp.nan) & (~(x[indp_cat_idx] == jnp.nan))  # Industry codes must match. Either
+        num_violations += (~(x[indp_idx] == jnp.nan)) & ((x[indp_cat_idx] == jnp.nan))  # Both are null or non-are null
+        num_violations += (x[noc_idx] >= x[npf_idx])  # Number of children must be less than family size
+        num_violations += is_minor & has_indp  # Children don't have industry codes
+        num_violations += is_minor & has_indp_cat  # Children don't have industry codes
+        # num_violations += is_minor & (x[edu_idx] == 12)  # Children don't have phd
+        num_violations += is_minor & (~(x[noc_idx] == jnp.nan))  # Children don't have children
+        num_violations += (~is_minor) & (~has_income)  # Adults must have income
+
+        return num_violations
+
+    # Dataset consistency count function
+    row_inconsistency_vmap = jax.vmap(row_inconsistency, in_axes=(0, ))
+    def count_inconsistency_fn(X):
+        inconsistencies = row_inconsistency_vmap(X)
+        return jnp.sum(inconsistencies)
+
+    # Population(of synthetic data sets) consistency count function
+    count_inconsistency_population_fn = jax.vmap(count_inconsistency_fn, in_axes=(0, ))
+
+
+    algo = GeneticSD(num_generations=100000, print_progress=True, stop_early=True,
+                     inconsistency_fn=count_inconsistency_population_fn,
+                     strategy=GeneticStrategy(domain=data.domain, elite_size=2, data_size=2000))
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2

@@ -255,7 +255,8 @@ class GeneticSD(Generator):
                  num_generations,
                  strategy: GeneticStrategy,
                  print_progress=False,
-                 stop_early=True
+                 stop_early=True,
+                 inconsistency_fn=None
                  ):
         self.domain = strategy.domain
         self.data_size = strategy.data_size
@@ -263,6 +264,7 @@ class GeneticSD(Generator):
         self.print_progress = print_progress
         self.strategy = strategy
         self.stop_early = stop_early
+        self.inconsistency_fn = inconsistency_fn
 
     def __str__(self):
         return f'GSD'
@@ -359,17 +361,19 @@ class GeneticSD(Generator):
             added_stats = num_rows * population1_fn(added_rows)
             # Fitness of each dataset in the population
             fitness, a = fitness_vmap_fn(elite_stats, elite_ids, removed_stats, added_stats)
-
+            inconsistency_counts = self.inconsistency_fn(x)
             fit_time += timer() - t0
 
             # TELL
             t0 = timer()
-            state, new_elite_idx = self.strategy.tell(x, fitness, state)
+            total_fitness = fitness + fitness.shape[0] * inconsistency_counts
+            state, new_elite_idx = self.strategy.tell(x, total_fitness, state)
             elite_stats = tell_elite_stats(a, elite_stats, new_elite_idx)
             tell_time += timer() - t0
 
-            best_pop_idx = fitness.argmin()
+            best_pop_idx = total_fitness.argmin()
             best_fitness = fitness[best_pop_idx]
+            best_inconsistency_count = inconsistency_counts[best_pop_idx]
             self.fitness_record.append(best_fitness)
 
             # EARLY STOP
@@ -386,6 +390,7 @@ class GeneticSD(Generator):
                     X_sync = state.best_member
 
                     print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
+                    print(f'\tinconsistencies={best_inconsistency_count:.0f}, ', end=' ')
                     p_inf, p_avg, p_l2 = private_loss(X_sync)
                     print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})',end='')
                     t_inf, t_avg, p_l2 = true_loss(X_sync)

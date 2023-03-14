@@ -129,7 +129,12 @@ def post_nist(df):
 
     df_post = df_post.sample(n=len(df_orig), replace=True)
     print(df_post)
-    return df_post
+
+    copies = len(df_orig)  // len(df_post)
+    df_post_upsample = pd.concat([df_post.copy() for _ in range(copies)])
+    rem = len(df_post) - len(df_post_upsample)
+    df_post_upsample = pd.concat([df_post_upsample, df_post.sample(n=rem)])
+    return df_post_upsample
 
 sync_path = sys.argv[1]
 save_post_pat = sys.argv[2]
