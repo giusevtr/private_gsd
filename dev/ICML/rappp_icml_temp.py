@@ -22,7 +22,7 @@ from dev.dataloading.data_functions.acs import get_acs_all
 
 def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
 
-    max_num_queries = 200000
+    max_num_queries = 10000
     rounds = 50
     num_sample = 10
     Res = []
@@ -35,6 +35,8 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
     domain = Domain.fromdict(config)
+    domain = domain.project(['PINCP', 'AGEP', 'WAGP', 'SEMP'])
+    df_train = df_train.sample(n=10000)
     data = Dataset(df_train, domain)
 
     # Create statistics and evaluate
@@ -56,8 +58,10 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module.get_dataset_statistics_fn()
 
+    # learning_rate.reverse()
     algo = RelaxedProjectionPP_v2(domain=data.domain, data_size=1000,
-                               iterations=2000,  print_progress=False)
+                               iterations=2000,
+                                  print_progress=False)
 
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
@@ -90,11 +94,11 @@ if __name__ == "__main__":
 
     DATA = [
         'folktables_2018_real_CA',
-        'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
-        'folktables_2018_travel_CA',
+        # 'folktables_2018_coverage_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
+        # 'folktables_2018_mobility_CA',
+        # 'folktables_2018_travel_CA',
     ]
 
     MODULE = [
@@ -102,15 +106,11 @@ if __name__ == "__main__":
         # 'Halfspaces'
     ]
 
-    os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/rap++.csv'
     results = None
-    if os.path.exists(file_name):
-        print(f'reading {file_name}')
-        results = pd.read_csv(file_name)
+    os.makedirs('icml_results/', exist_ok=True)
     for data, module in itertools.product(DATA, MODULE):
-        results_temp = run(data, module, eps_values=[0.07, 1.0])
+        results_temp = run(data, module, eps_values=[100])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
-        print(f'Saving {file_name}')
-        results.to_csv(file_name, index=False)
+        print('Saving')
+        results.to_csv('icml_results/gsd_oneshot.csv', index=False)
 

@@ -125,11 +125,11 @@ class RelaxedProjectionPP(Generator):
                 temp_params = optax.apply_updates(temp_params, updates)
                 temp_params['w'] = post_fn(temp_params['w'])
                 if loss > 2 * best_loss:
-                    if self.print_progress: print(f'\t3) Stop early at {t}.')
+                    if self.print_progress: print(f'\t3) Stop early at {t}. Final loss={loss:.5f}')
                     break
                 if (t > stop_early + 1 and len(loss_hist) > 2 * stop_early and loss >= 0.999 * loss_hist[-self.stop_early]):
                     if self.print_progress:
-                        t0 = timer(t0, f'\t3) Stop early at {t} for Sigmoid = {sigmoid}. time=')
+                        t0 = timer(t0, f'\t3) Stop early at {t} for Sigmoid = {sigmoid}. Final loss={loss:.5f} time=')
                     break
 
                 if self.print_progress:
@@ -140,10 +140,10 @@ class RelaxedProjectionPP(Generator):
             # update params:
             this_loss = compute_loss_jit(temp_params, 2**15)
             if self.print_progress:
-                timer(t_sigmoid, f'\t4) End training| temp_params.total_loss={this_loss:<8.5f}, best_loss={best_loss:8.5f}. time=')
+                timer(t_sigmoid, f'\t\t4) End training| temp_params.total_loss={this_loss:<8.5f}, best_loss={best_loss:8.5f}. time=')
             if this_loss < best_loss:
                 if self.print_progress:
-                    print(f'\t5) Updating parameters...')
+                    print(f'\t\t5) Updating parameters...')
                 best_loss = this_loss
                 params = temp_params.copy()
 
