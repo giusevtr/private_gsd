@@ -57,7 +57,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     stat_fn = stat_module.get_dataset_statistics_fn()
 
     algo = RelaxedProjectionPP_v2(domain=data.domain, data_size=1000,
-                               iterations=2000,  print_progress=False)
+                               iterations=2000,  print_progress=True)
 
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
