@@ -80,7 +80,6 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
                             eps, seed, 'Average', errors.mean(), elapsed_time,
                             mut, cross])
 
-            print()
 
     columns = ['Generator', 'Data', 'Statistics', 'T', 'S', 'epsilon', 'seed', 'error type', 'error', 'time',
                'Mutations', 'Crossover']
@@ -92,10 +91,10 @@ if __name__ == "__main__":
     DATA = [
         # 'folktables_2018_real_CA',
         'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
-        'folktables_2018_travel_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
+        # 'folktables_2018_mobility_CA',
+        # 'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)

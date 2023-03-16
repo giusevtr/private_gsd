@@ -1,5 +1,5 @@
 import jax
-from models import PrivGA, SimpleGAforSyncData
+from models import SimpleGAforSyncData, PrivGAParam as PrivGA
 from stats import Marginals, ChainedStatistics
 from dev.toy_datasets.sparsecat import get_sparsecat
 import time
@@ -56,6 +56,8 @@ if __name__ == "__main__":
     marginal_module = Marginals.get_all_kway_combinations(data.domain, k=2)
     priv_ga = PrivGA( num_generations=100000, print_progress=False, strategy=SimpleGAforSyncData(
                         domain=data.domain, data_size=2000,
+        muta_rate=2,
+        mate_rate=2,
                         population_size=200))
     run(data, priv_ga, marginal_module, eps=5, seed=1)
 
