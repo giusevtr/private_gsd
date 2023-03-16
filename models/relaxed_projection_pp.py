@@ -75,9 +75,6 @@ class RelaxedProjectionPP(Generator):
                 sync = softmax_fn(w)
                 # Distance to the target statistics
                 loss = jnp.linalg.norm(diff_stat_fn(sync, sigmoid=sigmoid) - target_stats) ** 2
-                # Add a penalty if any numeric features moves outsize the range [0,1]
-                # loss += jnp.sum(jax.nn.sigmoid(2**15 * (w[:, num_idx] - 1)))
-                # loss += jnp.sum(jax.nn.sigmoid(-2**15 * (w[:, num_idx])))
                 return loss
             compute_loss_jit = jax.jit(compute_loss)
             update_fn = lambda pa, si, st: self.optimizer.update(jax.grad(compute_loss)(pa, si), st)

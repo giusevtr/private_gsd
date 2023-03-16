@@ -1,14 +1,15 @@
 import itertools
 import jax
-from models import Generator, RelaxedProjectionPP
-from stats import HalfspaceDiff, ChainedStatistics
+# from models import Generator, RelaxedProjectionPP
+from models import RelaxedProjectionPPneurips as RelaxedProjectionPP
+from stats import HalfspaceDiff, PrefixDiff, ChainedStatistics
 from dev.toy_datasets.sparse import get_sparse_dataset
 import time
 from plot import plot_sparse
 
 
 PRINT_PROGRESS = True
-ROUNDS = 3
+ROUNDS = 10
 SAMPLES = 10
 EPSILON = [10]
 # EPSILON = [1]
@@ -34,8 +35,8 @@ if __name__ == "__main__":
     rappp = RelaxedProjectionPP(
         domain=data.domain,
         data_size=data_size,
-        learning_rate=(0.0001,),
-        print_progress=False,
+        learning_rate=(0.005,),
+        print_progress=True,
         )
 
     RESULTS = []
@@ -51,7 +52,7 @@ if __name__ == "__main__":
 
         sync_data = rappp.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=eps, delta=1e-6,
                                             rounds=ROUNDS, num_sample=SAMPLES, print_progress=True, debug_fn=debug_fn)
-        plot_sparse(sync_data.to_numpy(), title=f'RAP++, Halfspaces, eps={eps:.2f}', alpha=0.9, s=0.8)
+        plot_sparse(sync_data.to_numpy(), title=f'RAP++, Prefix, eps={eps:.2f}', alpha=0.9, s=0.8)
 
         errors = jax.numpy.abs(true_stats - stat_fn(sync_data))
         ave_error = jax.numpy.linalg.norm(errors, ord=1)

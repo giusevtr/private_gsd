@@ -50,9 +50,9 @@ class RelaxedProjectionPP_v2(Generator):
         start_params = []
         init_params_1 = {'w': softmax_fn(jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))}
         start_params.append(init_params_1)
-        if adaptive_epoch > 1:
+        # if adaptive_epoch > 1:
             # if self.print_progress: print('Initializing relaxed dataset')
-            start_params.append({'w': self.init_sync_data})
+            # start_params.append({'w': self.init_sync_data})
             # self.init_params = jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1)
         # params = {'w': self.init_params.copy()}
 
@@ -66,8 +66,6 @@ class RelaxedProjectionPP_v2(Generator):
         def clip_numeric(D):
             D = D.at[:, num_idx].set(jnp.clip(D[:, num_idx], 0, 1))
             return D
-
-
 
         # self.optimizer = optax.adam(lr)
         # Obtain the `opt_state` that contains statistics for the optimizer.

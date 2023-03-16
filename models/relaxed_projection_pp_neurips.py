@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from utils import Dataset, Domain, timer
 from stats import Marginals, AdaptiveStatisticState, ChainedStatistics
 from jax import jit, value_and_grad
-
 from jax.example_libraries import optimizers
+
+
 @dataclass
-class RelaxedProjectionPP_v2(Generator):
+class RelaxedProjectionPPneurips(Generator):
     # domain: Domain
     data_size: int
     iterations: int
@@ -45,11 +46,12 @@ class RelaxedProjectionPP_v2(Generator):
 
         # Check if this is the first adaptive round. If so, then initialize a synthetic data
         # selected_workloads = len(adaptive_statistic.selected_workloads)
-        if adaptive_epoch == 1:
-            if self.print_progress: print('Initializing relaxed dataset')
-            self.init_params = softmax_fn( jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))
+        # if adaptive_epoch == 1:
+        #     if self.print_progress: print('Initializing relaxed dataset')
+        #     self.init_params = softmax_fn( jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))
 
-        D_prime_init = self.init_params
+        D_prime_init = softmax_fn(jax.random.uniform(key2, shape=(self.data_size, data_dim), minval=0, maxval=1))
+
 
         target_stats = adaptive_statistic.get_selected_noised_statistics()
         diff_stat_fn = adaptive_statistic.get_selected_statistics_fn()
@@ -118,7 +120,7 @@ class RelaxedProjectionPP_v2(Generator):
         # TODO: Save best param
         D_prime_best = D_prime.copy()
         opt_state = opt_init(D_prime)
-        for i in range(3):
+        for i in range(9):
             t_sigmoid = timer()
             # temp_params = params.copy()
 
@@ -128,8 +130,8 @@ class RelaxedProjectionPP_v2(Generator):
             opt_lr_epoch = opt_lr / 2**i
 
             if self.print_progress: print(f'\tepoch {i:<3}'
-                                          f'Starting loss={compute_loss_jit(D_prime, 2**15):.3f}'
-                                          f'learning_rate={opt_lr_epoch}')
+                                          f'\tStarting loss={compute_loss_jit(D_prime, 2**15):.3f}'
+                                          f'\tlearning_rate={opt_lr_epoch}')
 
             sigmoid_param = 1
             sig_counter = 0
