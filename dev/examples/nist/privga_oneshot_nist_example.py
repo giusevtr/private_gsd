@@ -63,69 +63,7 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-
-
-    ## Inconsistensies
-    puma_idx = domain.get_attribute_indices(['PUMA']).squeeze().astype(int)
-    sex_idx = domain.get_attribute_indices(['SEX']).squeeze().astype(int)
-    hisp_idx = domain.get_attribute_indices(['HISP']).squeeze().astype(int)
-    rac1p_idx = domain.get_attribute_indices(['RAC1P']).squeeze().astype(int)
-    housing_idx = domain.get_attribute_indices(['HOUSING_TYPE']).squeeze().astype(int)
-    own_rent_idx = domain.get_attribute_indices(['OWN_RENT']).squeeze().astype(int)
-    density_idx = domain.get_attribute_indices(['DENSITY']).squeeze().astype(int)
-    deye_idx = domain.get_attribute_indices(['DEYE']).squeeze().astype(int)
-    dear_idx = domain.get_attribute_indices(['DEAR']).squeeze().astype(int)
-    age_idx = domain.get_attribute_indices(['AGEP']).squeeze().astype(int)
-    married_idx = domain.get_attribute_indices(['MSP']).squeeze().astype(int)
-    income_idx = domain.get_attribute_indices(['PINCP']).squeeze().astype(int)
-    income_decile_idx = domain.get_attribute_indices(['PINCP_DECILE']).squeeze().astype(int)
-    indp_idx = domain.get_attribute_indices(['INDP']).squeeze().astype(int)
-    indp_cat_idx = domain.get_attribute_indices(['INDP_CAT']).squeeze().astype(int)
-    noc_idx = domain.get_attribute_indices(['NOC']).squeeze().astype(int) # Number of children
-    npf_idx = domain.get_attribute_indices(['NPF']).squeeze().astype(int) # Family size
-    edu_idx = domain.get_attribute_indices(['EDU']).squeeze().astype(int) # Family size
-    def row_inconsistency(x: jnp.ndarray):
-        is_minor = (x[age_idx] <= 15)
-        has_no_age = jnp.isnan(x[age_idx])
-        is_married = ~jnp.isnan(x[married_idx])
-        has_income = ~jnp.isnan(x[income_idx])
-        has_indp = ~jnp.isnan(x[indp_idx])
-        has_indp_cat = ~jnp.isnan(x[indp_cat_idx])
-        num_violations = 0
-        num_violations += jnp.isnan(x[age_idx]) # Age is null
-        num_violations += jnp.isnan(x[puma_idx])  #
-        num_violations += jnp.isnan(x[sex_idx])  #
-        num_violations += jnp.isnan(x[hisp_idx])  #
-        num_violations += jnp.isnan(x[rac1p_idx])  #
-        num_violations += jnp.isnan(x[housing_idx])  #
-        num_violations += jnp.isnan(x[own_rent_idx])  #
-        num_violations += jnp.isnan(x[density_idx])  #
-        num_violations += jnp.isnan(x[deye_idx])  #
-        num_violations += jnp.isnan(x[dear_idx])  #
-
-        num_violations += (is_minor & is_married)  # Children cannot be married
-        num_violations += (is_minor & has_income)  # Children cannot have income
-        num_violations += (is_minor & (~jnp.isnan(x[income_decile_idx])))  # Children cannot have income
-        num_violations += jnp.isnan(x[indp_idx]) & (~jnp.isnan(x[indp_cat_idx]))  # Industry codes must match. Either
-        num_violations += (~jnp.isnan(x[indp_idx])) & (jnp.isnan(x[indp_cat_idx]))  # Both are null or non-are null
-        num_violations += (x[noc_idx] >= x[npf_idx])  # Number of children must be less than family size
-        # num_violations += is_minor & has_indp  # Children don't have industry codes
-        # num_violations += is_minor & has_indp_cat  # Children don't have industry codes
-        # # num_violations += is_minor & (x[edu_idx] == 12)  # Children don't have phd
-        # num_violations += is_minor & (~(x[noc_idx] == jnp.nan))  # Children don't have children
-        # num_violations += (~is_minor) & (~has_income)  # Adults must have income
-
-        return num_violations
-    # Dataset consistency count function
-    row_inconsistency_vmap = jax.vmap(row_inconsistency, in_axes=(0, ))
-    def count_inconsistency_fn(X):
-        inconsistencies = row_inconsistency_vmap(X)
-        return jnp.sum(inconsistencies)
-    count_inconsistency_population_fn = jax.jit(jax.vmap(count_inconsistency_fn, in_axes=(0, )))
-
-
     algo = GeneticSD(num_generations=70000, print_progress=True, stop_early=True,
-                     inconsistency_fn=count_inconsistency_population_fn,
                      strategy=GeneticStrategy(domain=data.domain, elite_size=2, data_size=2000))
     # Choose algorithm parameters
 

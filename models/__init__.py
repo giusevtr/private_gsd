@@ -1,3 +1,4 @@
 from models.generator_base import Generator
 from models.geneticsd import GeneticSD, GeneticStrategy
+from models.geneticsd_consistent import GeneticSDConsistent
 from models.relaxed_projection_pp import RelaxedProjectionPP
