@@ -2,7 +2,7 @@ import itertools
 import jax
 # from models import Generator, RelaxedProjectionPP
 # from models import RelaxedProjectionPPneurips as RelaxedProjectionPP
-from models import RelaxedProjectionPP_v3 as RelaxedProjectionPP
+from models import RelaxedProjectionPPneurips as RelaxedProjectionPP
 from stats import HalfspaceDiff, PrefixDiff, ChainedStatistics, MarginalsDiff, Prefix
 from dev.toy_datasets.sparse import get_sparse_dataset
 import time
@@ -11,8 +11,8 @@ import jax.numpy as jnp
 
 
 PRINT_PROGRESS = True
-ROUNDS = 50
-SAMPLES = 10
+ROUNDS = 10
+SAMPLES = 50
 EPSILON = [10]
 # EPSILON = [1]
 SEEDS = [0]
@@ -26,17 +26,7 @@ if __name__ == "__main__":
     #                                                                        random_hs=1000)
 
     module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=1)
-    module = PrefixDiff.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key_hs, random_prefixes=1000)
-    module_pre = Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key_hs, random_prefixes=1000)
-
-    temp = data.to_onehot()
-    pre_fn = module_pre._get_workload_fn()
-    pre_diff_fn = module._get_workload_fn()
-
-    error = jnp.abs(pre_fn(data.to_numpy()) - pre_diff_fn(data.to_onehot(), 2**15))
-    print(error.max())
-
-
+    module = PrefixDiff.get_kway_prefixes(data.domain, k_cat=0, k_num=2, rng=key_hs, random_prefixes=1000)
 
     stats_module = ChainedStatistics([
         module0,
@@ -53,7 +43,7 @@ if __name__ == "__main__":
         domain=data.domain,
         data_size=data_size,
         iterations=5000,
-        # learning_rate=(0.005,),
+        learning_rate=(0.8,),
         print_progress=True,
         )
 

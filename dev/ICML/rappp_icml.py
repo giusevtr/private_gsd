@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP_v2
+from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPPneurips as RelaxedProjectionPP
 from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff, PrefixDiff
 # from utils.utils_data import get_data
 from utils import timer
@@ -23,8 +23,8 @@ from dev.dataloading.data_functions.acs import get_acs_all
 def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
 
     max_num_queries = 200000
-    rounds = 50
-    num_sample = 10
+    rounds = 10
+    num_sample = 50
     Res = []
 
     root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
@@ -43,6 +43,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     num_real = len(domain.get_numeric_cols())
     print(f'{dataset_name} has {num_real} real features.')
     d = domain.get_dimension() - num_real
+    module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=1)
 
     if module_name == 'Prefix':
         domain.get_dimension()
@@ -51,13 +52,13 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     else:
         halfspaces = max_num_queries // d
         module = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=1, rng=key, random_hs=halfspaces)
-    stat_module = ChainedStatistics([module])
+    stat_module = ChainedStatistics([module0, module])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module.get_dataset_statistics_fn()
 
-    algo = RelaxedProjectionPP_v2(domain=data.domain, data_size=1000,
-                               iterations=2000,  print_progress=True)
+    algo = RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=[0.8],
+                               iterations=2000,  print_progress=False)
 
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
@@ -66,7 +67,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
             t0 = timer()
             sync_dir = f'sync_data/{dataset_name}/RAP++/{module_name}/{rounds}/{num_sample}/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)
-            sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
+            sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module,
                                            rounds=rounds,
                                            epsilon=eps, delta=delta,
                                            num_sample=num_sample,
@@ -89,12 +90,12 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 if __name__ == "__main__":
 
     DATA = [
-        'folktables_2018_real_CA',
+        # 'folktables_2018_real_CA',
         'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
-        'folktables_2018_travel_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
+        # 'folktables_2018_mobility_CA',
+        # 'folktables_2018_travel_CA',
     ]
 
     MODULE = [

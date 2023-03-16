@@ -72,8 +72,7 @@ class RelaxedProjectionPPneurips(Generator):
         @jit
         def loss_fn(D_prime, sigmoid_param):
             stats1 = diff_stat_fn(D_prime, sigmoid=sigmoid_param)
-            error1 = target_stats - stats1
-            loss_1 = jnp.linalg.norm(error1, ord=2)
+            loss_1 = jnp.linalg.norm(target_stats - stats1, ord=2)
             return loss_1
 
         @jit
@@ -107,20 +106,24 @@ class RelaxedProjectionPPneurips(Generator):
         oh = Dataset.get_sample_onehot(key2, self.domain, X_relaxed=D_prime, num_samples=20)
         return Dataset.from_onehot_to_dataset(self.domain, oh)
 
-    def fit_help(self, D_prime, opt_init, compute_loss_jit, update_fn_jit, opt_lr):
+    def fit_help(self, D_prime_init, opt_init, compute_loss_jit, update_fn_jit, opt_lr):
 
         stop_early = self.stop_early
 
         self.early_stop_init()
-        best_loss = compute_loss_jit(D_prime, 2**15)
+        best_loss = compute_loss_jit(D_prime_init, 2**15)
         iters = 0
         t0 = timer()
         t1 = timer()
         sigmoid_double = 15
         # TODO: Save best param
-        D_prime_best = D_prime.copy()
-        opt_state = opt_init(D_prime)
+
+
+        D_prime_best = D_prime_init.copy()
         for i in range(9):
+            D_prime = D_prime_best.copy()
+            opt_state = opt_init(D_prime)
+
             t_sigmoid = timer()
             # temp_params = params.copy()
 
@@ -129,8 +132,8 @@ class RelaxedProjectionPPneurips(Generator):
 
             opt_lr_epoch = opt_lr / 2**i
 
-            if self.print_progress: print(f'\tepoch {i:<3}'
-                                          f'\tStarting loss={compute_loss_jit(D_prime, 2**15):.3f}'
+            if self.print_progress: print(f'\tEpoch {i:<3}, lr={opt_lr_epoch:.5f}'
+                                          f'\tStarting loss={compute_loss_jit(D_prime, 2**15):.5f}'
                                           f'\tlearning_rate={opt_lr_epoch}')
 
             sigmoid_param = 1
@@ -155,21 +158,22 @@ class RelaxedProjectionPPneurips(Generator):
 
                 if self.print_progress:
                     # total_loss = compute_loss_jit(D_prime, 2**15)
-                    # if epoch_loss < 0.95 * sigmoid_last_loss:
-                    t1 = timer(t1, f"\t\tepoch={i:<3}, mini_e={t:<4}:"
-                                       f"\tl2-loss-diff={loss:.5f}, progress_loss={epoch_loss:.5f}, "
-                                       f"sig_counter={sig_counter}. time=")
-                    sigmoid_last_loss = epoch_loss
+                    if epoch_loss < 0.95 * sigmoid_last_loss:
+                        t1 = timer(t1, f"\t\t# epoch={i:<3}, mini_e={t:<4}:"
+                                           f"\tl2-loss-diff={loss:.5f},\tprogress_loss={epoch_loss:.5f},"
+                                        f"\tbest_loss={best_loss:.5f}, "
+                                           f"\tsig_counter={sig_counter}. time=")
+                        sigmoid_last_loss = epoch_loss
 
                 if len(loss_hist) > 10:
                     ave_last = loss_hist[-5]
                     percent_change = (ave_last - epoch_loss) / (ave_last + 1e-9)
                     if percent_change < 0.0001:
-                        if self.print_progress:
-                            print(
-                                f"\t\t#Update Sigmoid={sigmoid_param:<5}: "
-                                f"ave_last={ave_last:.4f}, epoch_loss={epoch_loss:.4f}"
-                            )
+                        # if self.print_progress:
+                        #     print(
+                        #         f"\t\t#Update Sigmoid={sigmoid_param:<5}: "
+                        #         f"best_loss={best_loss:.4f}"
+                        #     )
                         sigmoid_param = 2 * sigmoid_param
                         sig_counter += 1
                         loss_hist = []
@@ -180,7 +184,7 @@ class RelaxedProjectionPPneurips(Generator):
                         # update params:
             this_loss = compute_loss_jit(D_prime, 2**15)
             if self.print_progress:
-                timer(t_sigmoid, f'\t4) End training epoch {i:<3}| temp_params.total_loss={this_loss:<8.5f}, best_loss={best_loss:8.5f}. time=')
+                timer(t_sigmoid, f'\t... End training epoch {i:<3}| temp_params.total_loss={this_loss:<8.5f}, best_loss={best_loss:8.5f}. time=')
             # if this_loss < best_loss or D_prime_best is None:
             #     if self.print_progress:
             #         print(f'\t5) Updating parameters...')
