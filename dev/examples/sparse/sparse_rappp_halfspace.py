@@ -1,15 +1,17 @@
 import itertools
 import jax
 # from models import Generator, RelaxedProjectionPP
-from models import RelaxedProjectionPPneurips as RelaxedProjectionPP
-from stats import HalfspaceDiff, PrefixDiff, ChainedStatistics
+# from models import RelaxedProjectionPPneurips as RelaxedProjectionPP
+from models import RelaxedProjectionPP_v3 as RelaxedProjectionPP
+from stats import HalfspaceDiff, PrefixDiff, ChainedStatistics, MarginalsDiff, Prefix
 from dev.toy_datasets.sparse import get_sparse_dataset
 import time
 from plot import plot_sparse
+import jax.numpy as jnp
 
 
 PRINT_PROGRESS = True
-ROUNDS = 10
+ROUNDS = 50
 SAMPLES = 10
 EPSILON = [10]
 # EPSILON = [1]
@@ -20,10 +22,25 @@ if __name__ == "__main__":
 
     data = get_sparse_dataset(DATA_SIZE=10000)
     key_hs = jax.random.PRNGKey(0)
-    module = HalfspaceDiff.get_kway_random_halfspaces(data.domain, k=1, rng=key_hs,
-                                                                           random_hs=1000)
+    # module = HalfspaceDiff.get_kway_random_halfspaces(data.domain, k=1, rng=key_hs,
+    #                                                                        random_hs=1000)
 
-    stats_module = ChainedStatistics([module,
+    module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=1)
+    module = PrefixDiff.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key_hs, random_prefixes=1000)
+    module_pre = Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key_hs, random_prefixes=1000)
+
+    temp = data.to_onehot()
+    pre_fn = module_pre._get_workload_fn()
+    pre_diff_fn = module._get_workload_fn()
+
+    error = jnp.abs(pre_fn(data.to_numpy()) - pre_diff_fn(data.to_onehot(), 2**15))
+    print(error.max())
+
+
+
+    stats_module = ChainedStatistics([
+        module0,
+        module,
                                      # module1
                                      ])
     stats_module.fit(data)
@@ -35,7 +52,8 @@ if __name__ == "__main__":
     rappp = RelaxedProjectionPP(
         domain=data.domain,
         data_size=data_size,
-        learning_rate=(0.005,),
+        iterations=5000,
+        # learning_rate=(0.005,),
         print_progress=True,
         )
 
@@ -43,15 +61,23 @@ if __name__ == "__main__":
     for eps, seed in itertools.product(EPSILON, SEEDS):
 
         def debug_fn(t, tempdata):
-            plot_sparse(tempdata.to_numpy(), title=f'epoch={t}, RAP++, Halfspace, eps={eps:.2f}',
+            plot_sparse(tempdata.to_numpy(), title=f'epoch={t}, RAP++, Prefix, eps={eps:.2f}',
                     alpha=0.9, s=0.8)
 
         print(f'Starting {rappp}:')
         stime = time.time()
         key = jax.random.PRNGKey(seed)
+        num_adaptive_queries = ROUNDS * SAMPLES
+        oneshot_share = module0.get_num_workloads() / (module0.get_num_workloads() + num_adaptive_queries)
+        print(f'oneshot_share={oneshot_share:.4f}')
 
-        sync_data = rappp.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=eps, delta=1e-6,
+        # sync_data = rappp.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=eps, delta=1e-6,
+        #                                     rounds=ROUNDS, num_sample=SAMPLES, print_progress=True, debug_fn=debug_fn)
+        sync_data = rappp.fit_dp_hybrid(key, stat_module=stats_module,  epsilon=eps, delta=1e-6,
+                                        oneshot_stats_ids=[0],
+                                        oneshot_share=oneshot_share,
                                             rounds=ROUNDS, num_sample=SAMPLES, print_progress=True, debug_fn=debug_fn)
+
         plot_sparse(sync_data.to_numpy(), title=f'RAP++, Prefix, eps={eps:.2f}', alpha=0.9, s=0.8)
 
         errors = jax.numpy.abs(true_stats - stat_fn(sync_data))

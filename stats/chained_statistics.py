@@ -52,6 +52,8 @@ class ChainedStatistics:
 
     def __get_selected_workload_ids(self, stat_id: int):
         return jnp.array([tup[0] for tup in self.selected_workloads[stat_id]]).astype(int)
+    def get_selected_workload_ids(self, stat_id: int):
+        return jnp.array([tup[0] for tup in self.selected_workloads[stat_id]]).astype(int)
 
     def get_all_true_statistics(self):
 
