@@ -120,8 +120,6 @@ class RelaxedProjectionPP_v2(Generator):
             # new_params['w'] = clip_numeric(new_params['w'])
             return new_params, opt_stat_arg
 
-
-
         def compute_loss(params, sigmoid):
             w = params['w']
             loss = jnp.linalg.norm(diff_stat_fn(w, sigmoid=sigmoid) - target_stats)

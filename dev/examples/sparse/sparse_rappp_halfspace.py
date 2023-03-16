@@ -2,13 +2,14 @@ import itertools
 import jax
 # from models import Generator, RelaxedProjectionPP
 # from models import RelaxedProjectionPPneurips as RelaxedProjectionPP
-from models import RelaxedProjectionPP_v3 as RelaxedProjectionPP
+from models import RelaxedProjectionPP as RelaxedProjectionPP
 from stats import HalfspaceDiff, PrefixDiff, ChainedStatistics, MarginalsDiff, Prefix
 from dev.toy_datasets.sparse import get_sparse_dataset
 import time
 from plot import plot_sparse
 import jax.numpy as jnp
-
+from jax.lib import xla_bridge
+print(xla_bridge.get_backend().platform)
 
 PRINT_PROGRESS = True
 ROUNDS = 50
@@ -29,15 +30,6 @@ if __name__ == "__main__":
     module = PrefixDiff.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key_hs, random_prefixes=1000)
     module_pre = Prefix.get_kway_prefixes(data.domain, k_cat=1, k_num=2, rng=key_hs, random_prefixes=1000)
 
-    temp = data.to_onehot()
-    pre_fn = module_pre._get_workload_fn()
-    pre_diff_fn = module._get_workload_fn()
-
-    error = jnp.abs(pre_fn(data.to_numpy()) - pre_diff_fn(data.to_onehot(), 2**15))
-    print(error.max())
-
-
-
     stats_module = ChainedStatistics([
         module0,
         module,
@@ -53,7 +45,7 @@ if __name__ == "__main__":
         domain=data.domain,
         data_size=data_size,
         iterations=5000,
-        # learning_rate=(0.005,),
+        learning_rate=(0.005, 0.001),
         print_progress=True,
         )
 
@@ -67,15 +59,10 @@ if __name__ == "__main__":
         print(f'Starting {rappp}:')
         stime = time.time()
         key = jax.random.PRNGKey(seed)
-        num_adaptive_queries = ROUNDS * SAMPLES
-        oneshot_share = module0.get_num_workloads() / (module0.get_num_workloads() + num_adaptive_queries)
-        print(f'oneshot_share={oneshot_share:.4f}')
 
         # sync_data = rappp.fit_dp_adaptive(key, stat_module=stats_module,  epsilon=eps, delta=1e-6,
         #                                     rounds=ROUNDS, num_sample=SAMPLES, print_progress=True, debug_fn=debug_fn)
         sync_data = rappp.fit_dp_hybrid(key, stat_module=stats_module,  epsilon=eps, delta=1e-6,
-                                        oneshot_stats_ids=[0],
-                                        oneshot_share=oneshot_share,
                                             rounds=ROUNDS, num_sample=SAMPLES, print_progress=True, debug_fn=debug_fn)
 
         plot_sparse(sync_data.to_numpy(), title=f'RAP++, Prefix, eps={eps:.2f}', alpha=0.9, s=0.8)

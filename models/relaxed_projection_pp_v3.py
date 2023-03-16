@@ -166,7 +166,8 @@ class RelaxedProjectionPP_v3(Generator):
 
             oh = Dataset.get_sample_onehot(key2, self.domain, X_relaxed=sync, num_samples=20)
 
-            self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = separate(oh)
+            self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = init_num, best_cat_param['w']
+            # self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = separate(oh)
 
         # Numeric Loss
         def compute_loss(params, sigmoid):
@@ -224,9 +225,8 @@ class RelaxedProjectionPP_v3(Generator):
             for sigmoid in sigmoid_params:
 
                 for lr in learning_rates:
-                    start_params = best_params.copy()
 
-                    temp_params = start_params.copy()
+                    temp_params = best_params.copy()
                     opt_state = self.optimizer.init(temp_params)
                     round_best_loss = compute_loss_jit(temp_params, 2**15)
 
@@ -251,7 +251,7 @@ class RelaxedProjectionPP_v3(Generator):
                             break
 
                         # Update parameter here:
-                        if loss < best_loss - 1e-7:
+                        if loss < 0.995 * best_loss - 1e-7:
                             parameters_updated = True
                             best_loss = loss
                             best_params = temp_params.copy()
@@ -259,15 +259,15 @@ class RelaxedProjectionPP_v3(Generator):
                     if self.print_progress:
                         this_sig_loss = compute_loss_jit(temp_params, sigmoid)
                         this_loss = compute_loss_jit(temp_params, 2 ** 15)
-                        if True:
-                        # if parameters_updated:
+                        # if True:
+                        if parameters_updated:
                             timer(t_sigmoid,
                                   f'\tRound={i:<2}. Sigmoid={sigmoid:<5} and lr={lr:.5}:'
-                                  f'\t\tStarting Sigmoid-loss={init_sig_loss:8.8}'
+                                  f'\t\tStarting Sigmoid.loss={init_sig_loss:8.8}'
                                           f'\tLoss={init_loss:8.8f}'
-                                  f'\t\t| Final Sigmoid-loss={this_sig_loss:8.8f} '
+                                  f'\t\t| Final Sigmoid.loss={this_sig_loss:8.8f} '
                                              f'\tLoss={this_loss:8.8f}.'
-                                             f'\tbest Loss={best_loss:8.8f}.'
+                                             f'\t*best.Loss={best_loss:8.8f}*.'
                                              f'\tEnd training at t={t}. '
                                              f' time=')
                     # if t == self.iterations -1:

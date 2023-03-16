@@ -48,11 +48,11 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     mutations = [1, 2, 5, 10, 25]
-    crossover = [0, 1, 2, 5, 10, 25]
+    crossover = [1, 2, 5, 10, 25]
 
     for mut, cross in itertools.product(mutations, crossover):
 
-        algo = PrivGA(num_generations=30000,
+        algo = PrivGA(num_generations=60000,
                       strategy=SimpleGAforSyncData(domain, 1000, muta_rate=mut, mate_rate=cross), )
         delta = 1.0 / len(data) ** 2
         for seed in seeds:
