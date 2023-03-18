@@ -48,11 +48,11 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     mutations = [1, 2, 5, 10, 25]
-    crossover = [0, 1, 2, 5, 10, 25]
+    crossover = [1, 2, 5, 10, 25]
 
     for mut, cross in itertools.product(mutations, crossover):
 
-        algo = PrivGA(num_generations=30000,
+        algo = PrivGA(num_generations=60000,
                       strategy=SimpleGAforSyncData(domain, 1000, muta_rate=mut, mate_rate=cross), )
         delta = 1.0 / len(data) ** 2
         for seed in seeds:
@@ -80,7 +80,6 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
                             eps, seed, 'Average', errors.mean(), elapsed_time,
                             mut, cross])
 
-            print()
 
     columns = ['Generator', 'Data', 'Statistics', 'T', 'S', 'epsilon', 'seed', 'error type', 'error', 'time',
                'Mutations', 'Crossover']
@@ -92,14 +91,14 @@ if __name__ == "__main__":
     DATA = [
         # 'folktables_2018_real_CA',
         'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
-        'folktables_2018_travel_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
+        # 'folktables_2018_mobility_CA',
+        # 'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/gsd_parameters.csv'
+    file_name = 'icml_results/parameters/gsd_parameters.csv'
     results = None
     if os.path.exists(file_name):
         print(f'reading {file_name}')

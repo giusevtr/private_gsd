@@ -276,19 +276,6 @@ class PrefixDiff(AdaptiveStatisticState):
             prefix_key = self.prefix_keys[key_id]
             cat_answers = jnp.prod(x_row[cat_q])
 
-
-            # I = query_single[:self.k].astype(int)
-            # U = query_single[self.k:2*self.k]
-            # L = query_single[2*self.k:3*self.k]
-            # key_id = query_single[-1].astype(int)
-            # prefix_key = self.prefix_keys[key_id]
-
-            # Categorical
-            # t1 = (x_row[I] < U).astype(int)
-            # t2 = (x_row[I] >= L).astype(int)
-            # t3 = jnp.prod(jnp.array([t1, t2]), axis=0)
-            # cat_answers = jnp.prod(t3)
-
             # Prefix
             rng_h, rng_b = jax.random.split(prefix_key, 2)
             thresholds = jax.random.uniform(rng_h, shape=(self.k_prefix,)) # d x h

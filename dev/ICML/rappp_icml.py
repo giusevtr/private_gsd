@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPPneurips as RelaxedProjectionPP
+from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP_v3 as RelaxedProjectionPP
 from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff, PrefixDiff
 # from utils.utils_data import get_data
 from utils import timer
@@ -24,7 +24,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 
     max_num_queries = 200000
     rounds = 10
-    num_sample = 50
+    num_sample = 1000
     Res = []
 
     root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
@@ -48,16 +48,18 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     if module_name == 'Prefix':
         domain.get_dimension()
         prefixes = max_num_queries // d
-        module = PrefixDiff.get_kway_prefixes(domain, k_cat=1, k_num=1, rng=key, random_prefixes=prefixes)
+        module1 = PrefixDiff.get_kway_prefixes(domain, k_cat=0, k_num=1, rng=key, random_prefixes=prefixes)
+        module2 = PrefixDiff.get_kway_prefixes(domain, k_cat=0, k_num=2, rng=key, random_prefixes=max_num_queries)
     else:
         halfspaces = max_num_queries // d
-        module = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=1, rng=key, random_hs=halfspaces)
-    stat_module = ChainedStatistics([module0, module])
+        module1 = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=1, rng=key, random_hs=halfspaces)
+        module2 = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=0, rng=key, random_hs=max_num_queries)
+    stat_module = ChainedStatistics([module0, module1, module2])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module.get_dataset_statistics_fn()
 
-    algo = RelaxedProjectionPP(domain=data.domain, data_size=1000, learning_rate=[0.8],
+    algo = RelaxedProjectionPP(domain=data.domain, data_size=1000,
                                iterations=2000,  print_progress=False)
 
     delta = 1.0 / len(data) ** 2
@@ -90,8 +92,8 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 if __name__ == "__main__":
 
     DATA = [
-        # 'folktables_2018_real_CA',
-        'folktables_2018_coverage_CA',
+        'folktables_2018_real_CA',
+        # 'folktables_2018_coverage_CA',
         # 'folktables_2018_employment_CA',
         # 'folktables_2018_income_CA',
         # 'folktables_2018_mobility_CA',
@@ -100,7 +102,7 @@ if __name__ == "__main__":
 
     MODULE = [
         'Prefix',
-        # 'Halfspaces'
+        'Halfspaces'
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
@@ -110,7 +112,7 @@ if __name__ == "__main__":
         print(f'reading {file_name}')
         results = pd.read_csv(file_name)
     for data, module in itertools.product(DATA, MODULE):
-        results_temp = run(data, module, eps_values=[0.07, 1.0])
+        results_temp = run(data, module, eps_values=[1.00, 0.07])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving {file_name}')
         results.to_csv(file_name, index=False)

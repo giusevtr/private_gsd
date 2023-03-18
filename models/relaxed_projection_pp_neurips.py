@@ -15,7 +15,7 @@ class RelaxedProjectionPPneurips(Generator):
     # domain: Domain
     data_size: int
     iterations: int
-    learning_rate: tuple = (0.001,)
+    learning_rate: tuple = (0.8,)
     print_progress: bool = False
     early_stop_percent: float = 0.001
 

@@ -91,7 +91,7 @@ if __name__ == "__main__":
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/gsd_oneshot.csv'
+    file_name = 'icml_results/oneshot_ranges/gsd_oneshot.csv'
     results = None
     if os.path.exists(file_name):
         print(f'reading {file_name}')

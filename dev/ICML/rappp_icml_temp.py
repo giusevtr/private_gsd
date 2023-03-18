@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP_v2
+from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP_v3 as RelaxedProjectionPP
 from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff, PrefixDiff
 # from utils.utils_data import get_data
 from utils import timer
@@ -59,7 +59,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     stat_fn = stat_module.get_dataset_statistics_fn()
 
     # learning_rate.reverse()
-    algo = RelaxedProjectionPP_v2(domain=data.domain, data_size=1000,
+    algo = RelaxedProjectionPP(domain=data.domain, data_size=1000,
                                iterations=2000,
                                   print_progress=False)
 
