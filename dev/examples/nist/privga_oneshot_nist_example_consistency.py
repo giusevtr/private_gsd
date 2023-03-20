@@ -12,6 +12,9 @@ import pickle
 import matplotlib.pyplot as plt
 
 
+
+
+
 if __name__ == "__main__":
     # epsilon_vals = [10]
     epsilon_vals = [ 10]
@@ -110,7 +113,6 @@ if __name__ == "__main__":
     edu_idx = domain.get_attribute_indices(['EDU']).squeeze().astype(int) # Family size
     def row_inconsistency(x: jnp.ndarray):
         is_minor = (x[age_idx] <= age_15_encoded)
-        has_no_age = jnp.isnan(x[age_idx])
         is_married = ~jnp.isnan(x[married_idx])
         has_income = ~jnp.isnan(x[income_idx])
         has_indp = ~jnp.isnan(x[indp_idx])
