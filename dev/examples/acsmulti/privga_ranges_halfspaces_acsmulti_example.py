@@ -86,7 +86,7 @@ if __name__ == "__main__":
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     for eps in [1, 0.07]:
-    # for eps in [0.07, 0.23, 1.0]:
+    # for eps in [0.07, 0.23, 1.00]:
         for seed in [0]:
             sync_dir = f'sync_data/{dataset_name}_clipped/PrivGA/Ranges+HS/{rounds}/{num_sample}/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)

@@ -131,11 +131,11 @@ class ChainedStatistics:
 
         return chained_workload
 
-    def get_dataset_statistics_fn(self):
+    def get_dataset_statistics_fn(self, jitted=False):
         workload_fn_list = []
         for stat_mod in self.stat_modules:
             stat_mod: AdaptiveStatisticState
-            workload_fn_list.append(stat_mod._get_dataset_statistics_fn())
+            workload_fn_list.append(stat_mod._get_dataset_statistics_fn(jitted=jitted))
 
         def chained_workload(data):
             return jnp.concatenate([fn(data) for fn in workload_fn_list], axis=0)

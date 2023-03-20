@@ -28,7 +28,7 @@ def query(df_data, att1, value1, att_given, value_given):
     return count_numerator / count_denominator
 
 
-df_sync = pd.read_csv('2way_only/folktables_2018_coverage_CA/1.0/sync_data_0.csv')
+df_sync = pd.read_csv('2way_only/folktables_2018_coverage_CA/1.00/sync_data_0.csv')
 
 query_value = 1
 query_answer_real = query(df_real, 'PUBCOV', query_value, 'RAC1P', 6)

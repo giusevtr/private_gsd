@@ -83,7 +83,7 @@ if __name__ == "__main__":
     for seed in [0]:
         # for seed in [0, 1, 2]:
         for eps in [1.00]:
-    # for eps in [0.07, 0.23, 0.52, 0.74, 1.0, 10.0]:
+    # for eps in [0.07, 0.23, 0.52, 0.74, 1.00, 10.0]:
             for rounds in [50]:
                 num_adaptive_queries = rounds * num_sample
                 oneshot_share = module0.get_num_workloads() / (module0.get_num_workloads() + num_adaptive_queries)

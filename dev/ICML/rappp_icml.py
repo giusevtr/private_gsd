@@ -48,13 +48,13 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     if module_name == 'Prefix':
         domain.get_dimension()
         prefixes = max_num_queries // d
-        module1 = PrefixDiff.get_kway_prefixes(domain, k_cat=0, k_num=1, rng=key, random_prefixes=prefixes)
-        module2 = PrefixDiff.get_kway_prefixes(domain, k_cat=0, k_num=2, rng=key, random_prefixes=max_num_queries)
+        module1 = PrefixDiff.get_kway_prefixes(domain, k_cat=1, k_num=2, rng=key, random_prefixes=prefixes)
+        # module2 = PrefixDiff.get_kway_prefixes(domain, k_cat=0, k_num=2, rng=key, random_prefixes=max_num_queries)
     else:
         halfspaces = max_num_queries // d
         module1 = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=1, rng=key, random_hs=halfspaces)
-        module2 = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=0, rng=key, random_hs=max_num_queries)
-    stat_module = ChainedStatistics([module0, module1, module2])
+        # module2 = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=0, rng=key, random_hs=max_num_queries)
+    stat_module = ChainedStatistics([module0, module1])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module.get_dataset_statistics_fn()
