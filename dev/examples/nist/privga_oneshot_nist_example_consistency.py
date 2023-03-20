@@ -26,6 +26,9 @@ if __name__ == "__main__":
     preprocessor_path = os.path.join(root_path + dataset_name, 'preprocessor.pkl')
 
     bins = {}
+
+
+
     with open(preprocessor_path, 'rb') as handle:
         # preprocessor:
         preprocessor = pickle.load(handle)
@@ -42,6 +45,27 @@ if __name__ == "__main__":
                                  200000, 300000, 4000000, 500000, 1166000])
         inc_bins = (inc_bins_pre - min_val) / (max_val - min_val)
         bins['PINCP'] = inc_bins
+
+    def get_encoded_value(feature, value):
+        # return preprocessor.encoders[feature].transform(np.array(value))
+        # df_val = pd.DataFrame([[value]], columns=[feature])
+        # return preprocessor.transform_ord(df_val).values[0]
+        if feature in preprocessor.attrs_cat:
+            enc = preprocessor.encoders[feature]
+            value = str(value)
+            v = pd.DataFrame(np.array([value]))
+            return enc.transform(v)[0]
+        if feature in preprocessor.mappings_ord.keys():
+            min_val, _ = preprocessor.mappings_ord[feature]
+            return value - min_val
+
+
+    age_15_encoded = get_encoded_value('AGEP', 15)
+    married_status_encoded = get_encoded_value('MSP', 4)
+    phd_encoded = get_encoded_value('EDU', 12)
+    print(age_15_encoded)
+    print(married_status_encoded)
+    print()
 
     # inc_marginals = Marginals(data.domain, k=1, kway_combinations=[('PINCP',)], bins=bins, levels=1)
     # fn = inc_marginals._get_dataset_statistics_fn()
@@ -85,7 +109,7 @@ if __name__ == "__main__":
     npf_idx = domain.get_attribute_indices(['NPF']).squeeze().astype(int) # Family size
     edu_idx = domain.get_attribute_indices(['EDU']).squeeze().astype(int) # Family size
     def row_inconsistency(x: jnp.ndarray):
-        is_minor = (x[age_idx] <= 15)
+        is_minor = (x[age_idx] <= age_15_encoded)
         has_no_age = jnp.isnan(x[age_idx])
         is_married = ~jnp.isnan(x[married_idx])
         has_income = ~jnp.isnan(x[income_idx])
@@ -109,11 +133,9 @@ if __name__ == "__main__":
         num_violations += jnp.isnan(x[indp_idx]) & (~jnp.isnan(x[indp_cat_idx]))  # Industry codes must match. Either
         num_violations += (~jnp.isnan(x[indp_idx])) & (jnp.isnan(x[indp_cat_idx]))  # Both are null or non-are null
         num_violations += (x[noc_idx] >= x[npf_idx])  # Number of children must be less than family size
-        # num_violations += is_minor & has_indp  # Children don't have industry codes
-        # num_violations += is_minor & has_indp_cat  # Children don't have industry codes
-        # # num_violations += is_minor & (x[edu_idx] == 12)  # Children don't have phd
-        # num_violations += is_minor & (~(x[noc_idx] == jnp.nan))  # Children don't have children
-        # num_violations += (~is_minor) & (~has_income)  # Adults must have income
+        num_violations += is_minor & has_indp  # Children don't have industry codes
+        num_violations += is_minor & has_indp_cat  # Children don't have industry codes
+        num_violations += is_minor & (x[edu_idx] == phd_encoded)  # Children don't have phd
 
         return num_violations
     # Dataset consistency count function
