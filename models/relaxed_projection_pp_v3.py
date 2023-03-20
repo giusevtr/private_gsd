@@ -39,9 +39,11 @@ class RelaxedProjectionPP_v3(Generator):
             # 0.0000005,
             # 0.000001,
             # 0.00001, 0.00005,
-            0.0001, 0.0002, 0.0003, 0.0004,
-            0.0005, 0.0006, 0.0007, 0.0008, 0.0009, 0.001, 0.002, 0.005, 0.007, 0.01, 0.1, 0.5
-            # , 0.7, 0.9, 2, 3
+            # 0.0001, 0.0002, 0.0003, 0.0004,
+            # 0.0005, 0.0006, 0.0007, 0.0008, 0.0009,
+            # 0.001, 0.002, 0.005, 0.007, 0.01,
+            0.1, 0.5, 0.7, 0.9,
+            2, 3
         ]
         self.learning_rate.reverse()
 
@@ -59,7 +61,7 @@ class RelaxedProjectionPP_v3(Generator):
         softmax_fn = lambda X: Dataset.apply_softmax(self.domain, X)
         numeric_cols = self.domain.get_numeric_cols()
         num_idx = jnp.array([self.domain.get_attribute_onehot_indices(att) for att in numeric_cols]).reshape(-1)
-        cat_idx = jnp.array([self.domain.get_attribute_onehot_indices(att) for att in self.domain.get_categorical_cols()]).reshape(-1)
+        cat_idx = jnp.concatenate([self.domain.get_attribute_onehot_indices(att).squeeze() for att in self.domain.get_categorical_cols()]).reshape(-1)
         num_size = num_idx.shape[0]
         cat_size = cat_idx.shape[0]
 
@@ -162,12 +164,12 @@ class RelaxedProjectionPP_v3(Generator):
 
             # best_loss = compute_loss_jit(best_cat_param, init_num,  2**15)
             sync = join(init_num, best_cat_param['w'])
-            print('Cat.Stats = ', cat_stat_fn(sync))
 
-            oh = Dataset.get_sample_onehot(key2, self.domain, X_relaxed=sync, num_samples=20)
+            oh = Dataset.get_sample_onehot(key2, self.domain, X_relaxed=sync, num_samples=1)
+            print('Cat.Stats = ', cat_stat_fn(oh))
 
-            self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = init_num, best_cat_param['w']
-            # self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = separate(oh)
+            # self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = init_num, best_cat_param['w']
+            self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = separate(oh)
 
         # Numeric Loss
         def compute_loss(params, sigmoid):
@@ -177,7 +179,6 @@ class RelaxedProjectionPP_v3(Generator):
             return loss
         compute_loss_jit = jax.jit(compute_loss)
         def update_fn(params_arg, si, opt_stat_arg: optax.GradientTransformation, lr: float):
-            print('compiling update_fn')
             opt_stat_arg.hyperparams['learning_rate'] = lr
             g = jax.grad(compute_loss)(params_arg, si)
             updates, opt_stat_arg = self.optimizer.update(g, opt_stat_arg)
@@ -220,14 +221,15 @@ class RelaxedProjectionPP_v3(Generator):
         sigmoid_params = [2** i for i in range(16)]
         best_params = params.copy()
 
-        for i in range(1):
-
-            for sigmoid in sigmoid_params:
-
-                for lr in learning_rates:
-
-                    temp_params = best_params.copy()
-                    opt_state = self.optimizer.init(temp_params)
+        for lr_init in learning_rates:
+            temp_params = params.copy()
+            opt_state = self.optimizer.init(temp_params)
+            if self.print_progress:
+                print(f'Init.LR ={lr_init}')
+                print(f'--------------------------------------------')
+            for i in range(5):
+                lr = lr_init / 2**i
+                for sigmoid in sigmoid_params:
                     round_best_loss = compute_loss_jit(temp_params, 2**15)
 
                     init_sig_loss = compute_loss_jit(temp_params, sigmoid)
@@ -262,12 +264,12 @@ class RelaxedProjectionPP_v3(Generator):
                         # if True:
                         if parameters_updated:
                             timer(t_sigmoid,
-                                  f'\tRound={i:<2}. Sigmoid={sigmoid:<5} and lr={lr:.5}:'
-                                  f'\t\tStarting Sigmoid.loss={init_sig_loss:8.8}'
-                                          f'\tLoss={init_loss:8.8f}'
-                                  f'\t\t| Final Sigmoid.loss={this_sig_loss:8.8f} '
-                                             f'\tLoss={this_loss:8.8f}.'
-                                             f'\t*best.Loss={best_loss:8.8f}*.'
+                                  f'\tRound={i:<2}. Sigmoid={sigmoid:<5.0f} and LR={lr:<5.5f}:'
+                                  f'\t\tStarting Sigmoid.Loss={init_sig_loss:<8.8}'
+                                          f'\tLoss={init_loss:<8.8f}'
+                                  f'\t\t| Final Sigmoid.Loss={this_sig_loss:<8.8f} '
+                                             f'\tLoss={this_loss:<8.8f}.'
+                                             f'\t*best.Loss={best_loss:<8.8f}*.'
                                              f'\tEnd training at t={t}. '
                                              f' time=')
                     # if t == self.iterations -1:

@@ -92,7 +92,7 @@ if __name__ == "__main__":
     num_sample = 10
     delta = 1.0 / len(data) ** 2
     for eps in [0.07, 1]:
-    # for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
+    # for eps in [0.07, 0.23, 0.52, 0.74, 1.00]:
         for seed in [0]:
         # for seed in [0, 1, 2]:
             for rounds in [50]:

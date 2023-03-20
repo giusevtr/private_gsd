@@ -78,7 +78,7 @@ if __name__ == "__main__":
     delta = 1.0 / len(data) ** 2
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     for eps in [1.00]:
-    # for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
+    # for eps in [0.07, 0.23, 0.52, 0.74, 1.00]:
         # for seed in [0, 1, 2]:
         for seed in [0]:
             key = jax.random.PRNGKey(seed)

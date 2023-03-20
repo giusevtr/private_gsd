@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     for eps in [1]:
-    # for eps in [0.07, 0.23, 0.52, 0.74, 1.0]:
+    # for eps in [0.07, 0.23, 0.52, 0.74, 1.00]:
         # for seed in [0, 1, 2]:
         rho = cdp_rho(eps, delta)
         m = (n ** 2 * alpha**2 * rho) / np.log(2 / beta)

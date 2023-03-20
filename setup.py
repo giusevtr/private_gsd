@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='PrivGA',
-    version='1.0',
+    version='1.00',
     description='PrivGA',
     url='https://github.com/giusevtr/private_genetic_algorithm.git',
     author='Giuseppe Vietri, Jingwu Tang, Terrence Liu',
