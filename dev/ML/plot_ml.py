@@ -4,6 +4,12 @@ import pandas as pd
 import seaborn as sns
 sns.set_style('whitegrid')
 
+
+## Read RAP++
+rap_df = pd.read_csv('rap++_ml_results/acs_CA/RAP(Marginal&Halfspace)/LR/result.csv')
+
+rap_df = rap_df[['dataset_name', 'epsilon', 'seed', '(macro) f1', '']]
+
 results = pd.read_csv('results.csv', index_col=None)
 
 results = results[results['Metric'] == 'F1']
