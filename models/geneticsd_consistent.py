@@ -314,7 +314,8 @@ class GeneticSDConsistent(Generator):
         if sync_dataset is not None:
             init_sync = sync_dataset.to_numpy()
         for consistency_weight in [1/self.data_size,
-                                   selected_noised_statistics.shape[0]]:
+                                   # selected_noised_statistics.shape[0] # This increases the weight used for consistency
+                                   ]:
             t_init = timer()
             key, subkey = jax.random.split(key, 2)
             state = self.strategy.initialize(subkey)
@@ -341,7 +342,6 @@ class GeneticSDConsistent(Generator):
 
             self.early_stop_init()  # Initiate time-based early stop system
 
-            best_fitness_total = 10000000
             ask_time = 0
             fit_time = 0
             tell_time = 0

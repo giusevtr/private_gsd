@@ -124,7 +124,7 @@ if __name__ == "__main__":
     count_inconsistency_population_fn = jax.jit(jax.vmap(count_inconsistency_fn, in_axes=(0, )))
 
 
-    algo = GeneticSD(num_generations=70000, print_progress=True, stop_early=True,
+    algo = GeneticSDConsistent(num_generations=70000, print_progress=True, stop_early=True,
                      inconsistency_fn=count_inconsistency_population_fn,
                      strategy=GeneticStrategy(domain=data.domain, elite_size=2, data_size=2000))
     # Choose algorithm parameters
