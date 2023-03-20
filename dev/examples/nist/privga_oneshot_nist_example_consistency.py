@@ -50,9 +50,6 @@ if __name__ == "__main__":
         bins['PINCP'] = inc_bins
 
     def get_encoded_value(feature, value):
-        # return preprocessor.encoders[feature].transform(np.array(value))
-        # df_val = pd.DataFrame([[value]], columns=[feature])
-        # return preprocessor.transform_ord(df_val).values[0]
         if feature in preprocessor.attrs_cat:
             enc = preprocessor.encoders[feature]
             value = str(value)
