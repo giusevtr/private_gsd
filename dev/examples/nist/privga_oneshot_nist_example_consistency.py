@@ -64,6 +64,7 @@ if __name__ == "__main__":
 
 
     age_15_encoded = get_encoded_value('AGEP', 15)
+    age_15_encoded
     married_status_encoded = get_encoded_value('MSP', 4)
     phd_encoded = get_encoded_value('EDU', 12)
     print(age_15_encoded)
@@ -111,10 +112,21 @@ if __name__ == "__main__":
     noc_idx = domain.get_attribute_indices(['NOC']).squeeze().astype(int) # Number of children
     npf_idx = domain.get_attribute_indices(['NPF']).squeeze().astype(int) # Family size
     edu_idx = domain.get_attribute_indices(['EDU']).squeeze().astype(int) # Family size
+    dvet_idx = domain.get_attribute_indices(['DVET']).squeeze().astype(int)
+    dphy_idx = domain.get_attribute_indices(['DPHY']).squeeze().astype(int)
+    drem_idx = domain.get_attribute_indices(['DREM']).squeeze().astype(int)
+
     def row_inconsistency(x: jnp.ndarray):
-        is_minor = (x[age_idx] <= age_15_encoded)
+        is_minor = (x[age_idx] < age_15_encoded)
+        is_adult = ~is_minor
+        is_dphy = ~jnp.isnan(x[dphy_idx])
+        is_drem = ~jnp.isnan(x[drem_idx])
+        is_edu = ~jnp.isnan(x[edu_idx])
         is_married = ~jnp.isnan(x[married_idx])
         has_income = ~jnp.isnan(x[income_idx])
+        has_income_decile = ~jnp.isnan(x[income_decile_idx])
+        has_income_overall = has_income | has_income_decile
+        is_veteran = ~jnp.isnan(x[dvet_idx])
         has_indp = ~jnp.isnan(x[indp_idx])
         has_indp_cat = ~jnp.isnan(x[indp_cat_idx])
         num_violations = 0
@@ -130,6 +142,7 @@ if __name__ == "__main__":
         num_violations += jnp.isnan(x[dear_idx])  #
 
         num_violations += (is_minor & is_married)  # Children cannot be married
+        num_violations += (is_minor & is_veteran)  # Children (< 15) can't be disabled military veterans
         num_violations += (is_minor & has_income)  # Children cannot have income
         num_violations += (is_minor & (~jnp.isnan(x[income_decile_idx])))  # Children cannot have income
         num_violations += jnp.isnan(x[indp_idx]) & (~jnp.isnan(x[indp_cat_idx]))  # Industry codes must match. Either
@@ -137,7 +150,7 @@ if __name__ == "__main__":
         num_violations += (x[noc_idx] >= x[npf_idx])  # Number of children must be less than family size
         num_violations += is_minor & has_indp  # Children don't have industry codes
         num_violations += is_minor & has_indp_cat  # Children don't have industry codes
-        num_violations += is_minor & (x[edu_idx] == phd_encoded)  # Children don't have phd
+        num_violations += is_minor & (x[edu_idx] == phd_encoded)  # Children don't have PhDs
 
         return num_violations
     # Dataset consistency count function
