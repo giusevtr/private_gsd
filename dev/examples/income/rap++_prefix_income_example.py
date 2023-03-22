@@ -2,7 +2,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP
+from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP_v3 as RelaxedProjectionPP
 from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, PrefixDiff, MarginalsDiff
 # from utils.utils_data import get_data
 from utils import timer
@@ -59,8 +59,7 @@ def ml_eval_fn(df_test, features, target, domain):
     return fn
 
 if __name__ == "__main__":
-    clipped = False
-    dataset_name = 'folktables_2018_income_NY'
+    dataset_name = 'folktables_2018_income_CA'
 
     root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
@@ -69,11 +68,8 @@ if __name__ == "__main__":
 
     domain = Domain.fromdict(config)
     data = Dataset(df_train, domain)
-    data = data.drop(['OCCP', 'POBP'])
+    # data = data.drop(['OCCP', 'POBP'])
     domain = data.domain
-    if clipped:
-        dataset_name = dataset_name + '_clipped'
-        df_train, df_test = filter_outliers(df_train, df_test, config, quantile=0.03)
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
