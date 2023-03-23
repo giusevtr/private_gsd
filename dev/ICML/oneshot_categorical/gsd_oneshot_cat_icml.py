@@ -23,7 +23,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     num_sample = 10
     Res = []
 
-    root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
+    root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
@@ -79,15 +79,15 @@ if __name__ == "__main__":
 
     DATA = [
         # 'folktables_2018_real_CA',
-        # 'folktables_2018_coverage_CA',
+        'folktables_2018_coverage_CA',
         'folktables_2018_employment_CA',
         'folktables_2018_income_CA',
         'folktables_2018_mobility_CA',
         'folktables_2018_travel_CA',
     ]
 
-    os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/gsd_oneshot_cat.csv'
+    os.makedirs('../icml_results/', exist_ok=True)
+    file_name = '../icml_results/gsd_oneshot_cat.csv'
     results = None
     if os.path.exists(file_name):
         print(f'reading {file_name}')

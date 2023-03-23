@@ -23,7 +23,7 @@ from dev.dataloading.data_functions.acs import get_acs_all
 def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
     Res = []
 
-    root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
+    root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
@@ -90,15 +90,15 @@ if __name__ == "__main__":
         'folktables_2018_travel_CA',
     ]
 
-    os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/gsd_oneshot_ranges.csv'
+    os.makedirs('../icml_results/', exist_ok=True)
+    file_name = '../icml_results/gsd_oneshot_ranges.csv'
 
     results = None
     if os.path.exists(file_name):
         print(f'reading {file_name}')
         results = pd.read_csv(file_name)
     for data in DATA:
-        results_temp = run(data, 'Ranges', eps_values=[0.23, 0.52, 0.74])
+        results_temp = run(data, 'Ranges', eps_values=[0.07, 0.23, 0.52, 0.74, 1])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
         results.to_csv(file_name, index=False)
