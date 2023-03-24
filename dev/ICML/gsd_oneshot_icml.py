@@ -40,7 +40,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     # Create statistics and evaluate
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
 
-    module = Marginals.get_all_kway_combinations(domain, k=2, bins=[2, 4, 8, 16, 32])
+    module = Marginals.get_all_kway_combinations(domain, k=1, bins=[2, 4, 8, 16, 32])
     stat_module = ChainedStatistics([module])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
@@ -52,7 +52,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     algo = PrivGA(num_generations=100000,
-                  strategy=SimpleGAforSyncData(domain, 2000), )
+                  strategy=SimpleGAforSyncData(domain, 2000, muta_rate=5, mate_rate=2), print_progress=True)
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
@@ -100,5 +100,5 @@ if __name__ == "__main__":
         results_temp = run(data, 'Ranges', eps_values=[0.07, 0.15, 0.23, 0.54, 0.74, 1.0])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
-        # results.to_csv(file_name, index=False)
+        results.to_csv(file_name, index=False)
 
