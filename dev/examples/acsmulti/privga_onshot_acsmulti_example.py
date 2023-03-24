@@ -25,7 +25,7 @@ if __name__ == "__main__":
     dataset_name = 'folktables_2018_multitask_NY'
 
     data_container_fn = get_acs_all(state='NY')
-    data_container = data_container_fn(seed=0)
+    all_data, data_container = data_container_fn(seed=0)
 
     domain = data_container.train.domain
     cat_cols = domain.get_categorical_cols()
@@ -50,7 +50,8 @@ if __name__ == "__main__":
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    # module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[32])
     stat_module = ChainedStatistics([module0])
     stat_module.fit(data)
 

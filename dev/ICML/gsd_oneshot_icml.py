@@ -100,5 +100,5 @@ if __name__ == "__main__":
         results_temp = run(data, 'Ranges', eps_values=[0.07, 0.15, 0.23, 0.54, 0.74, 1.0])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
-        results.to_csv(file_name, index=False)
+        # results.to_csv(file_name, index=False)
 
