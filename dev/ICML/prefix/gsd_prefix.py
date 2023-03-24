@@ -13,9 +13,10 @@ if __name__ == "__main__":
     module_name = 'Prefix'
     EPSILON = [0.07, 0.23, 0.52, 0.74, 1]
     SEEDS = list(range(3))
+    MAX_QUERIES = 200000
     DATA = [
         # 'folktables_2018_real_CA',
-        'folktables_2018_coverage_CA',
+        # 'folktables_2018_coverage_CA',
         'folktables_2018_employment_CA',
         'folktables_2018_income_CA',
         'folktables_2018_mobility_CA',
@@ -35,10 +36,10 @@ if __name__ == "__main__":
     os.makedirs('icml_results/', exist_ok=True)
     file_name = 'icml_results/gsd_adaptive_prefix.csv'
 
-    results = None
+    results_last = None
     if os.path.exists(file_name):
         print(f'reading {file_name}')
-        results = pd.read_csv(file_name)
+        results_last = pd.read_csv(file_name)
 
     Res = []
     for dataset_name in DATA:
@@ -53,11 +54,13 @@ if __name__ == "__main__":
         data = Dataset(df_train, domain)
 
         binary_features = [(feat,) for feat in domain.get_categorical_cols() if domain.size(feat)==2]
+        binary_size = sum([domain.size(feat) for feat in binary_features])
+        num_random_prefixes = MAX_QUERIES // binary_size
         module = Prefix(domain,
                         k_cat=1,
                         cat_kway_combinations=binary_features,
                         k_prefix=2,
-                        num_random_prefixes=100000,
+                        num_random_prefixes=num_random_prefixes,
                         rng=jax.random.PRNGKey(0))
         stat_module = ChainedStatistics([module])
         stat_module.fit(data)
@@ -96,10 +99,13 @@ if __name__ == "__main__":
             Res.append(['GSD', dataset_name, module_name, epochs, samples, eps, seed, 'Average', errors.mean(),
                         elapsed_time])
 
-            print('Saving', file_name)
+            # print('Saving', file_name)
             columns = ['Generator', 'Data', 'Statistics', 'T', 'S', 'epsilon', 'seed', 'error type', 'error', 'time']
             results_df = pd.DataFrame(Res, columns=columns)
+            if results_last is not None:
+                results_df = pd.concat([results_last, results_df], ignore_index=True)
             results_df.to_csv(file_name, index=False)
+
 
 
 

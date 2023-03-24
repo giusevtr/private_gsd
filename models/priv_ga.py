@@ -364,37 +364,38 @@ class PrivGA(Generator):
             elite_stats = tell_elite_stats(a, elite_stats, new_elite_idx)
             tell_time += timer() - t0
 
-            best_pop_idx = fitness.argmin()
-            best_fitness = fitness[best_pop_idx]
-            self.fitness_record.append(best_fitness)
+            if t % 50 == 0:
+                best_pop_idx = fitness.argmin()
+                best_fitness = fitness[best_pop_idx]
+                self.fitness_record.append(best_fitness)
 
-            # EARLY STOP
-            best_fitness_total = min(best_fitness_total, best_fitness)
+                # EARLY STOP
+                best_fitness_total = min(best_fitness_total, best_fitness)
 
-            stop_early = False
-            if self.stop_early and t > int( self.data_size):
-                if self.early_stop(t, best_fitness_total):
-                    stop_early = True
+                stop_early = False
+                if self.stop_early and t > int( self.data_size):
+                    if self.early_stop(t, best_fitness_total):
+                        stop_early = True
 
-            if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
-                if self.print_progress:
-                    elapsed_time = timer() - init_time
-                    X_sync = state.best_member
+                if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
+                    if self.print_progress:
+                        elapsed_time = timer() - init_time
+                        X_sync = state.best_member
 
-                    print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
-                    p_inf, p_avg, p_l2 = private_loss(X_sync)
-                    print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})',end='')
-                    t_inf, t_avg, p_l2 = true_loss(X_sync)
-                    print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})',end='')
-                    print(f'\t|time={elapsed_time:.4f}(s):', end='')
-                    print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
-                    print()
-                last_fitness = best_fitness_total
+                        print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
+                        p_inf, p_avg, p_l2 = private_loss(X_sync)
+                        print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})',end='')
+                        t_inf, t_avg, p_l2 = true_loss(X_sync)
+                        print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})',end='')
+                        print(f'\t|time={elapsed_time:.4f}(s):', end='')
+                        print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
+                        print()
+                    last_fitness = best_fitness_total
 
-            if stop_early:
-                if self.print_progress:
-                    print(f'\t\tStop early at t={t}')
-                break
+                if stop_early:
+                    if self.print_progress:
+                        print(f'\t\tStop early at t={t}')
+                    break
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
