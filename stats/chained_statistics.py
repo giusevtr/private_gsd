@@ -65,9 +65,11 @@ class ChainedStatistics:
     def get_all_statistics_fn(self):
         return self._get_workload_fn()
 
-    def get_selected_noised_statistics(self):
+    def get_selected_noised_statistics(self, stat_modules_ids=None):
+        if stat_modules_ids is None:
+            stat_modules_ids = list(range(len(self.stat_modules)))
         selected_chained_stats = []
-        for stat_id in range(len(self.stat_modules)):
+        for stat_id in stat_modules_ids:
             temp = [selected[2] for selected in self.selected_workloads[stat_id]]
             if len(temp) > 0:
                 temp = jnp.concatenate(temp)
@@ -75,18 +77,22 @@ class ChainedStatistics:
 
         return jnp.concatenate(selected_chained_stats)
 
-    def get_selected_statistics_without_noise(self):
+    def get_selected_statistics_without_noise(self, stat_modules_ids=None):
+        if stat_modules_ids is None:
+            stat_modules_ids = list(range(len(self.stat_modules)))
         selected_chained_stats = []
-        for stat_id in range(len(self.stat_modules)):
+        for stat_id in stat_modules_ids:
             temp = [selected[3] for selected in self.selected_workloads[stat_id]]
             if len(temp) > 0:
                 temp = jnp.concatenate(temp)
                 selected_chained_stats.append(temp)
         return jnp.concatenate(selected_chained_stats)
 
-    def get_selected_statistics_fn(self):
+    def get_selected_statistics_fn(self, stat_modules_ids=None):
+        if stat_modules_ids is None:
+            stat_modules_ids = list(range(len(self.stat_modules)))
         workload_fn_list = []
-        for stat_id in range(len(self.stat_modules)):
+        for stat_id in stat_modules_ids:
             stat_mod = self.stat_modules[stat_id]
             workload_ids = self.__get_selected_workload_ids(stat_id)
             if workload_ids.shape[0] > 0:

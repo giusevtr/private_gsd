@@ -19,18 +19,17 @@ from dev.dataloading.data_functions.acs import get_acs_all
 from ml_utils import filter_outliers, evaluate_machine_learning_task
 
 if __name__ == "__main__":
-    epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1, 10]
+    epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
     # epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
     seeds = [0, 1, 2]
 
-    scale_real_valued = True
     evaluate_original = True
     # epsilon_vals = [10]
     # seeds = [0]
 
     # dataset_name = 'acs_multitask_NY'
-    dataset_name = 'folktables_2018_multitask_NY'
-    data_container_fn = get_acs_all(state='NY')
+    dataset_name = 'folktables_2014_multitask_NY'
+    data_all, data_container_fn = get_acs_all(state='NY')
     data_container = data_container_fn(seed=0)
 
     domain = data_container.train.domain
@@ -61,7 +60,7 @@ if __name__ == "__main__":
 
     print(f'Private Logistic Regression:')
     Res = []
-    for target in ['PINCP']:
+    for target in targets:
     # for target in ['PUBCOV']:
 
 

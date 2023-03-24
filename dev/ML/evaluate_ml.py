@@ -20,16 +20,14 @@ from dev.dataloading.data_functions.acs import get_acs_all
 
 if __name__ == "__main__":
     # epsilon_vals = [0.07, 0.1, 0.15, 0.23, 0.52 ,0.74, 1, 2, 5, 10]
-    evaluate_original =True
 
-    scale_real_valued = True
-    epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1, 10]
+    epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
     seeds = [0, 1, 2]
     Method = 'PrivGA'
     # Method = 'RAP'
 
-    dataset_name = 'folktables_2018_multitask_NY'
-    data_container_fn = get_acs_all()
+    dataset_name = 'folktables_2014_multitask_NY'
+    data_all, data_container_fn = get_acs_all()
     data_container = data_container_fn(seed=0)
 
     domain = data_container.train.domain
@@ -42,9 +40,9 @@ if __name__ == "__main__":
 
     cat_cols = domain.get_categorical_cols()
     num_cols = domain.get_numeric_cols()
-    targets = ['PINCP', 'PUBCOV', 'ESR']
-    models = [('LR', lambda: LogisticRegression(max_iter=5000, random_state=0,
-                                                solver='liblinear', penalty='l1')),
+
+    targets = ['PINCP',  'PUBCOV', 'ESR', 'MIG', 'JWMNP']
+    models = [('LR', lambda: LogisticRegression(solver='liblinear', penalty='l1')),
               # ('RF', lambda: RandomForestClassifier(random_state=0))
               ]
 
@@ -54,14 +52,14 @@ if __name__ == "__main__":
             features.append(f)
 
     Res = []
-    for target in ['PINCP', 'PUBCOV']:
+    for target in targets:
         for eps in epsilon_vals:
             for seed in seeds:
                 sync_path = ''
                 if Method == 'PrivGA':
-                    sync_path = f'../examples/acsmulti/sync_data/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/sync_data_{seed}.csv'
+                    sync_path = f'../examples/acsmulti/sync_data/{dataset_name}/PrivGA/Ranges/oneshot/oneshot/{eps:.2f}/sync_data_{seed}.csv'
                 elif Method == 'RAP':
-                    sync_path = f'../sync_data/{dataset_name}/RAP/Ranges/oneshot/{eps:.2f}/sync_data_{seed}.csv'
+                    sync_path = f'../sync_data/{dataset_name}/RAP/Ranges/oneshot/oneshot/{eps:.2f}/sync_data_{seed}.csv'
 
                 if not os.path.exists(sync_path):
                     print(f'Not Found: {sync_path}')
@@ -87,11 +85,14 @@ if __name__ == "__main__":
     results = pd.DataFrame(Res, columns=['Dataset', 'Is DP', 'Method', 'Model', 'Target', 'Epsilon', 'Metric', 'Seed',
                                          'Score'])
     print(results)
-    if os.path.exists('results.csv'):
-        results_pre = pd.read_csv('results.csv', index_col=None)
+    file_path = 'results'
+    os.makedirs(file_path, exist_ok=True)
+    file_path = f'results/results_{dataset_name}_{Method}.csv'
+    if os.path.exists(file_path):
+        results_pre = pd.read_csv(file_path, index_col=None)
 
         results = results_pre.append(results)
-    print(f'Saving results.csv')
-    results.to_csv('results.csv', index=False)
+    print(f'Saving ', file_path)
+    results.to_csv(file_path, index=False)
 
 

@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP_v3 as RelaxedProjectionPP
+from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP_v3 as RelaxedProjectionPP, RelaxedProjection
 from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, MarginalsDiff, PrefixDiff
 # from utils.utils_data import get_data
 from utils import timer
@@ -23,8 +23,8 @@ from dev.dataloading.data_functions.acs import get_acs_all
 def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
 
     max_num_queries = 200000
-    rounds = 10
-    num_sample = 1000
+    rounds = 50
+    num_sample = 5
     Res = []
 
     root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
@@ -43,24 +43,29 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     num_real = len(domain.get_numeric_cols())
     print(f'{dataset_name} has {num_real} real features.')
     d = domain.get_dimension() - num_real
-    module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=1)
+    module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
 
     if module_name == 'Prefix':
         domain.get_dimension()
         prefixes = max_num_queries // d
-        module1 = PrefixDiff.get_kway_prefixes(domain, k_cat=1, k_num=2, rng=key, random_prefixes=prefixes)
+        # module1 = PrefixDiff.get_kway_prefixes(domain, k_cat=1, k_num=2, rng=key, random_prefixes=prefixes)
+        module1 = PrefixDiff(domain, k_cat=1, k_prefix=2,
+                             cat_kway_combinations=[('PINCP',)], rng=key,
+                             num_random_prefixes=100000)
         # module2 = PrefixDiff.get_kway_prefixes(domain, k_cat=0, k_num=2, rng=key, random_prefixes=max_num_queries)
     else:
         halfspaces = max_num_queries // d
         module1 = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=1, rng=key, random_hs=halfspaces)
         # module2 = HalfspaceDiff.get_kway_random_halfspaces(domain=data.domain, k=0, rng=key, random_hs=max_num_queries)
-    stat_module = ChainedStatistics([module0, module1])
+    stat_module = ChainedStatistics([
+        module0,
+                                     module1])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module.get_dataset_statistics_fn()
 
     algo = RelaxedProjectionPP(domain=data.domain, data_size=1000,
-                               iterations=2000,  print_progress=False)
+                               iterations=1000,  print_progress=True)
 
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
@@ -92,17 +97,17 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 if __name__ == "__main__":
 
     DATA = [
-        'folktables_2018_real_CA',
-        # 'folktables_2018_coverage_CA',
+        # 'folktables_2018_real_CA',
+        # 'folktables_2014_coverage_NY',
         # 'folktables_2018_employment_CA',
-        # 'folktables_2018_income_CA',
+        'folktables_2018_income_CA',
         # 'folktables_2018_mobility_CA',
         # 'folktables_2018_travel_CA',
     ]
 
     MODULE = [
         'Prefix',
-        'Halfspaces'
+        # 'Halfspaces'
     ]
 
     os.makedirs('icml_results/', exist_ok=True)

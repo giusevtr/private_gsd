@@ -18,7 +18,6 @@ from dp_data import load_domain_config, load_df
 
 
 def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
-    module_name = 'Ranges'
     max_num_queries = 200000
     rounds = 50
     num_sample = 10
@@ -80,15 +79,15 @@ if __name__ == "__main__":
 
     DATA = [
         # 'folktables_2018_real_CA',
-        'folktables_2018_coverage_CA',
-        # 'folktables_2018_employment_CA',
-        # 'folktables_2018_income_CA',
-        # 'folktables_2018_mobility_CA',
-        # 'folktables_2018_travel_CA',
+        # 'folktables_2018_coverage_CA',
+        'folktables_2018_employment_CA',
+        'folktables_2018_income_CA',
+        'folktables_2018_mobility_CA',
+        'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/gsd_oneshot.csv'
+    file_name = 'icml_results/gsd_oneshot_cat.csv'
     results = None
     if os.path.exists(file_name):
         print(f'reading {file_name}')

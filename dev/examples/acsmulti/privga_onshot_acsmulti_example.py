@@ -19,13 +19,14 @@ from sklearn.linear_model import LogisticRegression
 from dev.ML.ml_utils import filter_outliers, evaluate_machine_learning_task
 
 if __name__ == "__main__":
-    epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1, 10]
+    epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
     epsilon_vals.reverse()
     # epsilon_vals = [1, 10]
-    dataset_name = 'folktables_2018_multitask_NY'
+    dataset_name = 'folktables_2014_multitask_NY'
 
     data_container_fn = get_acs_all(state='NY')
     all_data, data_container = data_container_fn(seed=0)
+
 
     domain = data_container.train.domain
     cat_cols = domain.get_categorical_cols()
@@ -67,8 +68,8 @@ if __name__ == "__main__":
     for eps in epsilon_vals:
         for seed in [0, 1, 2]:
         # for seed in [0]:
-            sync_dir = f'sync_data/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/'
-            sync_dir_post = f'sync_data_post/{dataset_name}/PrivGA/Ranges/oneshot/{eps:.2f}/'
+            sync_dir = f'sync_data/{dataset_name}/PrivGA/Ranges/oneshot/oneshot/{eps:.2f}/'
+            sync_dir_post = f'sync_data_post/{dataset_name}/PrivGA/Ranges/oneshot/oneshot/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)
             os.makedirs(sync_dir_post, exist_ok=True)
 

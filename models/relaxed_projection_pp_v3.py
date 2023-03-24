@@ -9,7 +9,7 @@ from models import Generator
 from dataclasses import dataclass
 from utils import Dataset, Domain, timer
 from stats import Marginals, AdaptiveStatisticState, ChainedStatistics
-
+from models.relaxed_projection import RelaxedProjection
 @dataclass
 class RelaxedProjectionPP_v3(Generator):
     # domain: Domain
@@ -41,9 +41,12 @@ class RelaxedProjectionPP_v3(Generator):
             # 0.00001, 0.00005,
             # 0.0001, 0.0002, 0.0003, 0.0004,
             # 0.0005, 0.0006, 0.0007, 0.0008, 0.0009,
-            # 0.001, 0.002, 0.005, 0.007, 0.01,
-            0.1, 0.5, 0.7, 0.9,
-            2, 3
+            # 0.001, 0.002, 0.005,
+            0.006,
+            # 0.007, 0.01,
+            # 0.1,
+            # 0.5, 0.7, 0.9,
+            # 2, 3
         ]
         self.learning_rate.reverse()
 
@@ -96,8 +99,17 @@ class RelaxedProjectionPP_v3(Generator):
         # params = {'w': self.init_params.copy()}
 
 
-        target_stats = adaptive_statistic.get_selected_noised_statistics()
-        diff_stat_fn = adaptive_statistic.get_selected_statistics_fn()
+        target_stats = adaptive_statistic.get_selected_noised_statistics(stat_modules_ids=[1])
+        diff_stat_fn = adaptive_statistic.get_selected_statistics_fn(stat_modules_ids=[1])
+
+
+
+
+
+
+
+
+
 
 
         # Initialize parameters
@@ -107,23 +119,19 @@ class RelaxedProjectionPP_v3(Generator):
         init_num, init_cat = separate(init_sync)
 
         if adaptive_epoch == 1:
+
+            rp = RelaxedProjection(self.domain, self.data_size, self.iterations, self.learning_rate,
+                                   self.stop_loss_time_window, self.print_progress)
+
+            data = rp.fit(key, adaptive_statistic)
+
             self.optimizer = optax.inject_hyperparams(optax.adam)(learning_rate=0)
 
-            workload_fn_list = []
-            stat_mod = adaptive_statistic.stat_modules[0]
-            workload_ids = adaptive_statistic.get_selected_workload_ids(0)
-            if workload_ids.shape[0] > 0:
-                workload_fn_list.append(stat_mod._get_workload_fn(workload_ids))
-            def cat_stat_fn(X, **kwargs):
-                return jnp.concatenate([fn(X, **kwargs) for fn in workload_fn_list], axis=0)
-
-            selected_chained_stats = []
-            temp = [selected[2] for selected in adaptive_statistic.selected_workloads[0]]
-            if len(temp) > 0:
-                temp = jnp.concatenate(temp)
-                selected_chained_stats.append(temp)
-            cat_stats = jnp.concatenate(selected_chained_stats)
-
+            cat_stat_fn = adaptive_statistic.get_selected_statistics_fn(stat_modules_ids=[0])
+            cat_stats = adaptive_statistic.get_selected_noised_statistics(stat_modules_ids=[0])
+            cat_stats_non_priv = adaptive_statistic.get_selected_statistics_without_noise(stat_modules_ids=[0])
+            if self.print_progress:
+                print(f'Cat Stats Gaussian max_error = ', jnp.abs(cat_stats - cat_stats_non_priv).max())
             def cat_loss_fn(params, numeric_sync, sigmoid):
                 cat_sync = params['w']
                 sync = join(numeric_sync, cat_sync)
@@ -132,14 +140,10 @@ class RelaxedProjectionPP_v3(Generator):
             def update_cat_fn(params_arg, numeric_sync, si, opt_stat_arg: optax.GradientTransformation, lr: float):
                 opt_stat_arg.hyperparams['learning_rate'] = lr
                 g = jax.grad(cat_loss_fn)(params_arg, numeric_sync, si)
-                # Zero out numerical gradients
-                # g['w'] = g['w'].at[:, num_idx].set(0)
                 updates, opt_stat_arg = self.optimizer.update(g, opt_stat_arg)
                 new_params = optax.apply_updates(params_arg, updates)
-
                 sync = join(numeric_sync, new_params['w'])
                 sync_softmax = softmax_fn(sync)
-
                 new_params['w'] = sync_softmax[:, cat_idx]
                 # new_params['w'] = clip_numeric(new_params['w'])
                 return new_params, opt_stat_arg
@@ -148,28 +152,43 @@ class RelaxedProjectionPP_v3(Generator):
 
             cat_params = {'w': init_cat}
 
-            print('train cat params:')
+            if self.print_progress:
+                print('train cat params:')
             opt_state = self.optimizer.init(cat_params)
 
             best_cat_loss = 1000000
             best_cat_param = None
-            for cat_iter in range(500):
-                cat_params, opt_state = update_cat_fn_jit(cat_params, init_num, 2**15, opt_state, 3.0)
+            last_update = 0
+            lr = 8
+            cat_updates = 10
+            for cat_iter in range(5000):
+                cat_params, opt_state = update_cat_fn_jit(cat_params, init_num, 2**15, opt_state, lr)
                 cat_loss = cat_loss_fn(cat_params, init_num, 2**15)
                 if cat_loss < best_cat_loss:
-                    print(f'{cat_iter:<3}: Cat.Loss = {cat_loss:.8f}')
+                    if self.print_progress:
+                        print(f'{cat_iter:<3}: Cat.Loss = {cat_loss:.8f}')
                     best_cat_loss = cat_loss
-                    best_cat_param = cat_params.copy()
+                    best_cat_param = cat_params.copy()  # update best parameters.
+                    last_update = cat_iter
+                if cat_iter > last_update + 20:
+                    cat_params = best_cat_param.copy()
+                    opt_state = self.optimizer.init(cat_params)
+                    lr = lr / 2    # Decrease learning rate
+                    cat_updates = cat_updates - 1
+                    if self.print_progress:
+                        print(f'\tt={cat_iter}. Update learning rate. lr={lr}')
+                        print(f'\tCurrent cat.Loss={cat_loss}. Best cat.Loss={best_cat_loss}')
+                if cat_updates < 0: # Stop  training
+                    break
 
-
-            # best_loss = compute_loss_jit(best_cat_param, init_num,  2**15)
             sync = join(init_num, best_cat_param['w'])
 
-            oh = Dataset.get_sample_onehot(key2, self.domain, X_relaxed=sync, num_samples=1)
-            print('Cat.Stats = ', cat_stat_fn(oh))
+            if self.print_progress:
+                sync_cat_stats = cat_stat_fn(sync)
+                error = jnp.abs(cat_stats - sync_cat_stats)
+                print('Cat.Errors: ', 'max=', error.max(), '\tmean=', error.mean())
 
-            # self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = init_num, best_cat_param['w']
-            self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = separate(oh)
+            self.NUM_SYNC_INIT, self.CAT_SYNC_TRAINED = separate(sync)
 
         # Numeric Loss
         def compute_loss(params, sigmoid):
@@ -187,24 +206,17 @@ class RelaxedProjectionPP_v3(Generator):
             return new_params, opt_stat_arg
         update_fn_jit = jax.jit(update_fn)
 
-
-
         start_params = []
         num_params = {'w': self.NUM_SYNC_INIT}
         key, key2 = jax.random.split(key, 2)
         new_param = self.fit_help(num_params, compute_loss_jit, update_fn_jit, self.learning_rate)
 
         best_sync_data = join(new_param['w'], self.CAT_SYNC_TRAINED)
-
         self.init_sync_data = jnp.copy(best_sync_data)
         sync_softmax = jnp.copy(best_sync_data)
-        # Dataset.from_onehot_to_dataset(self.domain, best_sync)
         key, key2 = jax.random.split(key, 2)
         oh = Dataset.get_sample_onehot(key2, self.domain, X_relaxed=sync_softmax, num_samples=20)
         data_sync = Dataset.from_onehot_to_dataset(self.domain, oh)
-        # data_np_oh = data_sync.to_onehot()
-        # loss_post = compute_loss_jit(data_np_oh, 2**15)
-        # print(f'Debug: final output loss = {loss_post}')
         return data_sync
 
     def fit_help(self, params, compute_loss_jit, update_fn_jit, learning_rates: list):
@@ -222,14 +234,16 @@ class RelaxedProjectionPP_v3(Generator):
         best_params = params.copy()
 
         for lr_init in learning_rates:
-            temp_params = params.copy()
-            opt_state = self.optimizer.init(temp_params)
             if self.print_progress:
                 print(f'Init.LR ={lr_init}')
                 print(f'--------------------------------------------')
             for i in range(5):
                 lr = lr_init / 2**i
+
                 for sigmoid in sigmoid_params:
+                    temp_params = best_params.copy()
+                    opt_state = self.optimizer.init(temp_params)
+
                     round_best_loss = compute_loss_jit(temp_params, 2**15)
 
                     init_sig_loss = compute_loss_jit(temp_params, sigmoid)
@@ -238,6 +252,7 @@ class RelaxedProjectionPP_v3(Generator):
                     loss_hist = [jnp.inf]
 
                     t = 0
+                    best_t = 0
                     parameters_updated = False
                     for t in range(self.iterations):
                         iters += 1
@@ -247,11 +262,15 @@ class RelaxedProjectionPP_v3(Generator):
                         loss = compute_loss_jit(temp_params, 2**15)
                         loss_hist.append(loss)
 
-                        if (t > stop_early + 1 and len(loss_hist) > 2 * stop_early and loss >=  0.999 * round_best_loss):
-                            break
+                        # if (t > stop_early + 1 and len(loss_hist) > 2 * stop_early and loss >=  0.999 * round_best_loss):
+                        #     break
                         if (t > stop_early + 1 and loss >= 2.0 * best_loss):
                             break
-
+                        if (t > stop_early + 1 and (t - best_t) > stop_early  and loss >= 0.999 * round_best_loss):
+                            break
+                        if loss < round_best_loss:
+                            best_t = t
+                            round_best_loss = loss
                         # Update parameter here:
                         if loss < 0.995 * best_loss - 1e-7:
                             parameters_updated = True
@@ -262,16 +281,17 @@ class RelaxedProjectionPP_v3(Generator):
                         this_sig_loss = compute_loss_jit(temp_params, sigmoid)
                         this_loss = compute_loss_jit(temp_params, 2 ** 15)
                         # if True:
-                        if parameters_updated:
-                            timer(t_sigmoid,
-                                  f'\tRound={i:<2}. Sigmoid={sigmoid:<5.0f} and LR={lr:<5.5f}:'
-                                  f'\t\tStarting Sigmoid.Loss={init_sig_loss:<8.8}'
-                                          f'\tLoss={init_loss:<8.8f}'
-                                  f'\t\t| Final Sigmoid.Loss={this_sig_loss:<8.8f} '
-                                             f'\tLoss={this_loss:<8.8f}.'
-                                             f'\t*best.Loss={best_loss:<8.8f}*.'
-                                             f'\tEnd training at t={t}. '
-                                             f' time=')
+                        # if parameters_updated:
+                        timer(t_sigmoid,
+                              f'\tRound={i:<2}. Sigmoid={sigmoid:<5.0f} and LR={lr:<5.5f}:'
+                              f'\t\tStarting Sigmoid.Loss={init_sig_loss:<8.8}'
+                                      f'\tLoss={init_loss:<8.8f}'
+                              f'\t\t| Final Sigmoid.Loss={this_sig_loss:<8.8f} '
+                                         f'\tLoss={this_loss:<8.8f}.'
+                                         f'\t*best.Loss={best_loss:<8.8f}*.'
+                                         f'\tEnd training at t={t}. '
+                                        f'\tparameters_upt={parameters_updated}. '
+                                         f' time=')
                     # if t == self.iterations -1:
                     #     if self.print_progress: print('\t\tBreaking out of the lr loop.')
                     #     break
