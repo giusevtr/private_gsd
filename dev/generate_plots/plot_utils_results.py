@@ -60,7 +60,8 @@ def show_result(df):
         plt.plot(x, y, linewidth=3, **kwargs)
         plt.scatter(x, y, s=50, linewidth=4, **kwargs)
 
-    g = sns.FacetGrid(df,  hue='generator',  col='Statistics', row='error type', height=4,
+    g = sns.FacetGrid(df,  hue='generator',  col='Statistics', row='error type',
+                      height=4,
                       legend_out=False,
                       sharey=False, aspect=1.5
                       )
