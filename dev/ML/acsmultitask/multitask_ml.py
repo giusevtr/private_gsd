@@ -7,7 +7,7 @@ from stats import ChainedStatistics, Halfspace, Marginals
 # from utils.utils_data import get_data
 import jax.numpy as jnp
 # from dp_data.data import get_data
-from dp_data import load_domain_config, load_df, get_evaluate_ml
+# from dp_data import load_domain_config, load_df, get_evaluate_ml
 from utils import timer, Dataset, Domain
 from utils.cdp2adp import cdp_rho, cdp_eps
 import numpy as np
