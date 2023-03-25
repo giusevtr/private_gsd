@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 sns.set(font_scale=1.75)
 sns.set_style("whitegrid")
 
-gsd_df = pd.read_csv('icml_results/rap++_prefix.csv')
+gsd_df = pd.read_csv('icml_results/gsd_adaptive_prefix_temp.csv')
 gsd_df['Data'] = gsd_df['Data'].apply(lambda x: x[16:-3])
 cols0 = ['Generator','Data', 'Statistics', 'T', 'S', 'epsilon',  'error type']
 gsd_df_2 = gsd_df.groupby(cols0)[['error']].mean().reset_index()
