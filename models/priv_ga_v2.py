@@ -263,16 +263,17 @@ class PrivGA(Generator):
         selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
         selected_statistics = adaptive_statistic.get_selected_statistics_without_noise()
         statistics_fn = jax.jit(adaptive_statistic.get_selected_statistics_fn())
+        statistics_fn_debug = adaptive_statistic.get_selected_statistics_fn()
 
         # For debugging
         @jax.jit
         def true_loss(X_arg):
-            error = jnp.abs(selected_statistics - statistics_fn(X_arg))
+            error = jnp.abs(selected_statistics - statistics_fn_debug(X_arg))
             return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
 
         @jax.jit
         def private_loss(X_arg):
-            error = jnp.abs(selected_noised_statistics - statistics_fn(X_arg))
+            error = jnp.abs(selected_noised_statistics - statistics_fn_debug(X_arg))
             return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
 
 
@@ -322,6 +323,7 @@ class PrivGA(Generator):
 
         best_fitness_total = 100000
         ask_time = 0
+        elite_stat_time = 0
         fit_time = 0
         tell_time = 0
         last_fitness = None
@@ -338,9 +340,12 @@ class PrivGA(Generator):
             population_state = self.strategy.ask(ask_subkey, state)
             ask_time += timer() - t0
 
-            # FIT
             t0 = timer()
             elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
+            elite_stat_time += timer() - t0
+
+            # FIT
+            t0 = timer()
             fitness = fitness_fn_jit(elite_stat, population_state)
             fit_time += timer() - t0
 
@@ -373,6 +378,7 @@ class PrivGA(Generator):
                     print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})',end='')
                     print(f'\t|time={elapsed_time:.4f}(s):', end='')
                     print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
+                    print(f'\telite_stat_t={elite_stat_time:.3f}(s)', end='')
                     print()
                     last_fitness = best_fitness_total
 
