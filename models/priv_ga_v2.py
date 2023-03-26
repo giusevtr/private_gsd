@@ -323,6 +323,7 @@ class PrivGA(Generator):
         best_fitness_total = 100000
         ask_time = 0
         fit_time = 0
+        fit_time2 = 0
         tell_time = 0
         last_fitness = None
         self.fitness_record = []
@@ -341,8 +342,11 @@ class PrivGA(Generator):
             # FIT
             t0 = timer()
             elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
-            fitness = fitness_fn_jit(elite_stat, population_state)
             fit_time += timer() - t0
+            t0 = timer()
+            fitness = fitness_fn_jit(elite_stat, population_state)
+            fit_time2 += timer() - t0
+
 
             # TELL
             t0 = timer()
@@ -372,7 +376,7 @@ class PrivGA(Generator):
                     t_inf, t_avg, p_l2 = true_loss(X_sync)
                     print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})',end='')
                     print(f'\t|time={elapsed_time:.4f}(s):', end='')
-                    print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
+                    print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), fit2_t={fit_time2:.3f}(s), tell_t={tell_time:.3f}', end='')
                     print()
                     last_fitness = best_fitness_total
 
