@@ -52,7 +52,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     algo = PrivGA(num_generations=100000,
-                  strategy=SimpleGAforSyncData(domain, 2000, muta_rate=1, mate_rate=1), print_progress=True)
+                  strategy=SimpleGAforSyncData(domain, 2000, population_size=100, muta_rate=1, mate_rate=1), print_progress=True)
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
@@ -84,10 +84,10 @@ if __name__ == "__main__":
     DATA = [
         # 'folktables_2018_real_CA',
         'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
-        'folktables_2018_travel_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
+        # 'folktables_2018_mobility_CA',
+        # 'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
@@ -97,8 +97,9 @@ if __name__ == "__main__":
         print(f'reading {file_name}')
         results = pd.read_csv(file_name)
     for data in DATA:
-        results_temp = run(data, 'Ranges', eps_values=[0.07, 0.15, 0.23, 0.54, 0.74, 1.0])
+        # results_temp = run(data, 'Ranges', eps_values=[0.07, 0.15, 0.23, 0.54, 0.74, 1.0])
+        results_temp = run(data, 'Ranges', eps_values=[1.0], seeds=[0])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
-        results.to_csv(file_name, index=False)
+        # results.to_csv(file_name, index=False)
 

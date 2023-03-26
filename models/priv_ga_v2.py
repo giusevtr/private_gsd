@@ -8,12 +8,15 @@ from flax import struct
 from utils import Dataset, Domain, timer
 from functools import partial
 from typing import Tuple
+
+
 @struct.dataclass
 class EvoState:
     archive: chex.Array
     fitness: chex.Array
     best_member: chex.Array
     best_fitness: float = jnp.finfo(jnp.float32).max
+
 
 @struct.dataclass
 class PopulationState:
@@ -26,22 +29,23 @@ class PopulationState:
 Implement crossover that is specific to synthetic data
 """
 
-def get_best_fitness_member(
-    x: chex.Array, fitness: chex.Array, state
-) -> Tuple[chex.Array, chex.Array]:
-    best_in_gen = jnp.argmin(fitness)
-    best_in_gen_fitness, best_in_gen_member = (
-        fitness[best_in_gen],
-        x[best_in_gen],
-    )
-    replace_best = best_in_gen_fitness < state.best_fitness
-    best_fitness = jax.lax.select(
-        replace_best, best_in_gen_fitness, state.best_fitness
-    )
-    best_member = jax.lax.select(
-        replace_best, best_in_gen_member, state.best_member
-    )
-    return best_member, best_fitness
+
+# def get_best_fitness_member(
+#     x: chex.Array, fitness: chex.Array, state
+# ) -> Tuple[chex.Array, chex.Array, chex.Array, chex.Array]:
+#     best_in_gen = jnp.argmin(fitness)
+#     best_in_gen_fitness, best_in_gen_member = (
+#         fitness[best_in_gen],
+#         x[best_in_gen],
+#     )
+#     replace_best = best_in_gen_fitness < state.best_fitness
+#     best_fitness = jax.lax.select(
+#         replace_best, best_in_gen_fitness, state.best_fitness
+#     )
+#     best_member = jax.lax.select(
+#         replace_best, best_in_gen_member, state.best_member
+#     )
+#     return best_member, best_fitness, replace_best, best_in_gen
 
 class SimpleGAforSyncData:
     def __init__(self, domain: Domain,
@@ -97,7 +101,6 @@ class SimpleGAforSyncData:
         initialization = pop.reshape((self.elite_size, self.data_size, d))
         return initialization
 
-
     @partial(jax.jit, static_argnums=(0,))
     def initialize_random_population(self, rng: chex.PRNGKey):
         pop = Dataset.synthetic_jax_rng(self.domain, self.population_size, rng)
@@ -125,14 +128,19 @@ class SimpleGAforSyncData:
             x: chex.Array,
             fitness: chex.Array,
             state: EvoState,
-    ) -> EvoState:
+    ) -> Tuple[EvoState, chex.Array]:
         """`tell` performance data for strategy state update."""
         state = self.tell_strategy(x, fitness, state)
-        best_member, best_fitness = get_best_fitness_member(x, fitness, state)
+        # return state, is_best_replaced, best_id
+        best_id = jnp.argmin(fitness)
+        best_fitness, best_member = (
+            fitness[best_id],
+            x[best_id],
+        )
         return state.replace(
-                best_member=best_member,
-                best_fitness=best_fitness,
-            )
+            best_member=best_member,
+            best_fitness=best_fitness,
+        ), best_id
 
     def tell_strategy(
             self,
@@ -140,16 +148,18 @@ class SimpleGAforSyncData:
             fitness: chex.Array,
             state: EvoState,
     ) -> EvoState:
-        fitness = jnp.concatenate([fitness, state.fitness])
-        solution = jnp.concatenate([x, state.archive])
-        idx = jnp.argsort(fitness)[0: self.elite_size]
+        fitness_concat = jnp.concatenate([state.fitness, fitness])
+        solution_concat = jnp.concatenate([state.archive, x])
+        idx = jnp.argsort(fitness_concat)[0: self.elite_size]
 
-        fitness = fitness[idx]
-        archive = solution[idx]
+        new_fitness = fitness_concat[idx]
+        new_archive = solution_concat[idx]
 
-        return state.replace(
-                fitness=fitness, archive=archive
-            )
+        new_state = state.replace(
+            fitness=new_fitness, archive=new_archive,
+        )
+
+        return new_state
 
 
 def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_numbers):
@@ -167,8 +177,8 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
     def mute_and_mate(
             X0,
             rng: chex.PRNGKey, elite_rows: chex.Array, initialization
-    # ) -> Tuple[chex.Array, chex.Array, chex.Array]:
-        ) -> PopulationState:
+            # ) -> Tuple[chex.Array, chex.Array, chex.Array]:
+    ) -> PopulationState:
         X0 = X0.astype(jnp.float32)
         elite_rows = elite_rows.astype(jnp.float32)
 
@@ -185,7 +195,6 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
 
         removed_rows_mate = X0[remove_rows_idx, :].reshape((mate_rate, d))
         add_rows_idx = jax.random.randint(rng3, minval=0, maxval=elite_rows.shape[0], shape=(mate_rate,))
-
 
         new_rows = elite_rows[add_rows_idx]
         noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d)) * 0.01
@@ -253,7 +262,7 @@ class PrivGA(Generator):
         return f'PrivGA'
 
     def fit(self, key, adaptive_statistic: ChainedStatistics,
-            sync_dataset: Dataset=None, tolerance: float = 0.0, adaptive_epoch=1):
+            sync_dataset: Dataset = None, tolerance: float = 0.0, adaptive_epoch=1):
         """
         Minimize error between real_stats and sync_stats
         """
@@ -263,21 +272,22 @@ class PrivGA(Generator):
         selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
         selected_statistics = adaptive_statistic.get_selected_statistics_without_noise()
         statistics_fn = jax.jit(adaptive_statistic.get_selected_statistics_fn())
+        statistics_fn_debug = adaptive_statistic.get_selected_statistics_fn()
 
         # For debugging
         @jax.jit
         def true_loss(X_arg):
-            error = jnp.abs(selected_statistics - statistics_fn(X_arg))
+            error = jnp.abs(selected_statistics - statistics_fn_debug(X_arg))
             return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
 
         @jax.jit
         def private_loss(X_arg):
-            error = jnp.abs(selected_noised_statistics - statistics_fn(X_arg))
+            error = jnp.abs(selected_noised_statistics - statistics_fn_debug(X_arg))
             return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
-
 
         # Create statistic function.
         fitness_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
+
         def fitness_fn(stats: chex.Array, pop_state: PopulationState):
             # Process one member of the population
             # 1) Update the statistics of this synthetic dataset
@@ -288,7 +298,7 @@ class PrivGA(Generator):
             rem_stats = (num_rows * fitness_statistics_fn(rem_row))
             upt_sync_stat = stats.reshape(-1) + add_stats - rem_stats
             # 2) Compute its fitness based on the statistics
-            fitness = jnp.linalg.norm(selected_noised_statistics - upt_sync_stat / self.data_size, ord=2)**2
+            fitness = jnp.linalg.norm(selected_noised_statistics - upt_sync_stat / self.data_size, ord=2) ** 2
             return fitness
 
         fitness_fn_vmap = jax.vmap(fitness_fn, in_axes=(None, 0))
@@ -301,6 +311,7 @@ class PrivGA(Generator):
 
         # INITIALIZE STATE
         key, subkey = jax.random.split(key, 2)
+
         state = self.strategy.initialize(subkey)
 
         if sync_dataset is not None:
@@ -309,8 +320,9 @@ class PrivGA(Generator):
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             state = state.replace(archive=new_archive)
 
-        elite_population_fn = jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0, ))
-        elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1, ord=2)**2
+        elite_population_fn = jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,))
+        elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
+                                        ord=2) ** 2
         best_member_id = elite_fitness.argmin()
         state = state.replace(
             fitness=elite_fitness,
@@ -322,6 +334,7 @@ class PrivGA(Generator):
 
         best_fitness_total = 100000
         ask_time = 0
+        elite_stat_time = 0
         fit_time = 0
         fit_time2 = 0
         tell_time = 0
@@ -330,6 +343,19 @@ class PrivGA(Generator):
 
         if self.print_progress:
             timer(init_time, '\tSetup time = ')
+
+        update_elite_stat_statistics_fn = jax.jit(adaptive_statistic.get_selected_statistics_fn())
+        elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
+
+        @jax.jit
+        # def update_elite_stat(elite_stat_arg, population_state_arg: PopulationState, best_id_arg):
+        def update_elite_stat(elite_stat_arg, rem_rows, add_rows, best_id_arg):
+            rem_row = rem_rows[best_id_arg]
+            add_row = add_rows[best_id_arg]
+            num_rows = rem_row.shape[0]
+            add_stats = (num_rows * update_elite_stat_statistics_fn(add_row))
+            rem_stats = (num_rows * update_elite_stat_statistics_fn(rem_row))
+            return elite_stat_arg + add_stats - rem_stats
 
         for t in range(self.num_generations):
 
@@ -341,49 +367,54 @@ class PrivGA(Generator):
 
             # FIT
             t0 = timer()
-            elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
-            fit_time += timer() - t0
-            t0 = timer()
             fitness = fitness_fn_jit(elite_stat, population_state)
-            fit_time2 += timer() - t0
-
+            fit_time += timer() - t0
 
             # TELL
             t0 = timer()
-            state = self.strategy.tell(population_state.X, fitness, state)
+            state, best_id = self.strategy.tell(population_state.X, fitness, state)
             best_fitness = state.best_fitness
             self.fitness_record.append(best_fitness)
 
             tell_time += timer() - t0
 
-            # EARLY STOP
-            best_fitness_total = min(best_fitness_total, best_fitness)
+            # UPDATE elite_states
+            t0 = timer()
+            if best_id < self.strategy.population_size:
+                population_state: PopulationState
+                elite_stat = update_elite_stat(elite_stat, population_state.remove_row, population_state.add_row,
+                                               best_id)
+            elite_stat_time += timer() - t0
 
-            stop_early = False
-            if self.stop_early and t > int(self.data_size):
-                if self.early_stop(t, best_fitness_total):
-                    stop_early = True
+            if t % 50 == 0:
+                # EARLY STOP
+                best_fitness_total = min(best_fitness_total, best_fitness)
 
-            # DEBUG
-            if self.print_progress:
-                if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
-                    elapsed_time = timer() - init_time
-                    X_sync = state.best_member
+                stop_early = False
+                if self.stop_early and t > int(self.data_size):
+                    if self.early_stop(t, best_fitness_total):
+                        stop_early = True
 
-                    print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
-                    p_inf, p_avg, p_l2 = private_loss(X_sync)
-                    print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})',end='')
-                    t_inf, t_avg, p_l2 = true_loss(X_sync)
-                    print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})',end='')
-                    print(f'\t|time={elapsed_time:.4f}(s):', end='')
-                    print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), fit2_t={fit_time2:.3f}(s), tell_t={tell_time:.3f}', end='')
-                    print()
-                    last_fitness = best_fitness_total
-
-            if stop_early:
+                # DEBUG
                 if self.print_progress:
-                    print(f'\t\tStop early at t={t}')
-                break
+                    if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
+                        elapsed_time = timer() - init_time
+                        X_sync = state.best_member
+
+                        print(f'\tGen {t:05}, fitness={best_fitness_total:.6f}, ', end=' ')
+                        p_inf, p_avg, p_l2 = private_loss(X_sync)
+                        print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})', end='')
+                        t_inf, t_avg, p_l2 = true_loss(X_sync)
+                        print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
+                        print(f'\t|time={elapsed_time:.4f}(s):', end='')
+                        print(f'\task_t={ask_time:.3f}(s), fit_t={fit_time:.3f}(s), tell_t={tell_time:.3f}', end='')
+                        print()
+                        last_fitness = best_fitness_total
+
+                if stop_early:
+                    if self.print_progress:
+                        print(f'\t\tStop early at t={t}')
+                    break
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
