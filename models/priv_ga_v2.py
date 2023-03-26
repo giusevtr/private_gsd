@@ -28,7 +28,7 @@ Implement crossover that is specific to synthetic data
 
 def get_best_fitness_member(
     x: chex.Array, fitness: chex.Array, state
-) -> Tuple[chex.Array, chex.Array]:
+) -> Tuple[chex.Array, chex.Array, chex.Array, chex.Array]:
     best_in_gen = jnp.argmin(fitness)
     best_in_gen_fitness, best_in_gen_member = (
         fitness[best_in_gen],
@@ -41,7 +41,7 @@ def get_best_fitness_member(
     best_member = jax.lax.select(
         replace_best, best_in_gen_member, state.best_member
     )
-    return best_member, best_fitness
+    return best_member, best_fitness, replace_best, best_in_gen
 
 class SimpleGAforSyncData:
     def __init__(self, domain: Domain,
@@ -125,14 +125,16 @@ class SimpleGAforSyncData:
             x: chex.Array,
             fitness: chex.Array,
             state: EvoState,
-    ) -> EvoState:
+    ) -> Tuple[EvoState, chex.Array, chex.Array]:
         """`tell` performance data for strategy state update."""
         state = self.tell_strategy(x, fitness, state)
-        best_member, best_fitness = get_best_fitness_member(x, fitness, state)
+        # return state, is_best_replaced, best_id
+
+        best_member, best_fitness, replace_best, best_in_gen = get_best_fitness_member(x, fitness, state)
         return state.replace(
-                best_member=best_member,
-                best_fitness=best_fitness,
-            )
+            best_member=best_member,
+            best_fitness=best_fitness,
+        ), replace_best, best_in_gen
 
     def tell_strategy(
             self,
@@ -140,16 +142,19 @@ class SimpleGAforSyncData:
             fitness: chex.Array,
             state: EvoState,
     ) -> EvoState:
-        fitness = jnp.concatenate([fitness, state.fitness])
-        solution = jnp.concatenate([x, state.archive])
-        idx = jnp.argsort(fitness)[0: self.elite_size]
 
-        fitness = fitness[idx]
-        archive = solution[idx]
+        fitness_concat = jnp.concatenate([state.fitness, fitness])
+        solution_concat = jnp.concatenate([state.archive, x])
+        idx = jnp.argsort(fitness_concat)[0: self.elite_size]
 
-        return state.replace(
-                fitness=fitness, archive=archive
+        new_fitness = fitness_concat[idx]
+        new_archive = solution_concat[idx]
+
+        new_state = state.replace(
+                fitness=new_fitness, archive=new_archive,
             )
+
+        return new_state
 
 
 def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_numbers):
@@ -302,6 +307,7 @@ class PrivGA(Generator):
 
         # INITIALIZE STATE
         key, subkey = jax.random.split(key, 2)
+
         state = self.strategy.initialize(subkey)
 
         if sync_dataset is not None:
@@ -332,6 +338,19 @@ class PrivGA(Generator):
         if self.print_progress:
             timer(init_time, '\tSetup time = ')
 
+        update_elite_stat_statistics_fn = jax.jit(adaptive_statistic.get_selected_statistics_fn())
+        elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
+
+        @jax.jit
+        # def update_elite_stat(elite_stat_arg, population_state_arg: PopulationState, best_id_arg):
+        def update_elite_stat(elite_stat_arg, rem_rows, add_rows, best_id_arg):
+            rem_row = rem_rows[best_id_arg]
+            add_row = add_rows[best_id_arg]
+            num_rows = rem_row.shape[0]
+            add_stats = (num_rows * update_elite_stat_statistics_fn(add_row))
+            rem_stats = (num_rows * update_elite_stat_statistics_fn(rem_row))
+            return elite_stat_arg + add_stats - rem_stats
+
         for t in range(self.num_generations):
 
             # ASK
@@ -340,9 +359,6 @@ class PrivGA(Generator):
             population_state = self.strategy.ask(ask_subkey, state)
             ask_time += timer() - t0
 
-            t0 = timer()
-            elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
-            elite_stat_time += timer() - t0
 
             # FIT
             t0 = timer()
@@ -351,11 +367,19 @@ class PrivGA(Generator):
 
             # TELL
             t0 = timer()
-            state = self.strategy.tell(population_state.X, fitness, state)
+            state, is_best_replaced, best_id = self.strategy.tell(population_state.X, fitness, state)
             best_fitness = state.best_fitness
             self.fitness_record.append(best_fitness)
 
             tell_time += timer() - t0
+
+            # UPDATE elite_states
+            t0 = timer()
+            if is_best_replaced:
+                population_state: PopulationState
+                elite_stat = update_elite_stat(elite_stat, population_state.remove_row, population_state.add_row, best_id)
+            elite_stat_time += timer() - t0
+
 
             # EARLY STOP
             best_fitness_total = min(best_fitness_total, best_fitness)
