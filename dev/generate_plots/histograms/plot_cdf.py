@@ -114,7 +114,7 @@ def custom_plot(x,  **kwargs):
     # plt.plot(x, y, linewidth=3, **kwargs)
     # plt.hist(x, y, s=50, linewidth=4, **kwargs)
 
-df = df[df[feat_label] == 'WKHP']
+# df = df[df[feat_label] == 'WKHP']
 # sns.ecdfplot(data=df, x='Values',
 #              hue=gen_label,
 #              # row=feat_label,
@@ -122,6 +122,7 @@ df = df[df[feat_label] == 'WKHP']
 #              linewidth=3
 #              )
 g = sns.FacetGrid(df, col=gen_label,
+                 row=feat_label,
                   hue=type_label,
                   hue_order=['Real Data', 'Synthetic Data'],
                   # alpha=0.7
