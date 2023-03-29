@@ -40,7 +40,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     # Create statistics and evaluate
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
 
-    module = Marginals.get_all_kway_combinations(domain, k=1, bins=[2, 4, 8, 16, 32])
+    module = Marginals.get_all_kway_combinations(domain, k=2, bins=[2, 4, 8, 16, 32])
     stat_module = ChainedStatistics([module])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
@@ -83,11 +83,11 @@ if __name__ == "__main__":
 
     DATA = [
         # 'folktables_2018_real_CA',
-        'folktables_2018_coverage_CA',
+        # 'folktables_2018_coverage_CA',
         # 'folktables_2018_employment_CA',
         # 'folktables_2018_income_CA',
         # 'folktables_2018_mobility_CA',
-        # 'folktables_2018_travel_CA',
+        'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)

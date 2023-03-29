@@ -332,18 +332,18 @@ class PrivGA(Generator):
             # ASK
             t0 = timer()
             key, ask_subkey = jax.random.split(key, 2)
-            population_state = self.strategy.ask(ask_subkey, state)
+            population_state = self.strategy.ask(ask_subkey, state).block_until_ready()
             ask_time += timer() - t0
 
             # FIT
             t0 = timer()
             elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
-            fitness = fitness_fn_jit(elite_stat, population_state)
+            fitness = fitness_fn_jit(elite_stat, population_state).block_until_ready()
             fit_time += timer() - t0
 
             # TELL
             t0 = timer()
-            state = self.strategy.tell(population_state.X, fitness, state)
+            state = self.strategy.tell(population_state.X, fitness, state).block_until_ready()
             best_fitness = state.best_fitness
             self.fitness_record.append(best_fitness)
 
