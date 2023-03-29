@@ -251,7 +251,8 @@ class PrivGA(Generator):
                  num_generations,
                  strategy: SimpleGAforSyncData,
                  print_progress=False,
-                 stop_early=True
+                 stop_early=True,
+                 stop_early_gen=2000
                  ):
         self.domain = strategy.domain
         self.data_size = strategy.data_size
@@ -259,6 +260,7 @@ class PrivGA(Generator):
         self.print_progress = print_progress
         self.strategy = strategy
         self.stop_early = stop_early
+        self.stop_early_min_generation = stop_early_gen
 
     def __str__(self):
         return f'PrivGA'
@@ -373,7 +375,7 @@ class PrivGA(Generator):
                 best_fitness_total = min(best_fitness_total, best_fitness)
 
                 stop_early = False
-                if self.stop_early and t > int( self.data_size):
+                if self.stop_early and t > int(self.data_size) and t > self.stop_early_min_generation:
                     if self.early_stop(t, best_fitness_total):
                         stop_early = True
 

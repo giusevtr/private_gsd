@@ -29,7 +29,7 @@ for v in np.linspace(0, 1, 100):
     pre_diff.append(ans_diff)
 
 
-plt.plot(pre, label='prefix')
+plt.plot(pre, label='halfspaces')
 plt.plot(pre_diff, label='prefix_diff')
 plt.legend()
 plt.show()

@@ -41,7 +41,8 @@ if __name__ == "__main__":
     cat_cols = domain.get_categorical_cols()
     num_cols = domain.get_numeric_cols()
 
-    targets = ['PINCP',  'PUBCOV', 'ESR', 'MIG', 'JWMNP']
+    # targets = ['PINCP',  'PUBCOV', 'ESR', 'MIG', 'JWMNP']
+    targets = ['ESR']
     models = [('LR', lambda: LogisticRegression(solver='liblinear', penalty='l1')),
               # ('RF', lambda: RandomForestClassifier(random_state=0))
               ]

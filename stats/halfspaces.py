@@ -21,7 +21,7 @@ class Halfspace(AdaptiveStatisticState):
         """
         :param domain:
         :param kway_combinations:
-        :param num_random_halfspaces: number of random halfspaces for each marginal that contains a real-valued feature
+        :param num_random_halfspaces: number of random halfspaces temp for each marginal that contains a real-valued feature
         """
         self.domain = domain
         self.num_hs_samples = num_random_halfspaces
@@ -188,7 +188,7 @@ class HalfspaceDiff(AdaptiveStatisticState):
         """
         :param domain:
         :param kway_combinations:
-        :param num_random_halfspaces: number of random halfspaces for each marginal that contains a real-valued feature
+        :param num_random_halfspaces: number of random halfspaces temp for each marginal that contains a real-valued feature
         """
         self.domain = domain
         self.num_hs_samples = num_random_halfspaces

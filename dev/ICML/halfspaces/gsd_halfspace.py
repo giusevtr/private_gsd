@@ -3,23 +3,23 @@ import jax.random
 import pandas as pd
 import os
 from models import PrivGA, SimpleGAforSyncData
-from stats import ChainedStatistics, Prefix
+from stats import ChainedStatistics, Halfspace
 import jax.numpy as jnp
 from utils import timer, Dataset, Domain , get_Xy, filter_outliers
 from dp_data import load_domain_config, load_df
 
 
 if __name__ == "__main__":
-    module_name = 'Prefix'
+    module_name = 'Halfspaces'
     EPSILON = [0.07, 0.23, 0.52, 0.74, 1]
     SEEDS = list(range(3))
     MAX_QUERIES = 200000
     DATA = [
         # 'folktables_2018_real_CA',
-        # 'folktables_2018_coverage_CA',
+        'folktables_2018_coverage_CA',
         # 'folktables_2018_employment_CA',
         # 'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
+        # 'folktables_2018_mobility_CA',
         # 'folktables_2018_travel_CA',
     ]
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/gsd_adaptive_prefix.csv'
+    file_name = 'icml_results/gsd_adaptive_halfspaces.csv'
 
     results_last = None
     if os.path.exists(file_name):
@@ -55,13 +55,12 @@ if __name__ == "__main__":
 
         binary_features = [(feat,) for feat in domain.get_categorical_cols() if domain.size(feat)==2]
         binary_size = sum([domain.size(feat) for feat in binary_features])
-        num_random_prefixes = MAX_QUERIES // binary_size
-        module = Prefix(domain,
-                        k_cat=1,
-                        cat_kway_combinations=binary_features,
-                        k_prefix=2,
-                        num_random_prefixes=num_random_prefixes,
-                        rng=jax.random.PRNGKey(0))
+        num_random_halfspacs = MAX_QUERIES // binary_size
+        module = Halfspace(domain,
+                           k_cat=1,
+                           cat_kway_combinations=binary_features,
+                           num_random_halfspaces=num_random_halfspacs,
+                           rng=jax.random.PRNGKey(0))
         stat_module = ChainedStatistics([module])
         stat_module.fit(data)
         true_stats = stat_module.get_all_true_statistics()

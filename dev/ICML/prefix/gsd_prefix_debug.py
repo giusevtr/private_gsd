@@ -11,8 +11,9 @@ from dp_data import load_domain_config, load_df
 
 if __name__ == "__main__":
     module_name = 'Prefix'
-    EPSILON = [0.07, 0.23, 0.52, 0.74, 1]
-    SEEDS = list(range(3))
+    # EPSILON = [0.07, 0.23, 0.52, 0.74, 1]
+    EPSILON = [0.07]
+    SEEDS = list(range(1))
     MAX_QUERIES = 200000
     DATA = [
         # 'folktables_2018_real_CA',
@@ -24,13 +25,18 @@ if __name__ == "__main__":
     ]
 
     PARAMS = [
-        (200, 50),   # 10,000
-        (150, 50),   # 7,500
-        (100, 50),   # 5,000
-        (40, 50),    # 2,000
-        (20, 50),    # 1,000
-        (10, 50),       # 500
-        (5, 50),        # 250
+        # (200, 50),   # 10,000
+        # (150, 50),   # 7,500
+        # (100, 50),   # 5,000
+        # (40, 50),    # 2,000
+        # (20, 50),    # 1,000
+        # (10, 50),       # 500
+        # (5, 50),        # 250
+        (1, 10),  # 250
+        # (1, 25),  # 250
+        # (1, 30),  # 250
+        # (1, 35),# 250
+        # (1, 40),  # 250
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
@@ -75,6 +81,8 @@ if __name__ == "__main__":
         print(f'test size:  {df_test.shape}')
 
         algo = PrivGA(num_generations=100000,
+                      print_progress=False,
+                      stop_early_gen=2000,
                       strategy=SimpleGAforSyncData(domain, 2000), )
         delta = 1.0 / len(data) ** 2
         for eps, seed, (samples, epochs) in itertools.product(EPSILON, SEEDS, PARAMS):
@@ -85,9 +93,9 @@ if __name__ == "__main__":
             sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
                                     epsilon=eps, delta=delta,
                                              rounds=epochs, num_sample=samples,
-                                             print_progress=False
+                                             print_progress=True
                                     )
-            sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+            # sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
             errors = jnp.abs(true_stats - stat_fn(sync_data))
             elapsed_time = timer() - t0
             print(f'GSD({dataset_name, module_name}): eps={eps:.2f}, seed={seed}'
@@ -104,7 +112,7 @@ if __name__ == "__main__":
             results_df = pd.DataFrame(Res, columns=columns)
             if results_last is not None:
                 results_df = pd.concat([results_last, results_df], ignore_index=True)
-            results_df.to_csv(file_name, index=False)
+            # results_df.to_csv(file_name, index=False)
 
 
 
