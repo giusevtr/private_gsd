@@ -28,8 +28,8 @@ if __name__ == "__main__":
     Method = 'PrivGA'
     # Method = 'RAP'
 
-    dataset_name = 'folktables_2018_multitask_NY'
-    data_container_fn = get_acs_all()
+    dataset_name = 'folktables_2014_multitask_NY'
+    all, data_container_fn = get_acs_all()
     data_container = data_container_fn(seed=0)
 
     domain = data_container.train.domain
@@ -54,7 +54,8 @@ if __name__ == "__main__":
             features.append(f)
 
     Res = []
-    for target in ['PINCP', 'PUBCOV']:
+    # for target in ['PINCP', 'PUBCOV', 'ESR']:
+    for target in ['ESR']:
         for eps in epsilon_vals:
             for seed in seeds:
                 sync_path = ''
