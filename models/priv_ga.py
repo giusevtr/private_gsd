@@ -392,39 +392,36 @@ class PrivGA(Generator):
 
             elite_stat_time += timer() - t0
 
-            # if t % 50 == 0:
-            #     # EARLY STOP
-            #     best_fitness_total = min(best_fitness_total, best_fitness)
-            #
-            #     stop_early = False
-            #     if self.stop_early and t > int(self.data_size):
-            #         if self.early_stop(t, best_fitness_total):
-            #             stop_early = True
-            #
-            #     # DEBUG
-            #     if self.print_progress:
-            #         if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
-            #             elapsed_time = timer() - init_time
-            #             X_sync = state.best_member
-            #
-            #             print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
-            #             # p_inf, p_avg, p_l2 = private_loss(X_sync)
-            #             # print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})', end='')
-            #             t_inf, t_avg, p_l2 = true_loss(X_sync)
-            #             print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
-            #             print(f'\t|time={elapsed_time:.4f}(s):', end='')
-            #             print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
-            #             print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
-            #             print()
-            #             last_fitness = best_fitness_total
+            if t % 50 == 0:
+                # EARLY STOP
+                best_fitness_total = min(best_fitness_total, best_fitness)
 
-                # if stop_early:
-                #     if self.print_progress:
-                #         print(f'\t\tStop early at t={t}')
-                #     break
+                stop_early = False
+                if self.stop_early and t > int(self.data_size):
+                    if self.early_stop(t, best_fitness_total):
+                        stop_early = True
 
-        elapsed_time = timer() - init_time
-        print(f'\t|time={elapsed_time:.4f}(s):', end='')
+                # DEBUG
+                if self.print_progress:
+                    if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
+                        elapsed_time = timer() - init_time
+                        X_sync = state.best_member
+
+                        print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
+                        # p_inf, p_avg, p_l2 = private_loss(X_sync)
+                        # print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})', end='')
+                        t_inf, t_avg, p_l2 = true_loss(X_sync)
+                        print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
+                        print(f'\t|time={elapsed_time:.4f}(s):', end='')
+                        print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
+                        print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
+                        print()
+                        last_fitness = best_fitness_total
+
+                if stop_early:
+                    if self.print_progress:
+                        print(f'\t\tStop early at t={t}')
+                    break
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
@@ -450,7 +447,6 @@ def test_jit_ask():
     marginal_stat_fn = marginals._get_workload_fn()
 
     # get_stats_vmap = lambda x: marginals.get_stats_jax_vmap(x)
-    get_stats_vmap = jax.vmap(lambda X: marginal_stat_fn(X))
 
     strategy = SimpleGAforSyncData(domain, population_size=20, elite_size=10, data_size=200,
                                    muta_rate=1,
@@ -464,7 +460,6 @@ def test_jit_ask():
     state = strategy.initialize(key)
     timer(t0, f'Initialize(2) elapsed time')
 
-    a_archive = get_stats_vmap(state.archive) * strategy.data_size
     for r in range(rounds):
         t0 = timer()
         # x, a_idx, removed_rows, added_rows, state = strategy.ask(key, state)

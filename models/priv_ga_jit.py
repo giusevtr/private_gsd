@@ -48,7 +48,8 @@ def get_best_fitness_member(
     return best_member, best_fitness, replace_best, best_in_gen
 
 class SimpleGAforSyncData:
-    def __init__(self, domain: Domain,
+    def __init__(self,
+                 domain: Domain,
                  data_size: int,
                  population_size: int = 100,
                  elite_size: int = 5,
@@ -248,19 +249,31 @@ class TempState:
     elite_stat: chex.Array
 
 # @dataclass
-class PrivGA(Generator):
+class PrivGAJit(Generator):
 
     def __init__(self,
                  num_generations,
-                 strategy: SimpleGAforSyncData,
+                 domain: Domain,
+                 data_size: int = 2000,
+                 population_size: int = 100,
+                 elite_size: int = 5,
+                 muta_rate: int = 1,
+                 mate_rate: int = 1,
                  print_progress=False,
                  stop_early=True
                  ):
-        self.domain = strategy.domain
-        self.data_size = strategy.data_size
+        self.domain = domain
+        self.data_size = data_size
         self.num_generations = num_generations
         self.print_progress = print_progress
-        self.strategy = strategy
+        self.strategy = SimpleGAforSyncData(
+                                domain,
+                                data_size,
+                                population_size,
+                                elite_size,
+                                muta_rate,
+                                mate_rate
+                            )
         self.stop_early = stop_early
 
     def __str__(self):
@@ -369,29 +382,23 @@ class PrivGA(Generator):
 
         update_elite_stat_jit = jax.jit(update_elite_stat)
 
-
-
-
-        def run_gsd(state_holder: TempState, key):
-            state = state_holder.state
-            elite_stat = state_holder.elite_stat
-             # ASK
-            key, ask_subkey = jax.random.split(key, 2)
-            population_state = self.strategy.ask(ask_subkey, state)
-
-            # FIT
-            fitness = fitness_fn_jit(elite_stat, population_state)
-
-            # TELL
-            state, rep_best, best_id = self.strategy.tell(population_state.X, fitness, state)
-
-            # UPDATE elite_states
-            elite_stat = update_elite_stat_jit(elite_stat, population_state, rep_best, best_id)
-
-            state_holder = state_holder.replace(state=state, elite_stat=elite_stat)
-            return state_holder, state.best_fitness
-
         @jax.jit
+        def run_gsd(state_holder_arg: TempState, key_arg: chex.PRNGKey):
+            state0 = state_holder_arg.state
+            elite_stat0 = state_holder_arg.elite_stat
+             # ASK
+            key_arg, ask_subkey = jax.random.split(key_arg, 2)
+            population_state = self.strategy.ask(ask_subkey, state0)
+            # FIT
+            fitness0 = fitness_fn_jit(elite_stat0, population_state)
+            # TELL
+            state0, rep_best, best_id = self.strategy.tell(population_state.X, fitness0, state0)
+            # UPDATE elite_states
+            elite_stat0 = update_elite_stat_jit(elite_stat0, population_state, rep_best, best_id)
+
+            state_holder_arg = state_holder_arg.replace(state=state0, elite_stat=elite_stat0)
+            return state_holder_arg, state0.best_fitness
+
         def run_gsd_jit(state_holder: TempState, keys):
             return jax.lax.scan(run_gsd, state_holder, keys)
 
@@ -399,16 +406,17 @@ class PrivGA(Generator):
 
         batch_size = 1000
 
-        for t in range(80):
-            key, keysub = jax.random.split(key, 2)
-            # state_holder, fitness = jax.lax.scan(run_gsd, state_holder, jax.random.split(keysub, 500))
-            state_holder, fitness = run_gsd_jit(state_holder, jax.random.split(keysub, batch_size))
+        # for t in range(self.num_generations // batch_size):
+        #     key, keysub = jax.random.split(key, 2)
+        #     state_holder, fitness = run_gsd_jit(state_holder, jax.random.split(keysub, batch_size))
+
+        state_holder, fitness = run_gsd_jit(state_holder, jax.random.split(key, self.num_generations))
 
         state = state_holder.state
         X_sync = state.best_member
 
         elapsed_time = timer() - init_time
-        print(f'\t|time={elapsed_time:.4f}(s):', end='')
+        print(f'\t|time={elapsed_time:.4f}(s):', end='\n')
         # p_inf, p_avg, p_l2 = private_loss(X_sync)
         # print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})', end='')
         t_inf, t_avg, p_l2 = true_loss(X_sync)

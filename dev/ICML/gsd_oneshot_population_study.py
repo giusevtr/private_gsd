@@ -20,11 +20,7 @@ from dp_data import load_domain_config, load_df
 from dev.dataloading.data_functions.acs import get_acs_all
 
 
-def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
-    module_name = 'Ranges'
-    max_num_queries = 200000
-    rounds = 50
-    num_sample = 10
+def run(dataset_name, module_name):
     Res = []
 
     root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
@@ -51,26 +47,22 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     print(f'Data cardinality is {domain.size()}.')
     print(f'Number of queries is {true_stats.shape[0]}.')
 
-    algo = PrivGA(num_generations=80000, strategy=SimpleGAforSyncData(domain, 2000, population_size=100, muta_rate=1, mate_rate=1), print_progress=True)
     delta = 1.0 / len(data) ** 2
-    for seed in seeds:
-        for eps in eps_values:
-            key = jax.random.PRNGKey(seed)
-            t0 = timer()
-            sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/{rounds}/{num_sample}/{eps:.2f}/'
-            os.makedirs(sync_dir, exist_ok=True)
-            sync_data = algo.fit_dp(key, stat_module=stat_module,
-                                           epsilon=eps, delta=delta,
-                                           )
-            sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
-            errors = jnp.abs(true_stats - stat_fn(sync_data))
-            elapsed_time = timer() - t0
-            print(f'GSD({dataset_name, module_name}): eps={eps:.2f}, seed={seed}'
-                  f'\t max error = {errors.max():.5f}'
-                  f'\t avg error = {errors.mean():.5f}'
-                  f'\t time = {elapsed_time:.4f}')
-            Res.append(['GSD', dataset_name, module_name, "oneshot", "oneshot", eps, seed, 'Max', errors.max(), elapsed_time])
-            Res.append(['GSD', dataset_name, module_name, "oneshot", "oneshot", eps, seed, 'Average', errors.mean(), elapsed_time])
+    for pop_size in [5, 10, 20, 30, 40]:
+        algo = PrivGA(num_generations=100000,
+                      strategy=SimpleGAforSyncData(domain, 2000, population_size=pop_size, muta_rate=1, mate_rate=1),
+                      print_progress=True)
+        key = jax.random.PRNGKey(0)
+        t0 = timer()
+        sync_data = algo.fit_dp(key, stat_module=stat_module,
+                                       epsilon=1, delta=delta,
+                                       )
+        errors = jnp.abs(true_stats - stat_fn(sync_data))
+        elapsed_time = timer() - t0
+        print(f'GSD({dataset_name, module_name}): eps={1:.2f}, seed={0}'
+              f'\t max error = {errors.max():.5f}'
+              f'\t avg error = {errors.mean():.5f}'
+              f'\t time = {elapsed_time:.4f}')
 
         print()
 
@@ -96,8 +88,5 @@ if __name__ == "__main__":
         print(f'reading {file_name}')
         results = pd.read_csv(file_name)
     for data in DATA:
-        results_temp = run(data, 'Ranges', eps_values=[0.07, 0.15, 0.23, 0.54, 0.74, 1.0])
-        results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
-        print(f'Saving: {file_name}')
-        # results.to_csv(file_name, index=False)
+        results_temp = run(data, 'Ranges')
 
