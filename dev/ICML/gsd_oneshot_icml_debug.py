@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData
+from models import PrivGA, SimpleGAforSyncData, PrivGAJit
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -21,9 +21,13 @@ from dev.dataloading.data_functions.acs import get_acs_all
 
 
 def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
+    module_name = 'Ranges'
+    max_num_queries = 200000
+    rounds = 50
+    num_sample = 10
     Res = []
 
-    root_path = '../../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
+    root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
@@ -36,11 +40,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     # Create statistics and evaluate
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
 
-    module = None
-    if module_name == 'Ranges':
-        module = Marginals.get_all_kway_mixed_combinations_v1(domain, k=2, bins=[2, 4, 8, 16, 32])
-    elif module_name == 'Marginals':
-        module = Marginals.get_all_kway_combinations(domain, k=2, bins=[2, 4, 8, 16, 32])
+    module = Marginals.get_all_kway_combinations(domain, k=2, bins=[2, 4, 8, 16, 32])
     stat_module = ChainedStatistics([module])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
@@ -51,13 +51,15 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     print(f'Data cardinality is {domain.size()}.')
     print(f'Number of queries is {true_stats.shape[0]}.')
 
-    algo = PrivGA(num_generations=80000, strategy=SimpleGAforSyncData(domain, 2000, population_size=100, muta_rate=1, mate_rate=1), print_progress=True)
+    algo = PrivGAJit(num_generations=80000, domain=domain, data_size=2000, population_size=10, print_progress=True)
+    # algo = PrivGA(num_generations=80000, strategy=SimpleGAforSyncData(domain, 2000, population_size=10, muta_rate=1, mate_rate=1), print_progress=True)
+
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
             key = jax.random.PRNGKey(seed)
             t0 = timer()
-            sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/oneshot/oneshot/{eps:.2f}/'
+            sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/{rounds}/{num_sample}/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)
             sync_data = algo.fit_dp(key, stat_module=stat_module,
                                            epsilon=eps, delta=delta,
@@ -82,22 +84,21 @@ if __name__ == "__main__":
 
     DATA = [
         # 'folktables_2018_real_CA',
-        'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
+        # 'folktables_2018_coverage_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
+        # 'folktables_2018_mobility_CA',
         'folktables_2018_travel_CA',
     ]
 
-    os.makedirs('../icml_results/', exist_ok=True)
-    file_name = '../icml_results/gsd_oneshot_ranges.csv'
-
+    os.makedirs('icml_results/', exist_ok=True)
+    file_name = 'icml_results/oneshot_ranges/gsd_oneshot.csv'
     results = None
     if os.path.exists(file_name):
         print(f'reading {file_name}')
         results = pd.read_csv(file_name)
     for data in DATA:
-        results_temp = run(data, 'Ranges', eps_values=[0.07, 0.23, 0.52, 0.74, 1])
+        results_temp = run(data, 'Ranges', eps_values=[1.0], seeds=[0])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
         # results.to_csv(file_name, index=False)
