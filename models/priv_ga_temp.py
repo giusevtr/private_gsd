@@ -242,6 +242,10 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
 ######################################################################
 ######################################################################
 
+@struct.dataclass
+class TempState:
+    state: EvoState
+    elite_stat: chex.Array
 
 # @dataclass
 class PrivGA(Generator):
@@ -337,7 +341,6 @@ class PrivGA(Generator):
         ask_time = 0
         elite_stat_time = 0
         fit_time = 0
-        fit_time2 = 0
         tell_time = 0
         last_fitness = None
         self.fitness_record = []
@@ -348,7 +351,6 @@ class PrivGA(Generator):
         elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
 
         update_elite_stat_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
-        update_elite_stat_statistics_fn_jit = jax.jit(update_elite_stat_statistics_fn)
         def update_elite_stat(elite_stat_arg,
                               population_state: PopulationState,
                               replace_best,
@@ -366,65 +368,53 @@ class PrivGA(Generator):
             return new_elite_stat
 
         update_elite_stat_jit = jax.jit(update_elite_stat)
-        update_counter = 0
-        for t in range(self.num_generations):
 
-            # ASK
-            t0 = timer()
+
+
+
+        def run_gsd(state_holder: TempState, key):
+            state = state_holder.state
+            elite_stat = state_holder.elite_stat
+             # ASK
             key, ask_subkey = jax.random.split(key, 2)
             population_state = self.strategy.ask(ask_subkey, state)
-            population_state.remove_row.block_until_ready()
-            ask_time += timer() - t0
 
             # FIT
-            t0 = timer()
-            fitness = fitness_fn_jit(elite_stat, population_state).block_until_ready()
-            fit_time += timer() - t0
+            fitness = fitness_fn_jit(elite_stat, population_state)
 
             # TELL
-            t0 = timer()
             state, rep_best, best_id = self.strategy.tell(population_state.X, fitness, state)
-            state.archive.block_until_ready()
-            best_fitness = state.best_fitness
-            self.fitness_record.append(best_fitness)
 
-            tell_time += timer() - t0
             # UPDATE elite_states
-            elite_stat = update_elite_stat_jit(elite_stat, population_state, rep_best, best_id).block_until_ready()
+            elite_stat = update_elite_stat_jit(elite_stat, population_state, rep_best, best_id)
 
-            elite_stat_time += timer() - t0
+            state_holder = state_holder.replace(state=state, elite_stat=elite_stat)
+            return state_holder, state.best_fitness
 
-            if t % 50 == 0:
-                # EARLY STOP
-                best_fitness_total = min(best_fitness_total, best_fitness)
+        @jax.jit
+        def run_gsd_jit(state_holder: TempState, keys):
+            return jax.lax.scan(run_gsd, state_holder, keys)
 
-                stop_early = False
-                if self.stop_early and t > int(self.data_size):
-                    if self.early_stop(t, best_fitness_total):
-                        stop_early = True
+        state_holder = TempState(state=state, elite_stat=elite_stat)
 
-                # DEBUG
-                if self.print_progress:
-                    if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
-                        elapsed_time = timer() - init_time
-                        X_sync = state.best_member
+        batch_size = 1000
 
-                        print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
-                        # p_inf, p_avg, p_l2 = private_loss(X_sync)
-                        # print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})', end='')
-                        t_inf, t_avg, p_l2 = true_loss(X_sync)
-                        print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
-                        print(f'\t|time={elapsed_time:.4f}(s):', end='')
-                        print(f'\task={ask_time:.3f}(s), fit={fit_time:.3f}(s), tell={tell_time:.3f}', end='')
-                        print(f'\telite_stat={elite_stat_time:.3f}(s)\t', end='')
-                        print(f'\tupt_counter={update_counter}', end='')
-                        print()
-                        last_fitness = best_fitness_total
+        for t in range(80):
+            key, keysub = jax.random.split(key, 2)
+            # state_holder, fitness = jax.lax.scan(run_gsd, state_holder, jax.random.split(keysub, 500))
+            state_holder, fitness = run_gsd_jit(state_holder, jax.random.split(keysub, batch_size))
 
-                if stop_early:
-                    if self.print_progress:
-                        print(f'\t\tStop early at t={t}')
-                    break
+        state = state_holder.state
+        X_sync = state.best_member
+
+        elapsed_time = timer() - init_time
+        print(f'\t|time={elapsed_time:.4f}(s):', end='')
+        # p_inf, p_avg, p_l2 = private_loss(X_sync)
+        # print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})', end='')
+        t_inf, t_avg, p_l2 = true_loss(X_sync)
+        print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
+        print()
+
 
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)

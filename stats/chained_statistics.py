@@ -35,8 +35,7 @@ class ChainedStatistics:
 
             data_workload_fn = stat_mod._get_dataset_statistics_fn()
 
-            cpu = jax.devices("cpu")[0]
-            all_stats = data_workload_fn(data).device_put(cpu)
+            all_stats = data_workload_fn(data)
             # self.modules_workload_fn_jit.append(jax.jit(stat_mod._get_workload_fn()))
             self.modules_workload_fn_jit.append(stat_mod._get_dataset_statistics_fn(jitted=True))
             self.modules_all_statistics.append(all_stats)
