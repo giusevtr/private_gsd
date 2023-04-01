@@ -24,3 +24,5 @@ digits
 dp-data
 dp-data-dev
 dev/ICML/icml_results
+*.npy
+*.txt

@@ -170,7 +170,8 @@ def evaluate_machine_learning_task(
             if len(lb.classes_) <= 1:
                 print(f"replace_with_binarized_legit: Error with label {column_name}")
                 continue
-            columns = lb.classes_ if len(lb.classes_) > 2 else [f"is {lb.classes_[1]}"]
+            # columns = lb.classes_ if len(lb.classes_) > 2 else [f"is {lb.classes_[1]}"]
+            columns = lb.classes_
             binarized_cols = pd.DataFrame(lb_results, columns=columns)
 
             newDf.drop(columns=column_name, inplace=True)
