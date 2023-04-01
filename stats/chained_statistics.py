@@ -7,6 +7,7 @@ from utils import Dataset, Domain, timer
 from tqdm import tqdm
 from stats import AdaptiveStatisticState
 
+cpu = jax.devices("cpu")[0]
 
 class ChainedStatistics:
     all_workloads: list
@@ -33,6 +34,7 @@ class ChainedStatistics:
             stat_mod = self.stat_modules[stat_id]
 
             data_workload_fn = stat_mod._get_dataset_statistics_fn()
+
             all_stats = data_workload_fn(data)
             # self.modules_workload_fn_jit.append(jax.jit(stat_mod._get_workload_fn()))
             self.modules_workload_fn_jit.append(stat_mod._get_dataset_statistics_fn(jitted=True))

@@ -28,6 +28,7 @@ if __name__ == "__main__":
 
     dataset_name = 'folktables_2014_multitask_NY'
     data_all, data_container_fn = get_acs_all()
+
     data_container = data_container_fn(seed=0)
 
     domain = data_container.train.domain
@@ -41,7 +42,8 @@ if __name__ == "__main__":
     cat_cols = domain.get_categorical_cols()
     num_cols = domain.get_numeric_cols()
 
-    targets = ['PINCP',  'PUBCOV', 'ESR', 'MIG', 'JWMNP']
+    # targets = ['PINCP',  'PUBCOV', 'ESR', 'MIG', 'JWMNP']
+    targets = ['ESR']
     models = [('LR', lambda: LogisticRegression(solver='liblinear', penalty='l1')),
               # ('RF', lambda: RandomForestClassifier(random_state=0))
               ]
@@ -53,6 +55,7 @@ if __name__ == "__main__":
 
     Res = []
     for target in targets:
+
         for eps in epsilon_vals:
             for seed in seeds:
                 sync_path = ''

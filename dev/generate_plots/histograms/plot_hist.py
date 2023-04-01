@@ -10,7 +10,7 @@ from utils.utils_data import get_data
 
 data_name = f'folktables_2018_real_CA'
 data = get_data(f'{data_name}-mixed-train',
-                domain_name=f'domain/{data_name}-mixed', root_path='../../data_files/folktables_datasets_real')
+                domain_name=f'domain/{data_name}-mixed', root_path='../../../data_files/folktables_datasets_real')
 
 
 # cols = ['INTP', 'SEMP']
@@ -24,15 +24,13 @@ type_label = 'Data Type'
 real_data_label = 'Real Data'
 synthetic_data_label = 'Synthetic Data'
 
-PRIVGA = pd.read_csv('../sync_data/folktables_2018_acsreal_CA/GSD/Prefix/100/1.00/sync_data_0.csv')
+PRIVGA = pd.read_csv('../../sync_data/folktables_2018_acsreal_CA/GSD/Prefix/100/1.00/sync_data_0.csv')
 # pd.read_csv('../sync_data/')
-RAPpp = pd.read_csv('../sync_data/folktables_2018_acsreal_CA/RAP++/Prefix/10/1.00/sync_data_0.csv')
-RAP = pd.read_csv('../sync_data/folktables_2018_acsreal_CA/RAP/Ranges/80/1.00/sync_data_0.csv')
+RAPpp = pd.read_csv('../../sync_data/folktables_2018_acsreal_CA/RAP++/Prefix/10/1.00/sync_data_0.csv')
+RAP = pd.read_csv('../../sync_data/folktables_2018_acsreal_CA/RAP/Ranges/80/1.00/sync_data_0.csv')
 df_list = []
 
-BINS = 1000
-# brange = 0.20
-brange = 1.0
+
 for col in data.domain.get_numeric_cols():
 # for col in cols:
     privga_df = PRIVGA[col].copy().to_frame()
@@ -85,8 +83,11 @@ df = pd.concat(df_list)
 
 def custom_plot(x,  **kwargs):
 
+    BINS = 100
+    # brange = 0.20
+    brange = 1.0
     print(kwargs)
-    cumulative = True
+    cumulative = False
     fill = False
     if kwargs['label'] == real_data_label:
         kwargs['color'] = 'k'

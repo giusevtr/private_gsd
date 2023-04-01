@@ -17,10 +17,10 @@ if __name__ == "__main__":
     DATA = [
         # 'folktables_2018_real_CA',
         # 'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
         'folktables_2018_mobility_CA',
-        'folktables_2018_travel_CA',
+        # 'folktables_2018_travel_CA',
     ]
 
     PARAMS = [

@@ -20,7 +20,7 @@ class Prefix(AdaptiveStatisticState):
         """
         :param domain:
         :param cat_kway_combinations:
-        :param num_random_prefixes: number of random halfspaces for each marginal that contains a real-valued feature
+        :param num_random_prefixes: number of random halfspaces temp for each marginal that contains a real-valued feature
         """
         # super().__init__(domain, kway_combinations)
         self.domain = domain
@@ -182,7 +182,7 @@ class PrefixDiff(AdaptiveStatisticState):
         """
         :param domain:
         :param cat_kway_combinations:
-        :param num_random_prefixes: number of random halfspaces for each marginal that contains a real-valued feature
+        :param num_random_prefixes: number of random halfspaces temp for each marginal that contains a real-valued feature
         """
         # super().__init__(domain, kway_combinations)
         self.domain = domain
