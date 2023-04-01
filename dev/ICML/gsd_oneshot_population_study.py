@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData
+from models import PrivGA, SimpleGAforSyncData, PrivGAJit
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -48,10 +48,16 @@ def run(dataset_name, module_name):
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     delta = 1.0 / len(data) ** 2
-    for pop_size in [5, 10, 20, 30, 40]:
-        algo = PrivGA(num_generations=100000,
-                      strategy=SimpleGAforSyncData(domain, 2000, population_size=pop_size, muta_rate=1, mate_rate=1),
-                      print_progress=False)
+    for pop_size in [5, 10, 20, 30, 40, 80, 160, 320]:
+        # algo = PrivGA(num_generations=500000,
+        #               strategy=SimpleGAforSyncData(domain, 2000, population_size=pop_size, muta_rate=1, mate_rate=1),
+        #               print_progress=False,
+        #               stop_eary_threshold=0.014)
+        algo = PrivGAJit(num_generations=500000,
+                      domain=domain,data_size=2000, population_size=pop_size, muta_rate=1, mate_rate=1,
+                      print_progress=False,
+                      stop_eary_threshold=0.014)
+
         key = jax.random.PRNGKey(0)
         t0 = timer()
         sync_data = algo.fit_dp(key, stat_module=stat_module,
@@ -59,7 +65,9 @@ def run(dataset_name, module_name):
                                        )
         errors = jnp.abs(true_stats - stat_fn(sync_data))
         elapsed_time = timer() - t0
-        print(f'GSD({dataset_name, module_name}): eps={1:.2f}, seed={0}'
+        print(f'GSD({dataset_name, module_name}): '
+              f'pop_size={pop_size}, '
+              f'eps={1:.2f}, seed={0}'
               f'\t max error = {errors.max():.5f}'
               f'\t avg error = {errors.mean():.5f}'
               f'\t time = {elapsed_time:.4f}')
@@ -75,10 +83,10 @@ if __name__ == "__main__":
     DATA = [
         # 'folktables_2018_real_CA',
         'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
-        'folktables_2018_travel_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
+        # 'folktables_2018_mobility_CA',
+        # 'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
