@@ -61,7 +61,7 @@ if __name__ == "__main__":
             continue
 
         print(f'reading {sync_path}')
-        df_sync_post = pd.read_csv(sync_path).sample(n=5000)
+        df_sync_post = pd.read_csv(sync_path)
         res = ml_fn(df_sync_post, seed=0)
         res = res[res['Eval Data'] == 'Test']
         res = res[res['Metric'] == 'f1_macro']
