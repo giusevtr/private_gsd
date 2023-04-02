@@ -260,7 +260,9 @@ class PrivGAJit(Generator):
                  muta_rate: int = 1,
                  mate_rate: int = 1,
                  print_progress=False,
-                 stop_early=True
+                 stop_early=True,
+
+                 stop_eary_threshold=0
                  ):
         self.domain = domain
         self.data_size = data_size
@@ -275,6 +277,8 @@ class PrivGAJit(Generator):
                                 mate_rate
                             )
         self.stop_early = stop_early
+
+        self.stop_eary_threshold = stop_eary_threshold
 
     def __str__(self):
         return f'PrivGA'
@@ -321,11 +325,6 @@ class PrivGAJit(Generator):
 
         fitness_fn_vmap = jax.vmap(fitness_fn, in_axes=(None, 0))
         fitness_fn_jit = jax.jit(fitness_fn_vmap)
-
-        # @jax.jit
-        # def fitness_fn_jit(stats: chex.Array, pop_state: PopulationState):
-        #     fitness = jax.lax.scan(fitness_fn_scan, stats, pop_state)[1]
-        #     return fitness
 
         # INITIALIZE STATE
         key, subkey = jax.random.split(key, 2)
@@ -406,11 +405,15 @@ class PrivGAJit(Generator):
 
         batch_size = 1000
 
-        # for t in range(self.num_generations // batch_size):
-        #     key, keysub = jax.random.split(key, 2)
-        #     state_holder, fitness = run_gsd_jit(state_holder, jax.random.split(keysub, batch_size))
+        for t in range(self.num_generations // batch_size):
+            key, keysub = jax.random.split(key, 2)
+            state_holder, fitness = run_gsd_jit(state_holder, jax.random.split(keysub, batch_size))
 
-        state_holder, fitness = run_gsd_jit(state_holder, jax.random.split(key, self.num_generations))
+            if fitness[-1] < self.stop_eary_threshold: break
+
+
+
+        # state_holder, fitness = run_gsd_jit(state_holder, jax.random.split(key, self.num_generations))
 
         state = state_holder.state
         X_sync = state.best_member

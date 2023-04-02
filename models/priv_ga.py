@@ -251,7 +251,8 @@ class PrivGA(Generator):
                  strategy: SimpleGAforSyncData,
                  print_progress=False,
                  stop_early=True,
-                 stop_early_gen=2000
+                 stop_early_gen=2000,
+                 stop_eary_threshold=0
                  ):
         self.domain = strategy.domain
         self.data_size = strategy.data_size
@@ -260,6 +261,7 @@ class PrivGA(Generator):
         self.strategy = strategy
         self.stop_early = stop_early
         self.stop_early_min_generation = stop_early_gen
+        self.stop_eary_threshold = stop_eary_threshold
 
     def __str__(self):
         return f'PrivGA'
@@ -395,6 +397,7 @@ class PrivGA(Generator):
 
             elite_stat_time += timer() - t0
 
+            if best_fitness < self.stop_eary_threshold: break
             if t % 50 == 0:
                 # EARLY STOP
                 best_fitness_total = min(best_fitness_total, best_fitness)
