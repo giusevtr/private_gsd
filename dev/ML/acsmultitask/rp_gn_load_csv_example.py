@@ -61,7 +61,7 @@ for algo_name in ['RP', 'GN']:
         for seed in range(3):
             for eps in [1.0, 0.74, 0.52, 0.23, 0.07]:
                 path = f'./sync_data/RAP_GEM/{dataset_name}/{query_code}/{algo_name}/{eps}/one_shot/10000/syndata_{seed}.csv'
-                df_syndata = pd.read_csv(path).sample(n=5000)
+                df_syndata = pd.read_csv(path)
                 res = ml_fn(df_syndata, seed=0)
                 res = res[res['Eval Data'] == 'Test']
                 res = res[res['Metric'] == 'f1_macro']
