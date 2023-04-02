@@ -86,8 +86,8 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
                   f'\t max error = {errors.max():.5f}'
                   f'\t avg error = {errors.mean():.5f}'
                   f'\t time = {elapsed_time:.4f}')
-            Res.append(['GSD', dataset_name, module_name, "oneshot", "oneshot", eps, seed, 'Max', errors.max(), elapsed_time])
-            Res.append(['GSD', dataset_name, module_name, "oneshot", "oneshot", eps, seed, 'Average', errors.mean(), elapsed_time])
+            Res.append(['GSD', dataset_name, module_name, rounds, num_sample, eps, seed, 'Max', errors.max(), elapsed_time])
+            Res.append(['GSD', dataset_name, module_name, rounds, num_sample, eps, seed, 'Average', errors.mean(), elapsed_time])
 
         print()
 
