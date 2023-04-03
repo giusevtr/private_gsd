@@ -15,7 +15,7 @@ import seaborn as sns
 from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
 from sklearn.linear_model import LogisticRegression
 
-from dp_data import load_domain_config, load_df
+from dp_data import load_domain_config, load_df, ml_eval
 
 from dev.dataloading.data_functions.acs import get_acs_all
 
@@ -36,6 +36,17 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
     print(f'test size:  {df_test.shape}')
     domain = Domain.fromdict(config)
     data = Dataset(df_train, domain)
+
+
+    targets = ['JWMNP_bin', 'PINCP', 'ESR', 'MIG', 'PUBCOV']
+    # targets = ['PINCP', 'PUBCOV']
+    features = []
+    for f in domain.attrs:
+        if f not in targets:
+            features.append(f)
+    ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=['LogisticRegression'])
+
+
 
     # Create statistics and evaluate
     module0 = Marginals.get_kway_categorical(data.domain, k=2)
@@ -76,8 +87,9 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
             os.makedirs(sync_dir, exist_ok=True)
             sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module,
                                            epsilon=eps, delta=delta,
-                                           rounds=50,
-                                           num_sample=5
+                                           rounds=rounds,
+                                           num_sample=num_sample,
+                                           oneshot_share_opt=0.8
                                            )
             sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
             errors = jnp.abs(true_stats - stat_fn(sync_data))
@@ -88,6 +100,21 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
                   f'\t time = {elapsed_time:.4f}')
             Res.append(['GSD', dataset_name, module_name, rounds, num_sample, eps, seed, 'Max', errors.max(), elapsed_time])
             Res.append(['GSD', dataset_name, module_name, rounds, num_sample, eps, seed, 'Average', errors.mean(), elapsed_time])
+
+
+
+            # DEbug ML
+
+            print(f'ML Debug')
+            res = ml_fn(sync_data.df, seed=0)
+            res = res[res['Eval Data'] == 'Test']
+            res = res[res['Metric'] == 'f1_macro']
+            print('seed=', seed, 'eps=', eps)
+            print(res)
+            for i, row in res.iterrows():
+                target = row['target']
+                f1 = row['Score']
+                print(f'target={target:<10}. f1_score={f1:.5f}')
 
         print()
 
