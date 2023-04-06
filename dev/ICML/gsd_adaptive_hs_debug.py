@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData, PrivGAJit
+from models import PrivGASparse as PrivGA, SimpleGAforSyncData, PrivGAJit
 from stats import ChainedStatistics, Marginals, Halfspace
 # from utils.utils_data import get_data
 from utils import timer
@@ -73,8 +73,8 @@ def run(dataset_name,
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     algo = PrivGA(num_generations=200000,
-                  strategy=SimpleGAforSyncData(domain, 1000, population_size=100, muta_rate=1, mate_rate=1),
-                  print_progress=True)
+                  domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
+                  print_progress=False)
 
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
@@ -119,6 +119,7 @@ if __name__ == "__main__":
     S = [10, 50]
     DATA = [
         'folktables_2018_multitask_CA'
+        # 'folktables_2018_coverage_CA'
     ]
 
     os.makedirs('icml_results/', exist_ok=True)

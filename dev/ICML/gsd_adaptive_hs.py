@@ -75,7 +75,7 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     algo = PrivGA(num_generations=200000,
-                  strategy=SimpleGAforSyncData(domain, 2000, population_size=100, muta_rate=1, mate_rate=1),
+                  domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
                   print_progress=False)
 
     delta = 1.0 / len(data) ** 2

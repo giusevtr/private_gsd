@@ -88,9 +88,13 @@ class SimpleGAforSyncData:
 
         rng1, rng2 = jax.random.split(rng, 2)
         random_numbers = jax.random.permutation(rng1, self.data_size, independent=True)
-        mute_mate = get_mutate_mating_fn(self.domain, mate_rate=self.mate_rate, muta_rate=self.muta_rate,
+        muta_fn = get_mutate_fn(self.domain, muta_rate=self.muta_rate,
                                          random_numbers=random_numbers)
-        self.mate_mutate_vmap = jax.jit(jax.vmap(mute_mate, in_axes=(None, 0, 0, 0)))
+        mate_fn = get_mating_fn(self.domain, mate_rate=self.mate_rate,
+                                         random_numbers=random_numbers)
+
+        self.muta_vmap = jax.jit(jax.vmap(muta_fn, in_axes=(None, 0, 0)))
+        self.mate_vmap = jax.jit(jax.vmap(mate_fn, in_axes=(None, 0, 0)))
 
         return state
 
@@ -114,12 +118,19 @@ class SimpleGAforSyncData:
     @partial(jax.jit, static_argnums=(0,))
     def ask_strategy(self, rng: chex.PRNGKey, random_data, state: EvoState):
         pop_size = self.population_size
-        rng, rng_i, rng_j, rng_k, rng_mate, rng_mutate = jax.random.split(rng, 6)
-        j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(pop_size,))
+        rng, rng_i, rng_j, rng_k, rng_muta, rng_mate, rng_mutate = jax.random.split(rng, 7)
+        j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(pop_size//2,))
         x_j = state.archive[j]
+        random_data = random_data[:self.population_size // 2, :]
+        rng_muta_split = jax.random.split(rng_muta, pop_size//2)
+        rng_mate_split = jax.random.split(rng_mate, pop_size//2)
+        pop_muta = self.muta_vmap(state.best_member, rng_muta_split, random_data)
+        pop_mate = self.mate_vmap(state.best_member, rng_mate_split, x_j)
 
-        rng_mate_split = jax.random.split(rng_mate, pop_size)
-        population = self.mate_mutate_vmap(state.best_member, rng_mate_split, x_j, random_data)
+        population = PopulationState(
+            X=jnp.concatenate((pop_muta.X, pop_mate.X)),
+            remove_row=jnp.concatenate((pop_muta.remove_row, pop_mate.remove_row)),
+            add_row=jnp.concatenate((pop_muta.add_row, pop_mate.add_row)))
         return population
 
     @partial(jax.jit, static_argnums=(0,))
@@ -132,7 +143,6 @@ class SimpleGAforSyncData:
         """`tell` performance data for strategy state update."""
         state = self.tell_strategy(x, fitness, state)
         best_member, best_fitness, replace_best, best_in_gen = get_best_fitness_member(x, fitness, state)
-
         return state.replace(
             best_member=best_member,
             best_fitness=best_fitness,
@@ -158,22 +168,44 @@ class SimpleGAforSyncData:
         return new_state
 
 
-def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_numbers):
-    # muta_rate = 1
+def get_mutate_fn(domain: Domain,  muta_rate: int, random_numbers):
+    def muta(
+            X0,
+            rng: chex.PRNGKey,  initialization
+    ) -> PopulationState:
+        X0 = X0.astype(jnp.float32)
 
-    # numeric_idx=jnp.array([0, 1])
+        n, d = X0.shape
+        rng, rng1, rng2, rng3, rng4, rng5, rng6, rng_temp, rng_normal = jax.random.split(rng, 9)
+
+        temp = jax.random.randint(rng1, minval=0, maxval=random_numbers.shape[0] - muta_rate, shape=(1,))
+        temp_id = jnp.arange(muta_rate) + temp
+        temp_id = jax.random.permutation(rng2, random_numbers[temp_id], independent=True)
+        mut_rows = temp_id[muta_rate]
+
+        ###################
+        ## Mutate
+        mut_col = jax.random.randint(rng5, minval=0, maxval=d, shape=(muta_rate,))
+        values = initialization[mut_col]
+
+        removed_rows_muta = X0[mut_rows, :].reshape((muta_rate, d))
+        X_mut = X0.at[mut_rows, mut_col].set(values)
+        added_rows_muta = X_mut[mut_rows, :].reshape((muta_rate, d))
+
+        pop_state = PopulationState(X=X_mut, remove_row=removed_rows_muta, add_row=added_rows_muta)
+        return pop_state
+
+    return muta
+
+def get_mating_fn(domain: Domain, mate_rate: int, random_numbers):
     d = len(domain.attrs)
     numeric_idx = domain.get_attribute_indices(domain.get_numeric_cols()).astype(int)
     mask = jnp.zeros(d)
     mask = mask.at[numeric_idx].set(1)
     mask = mask.reshape((1, d))
 
-    cols_ids = jnp.arange(d)
-
-    def mute_and_mate(
-            X0,
-            rng: chex.PRNGKey, elite_rows: chex.Array, initialization
-            # ) -> Tuple[chex.Array, chex.Array, chex.Array]:
+    def mate(
+            X0, rng: chex.PRNGKey, elite_rows: chex.Array
     ) -> PopulationState:
         X0 = X0.astype(jnp.float32)
         elite_rows = elite_rows.astype(jnp.float32)
@@ -181,17 +213,17 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
         n, d = X0.shape
         rng, rng1, rng2, rng3, rng4, rng5, rng6, rng_temp, rng_normal = jax.random.split(rng, 9)
 
-        temp = jax.random.randint(rng1, minval=0, maxval=random_numbers.shape[0] - mate_rate - muta_rate, shape=(1,))
-        temp_id = jnp.arange(mate_rate + muta_rate) + temp
+        # Choose row indices to cross
+        temp = jax.random.randint(rng1, minval=0, maxval=random_numbers.shape[0] - mate_rate, shape=(1,))
+        temp_id = jnp.arange(mate_rate) + temp
         temp_id = jax.random.permutation(rng2, random_numbers[temp_id], independent=True)
-
-        # temp_id = jax.random.choice(rng2, n, replace=False, shape=(mate_rate + muta_rate, ))
+        # temp_id = jax.random.choice(rng2, n, replace=False, shape=(mate_rate, ))
         remove_rows_idx = temp_id[:mate_rate]
-        mut_rows = temp_id[mate_rate:mate_rate + muta_rate]
 
         removed_rows_mate = X0[remove_rows_idx, :].reshape((mate_rate, d))
         add_rows_idx = jax.random.randint(rng3, minval=0, maxval=elite_rows.shape[0], shape=(mate_rate,))
 
+        # Copy this row onto the dataset
         new_rows = elite_rows[add_rows_idx]
         noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d)) * 0.01
         new_rows = new_rows + noise
@@ -201,36 +233,17 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
         rng_mate1, rng_mate2 = jax.random.split(rng_temp, 2)
         temp = jnp.repeat(jnp.array([1, 0]), jnp.array([1, d - 1]), total_repeat_length=d)
         temp = jnp.repeat(temp.reshape(1, -1), new_rows.shape[0])
-        # temp = jax.random.permutation(rng_mate2, temp)
         temp = jax.random.permutation(rng_mate2, temp).reshape((mate_rate, -1))
 
         added_rows_mate = temp * new_rows + (1 - temp) * removed_rows_mate
 
+        # Copy new rows
         X = X0.at[remove_rows_idx].set(added_rows_mate)
 
-        ###################
-        ## Mutate
-        mut_col = jax.random.randint(rng5, minval=0, maxval=d, shape=(muta_rate,))
-        values = initialization[mut_col]
-
-        removed_rows_muta = X[mut_rows, :].reshape((muta_rate, d))
-        X_mut = X.at[mut_rows, mut_col].set(values)
-        added_rows_muta = X_mut[mut_rows, :].reshape((muta_rate, d))
-
-        removed_rows = jnp.concatenate((removed_rows_mate, removed_rows_muta)).reshape((mate_rate + muta_rate, d))
-        added_rows = jnp.concatenate((added_rows_mate, added_rows_muta)).reshape((mate_rate + muta_rate, d))
-
-        # @struct.dataclass
-        # class PopulationState:
-        #     X0: chex.Array
-        #     X: chex.Array
-        #     remove_row: chex.Array
-        #     add_row: chex.Array
-        pop_state = PopulationState(X=X_mut, remove_row=removed_rows, add_row=added_rows)
+        pop_state = PopulationState(X=X, remove_row=removed_rows_mate, add_row=added_rows_mate)
         return pop_state
 
-    return mute_and_mate
-
+    return mate
 
 ######################################################################
 ######################################################################
@@ -239,7 +252,7 @@ def get_mutate_mating_fn(domain: Domain, mate_rate: int, muta_rate: int, random_
 
 
 # @dataclass
-class PrivGA(Generator):
+class PrivGAV2(Generator):
 
     def __init__(self,
                  num_generations,
@@ -248,6 +261,7 @@ class PrivGA(Generator):
                  data_size,
                  muta_rate=1,
                  mate_rate=1,
+                 # strategy: SimpleGAforSyncData,
                  print_progress=False,
                  stop_early=True,
                  stop_early_gen=2000,
@@ -261,12 +275,11 @@ class PrivGA(Generator):
         self.stop_early_min_generation = stop_early_gen
         self.stop_eary_threshold = stop_eary_threshold
 
-
         self.strategy = SimpleGAforSyncData(domain, data_size, population_size=population_size,
                                             muta_rate=muta_rate, mate_rate=mate_rate)
 
     def __str__(self):
-        return f'PrivGA'
+        return f'PrivGAV2'
 
     def fit(self, key, adaptive_statistic: ChainedStatistics,
             sync_dataset: Dataset = None, tolerance: float = 0.0, adaptive_epoch=1):
@@ -441,3 +454,55 @@ class PrivGA(Generator):
 ######################################################################
 ######################################################################
 ######################################################################
+
+def test_jit_ask():
+    from stats import Marginals
+    rounds = 5
+    d = 10
+    k = 1
+    print(f'Test jit(ask) with {rounds} rounds. d={d}, k={k}')
+    domain = Domain([f'A {i}' for i in range(d)], [3 for _ in range(d)])
+    data = Dataset.synthetic(domain, N=10, seed=0)
+    domain = data.domain
+    marginals = Marginals.get_all_kway_combinations(domain, k=k, bins=[2])
+    marginal_stat_fn = marginals._get_workload_fn()
+
+    # get_stats_vmap = lambda x: marginals.get_stats_jax_vmap(x)
+
+    strategy = SimpleGAforSyncData(domain, population_size=20, elite_size=10, data_size=200,
+                                   muta_rate=1,
+                                   mate_rate=1, debugging=True)
+    t0 = timer()
+    key = jax.random.PRNGKey(0)
+
+    strategy.initialize(key)
+    t0 = timer(t0, f'Initialize(1) elapsed time')
+
+    state = strategy.initialize(key)
+    timer(t0, f'Initialize(2) elapsed time')
+
+    for r in range(rounds):
+        t0 = timer()
+        # x, a_idx, removed_rows, added_rows, state = strategy.ask(key, state)
+        population_states, state = strategy.ask(key, state)
+        timer(t0, f'{r:>3}) ask() elapsed time')
+        print()
+
+        # _, num_rows, d = removed_rows.shape
+        # rem_stats = get_stats_vmap(removed_rows) * num_rows
+        # add_stats = get_stats_vmap(added_rows) * num_rows
+        # # a = a_archive[a_idx]
+        # a = a_archive[a_idx] + add_stats - rem_stats
+        #
+        # stats = get_stats_vmap(x) * strategy.data_size
+        # error = jnp.abs(stats - a)
+        # assert error.max() < 1, f'stats error is {error.max():.1f}'
+
+
+if __name__ == "__main__":
+    # test_crossover()
+
+    # test_mutation_fn()
+    # test_mutation()
+    test_jit_ask()
+    # test_jit_mutate()
