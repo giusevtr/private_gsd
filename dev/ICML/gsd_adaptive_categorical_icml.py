@@ -21,7 +21,7 @@ from dev.dataloading.data_functions.acs import get_acs_all
 
 
 def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
-    module_name = '2Cat'
+    module_name = '3-Cat'
     Res = []
 
     root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
@@ -37,7 +37,7 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
     # Create statistics and evaluate
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
 
-    module = Marginals.get_kway_categorical(domain, k=2)
+    module = Marginals.get_kway_categorical(domain, k=3)
     stat_module = ChainedStatistics([module])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
@@ -52,25 +52,28 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
                   domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
                   print_progress=False)
 
+    T = [25, 50, 75, 100]
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
-            key = jax.random.PRNGKey(seed)
-            t0 = timer()
-            sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/oneshot/oneshot/{eps:.2f}/'
-            os.makedirs(sync_dir, exist_ok=True)
-            sync_data = algo.fit_dp(key, stat_module=stat_module,
-                                           epsilon=eps, delta=delta,
-                                           )
-            sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
-            errors = jnp.abs(true_stats - stat_fn(sync_data))
-            elapsed_time = timer() - t0
-            print(f'GSD({dataset_name, module_name}): eps={eps:.2f}, seed={seed}'
-                  f'\t max error = {errors.max():.5f}'
-                  f'\t avg error = {errors.mean():.5f}'
-                  f'\t time = {elapsed_time:.4f}')
-            Res.append(['GSD', dataset_name, module_name, "oneshot", "oneshot", eps, seed, 'Max', errors.max(), elapsed_time])
-            Res.append(['GSD', dataset_name, module_name, "oneshot", "oneshot", eps, seed, 'Average', errors.mean(), elapsed_time])
+            for rounds in T:
+                key = jax.random.PRNGKey(seed)
+                t0 = timer()
+                sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/{rounds}/1/{eps:.2f}/'
+                os.makedirs(sync_dir, exist_ok=True)
+                sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
+                                               epsilon=eps, delta=delta,
+                                                 rounds=rounds, num_sample=1
+                                               )
+                sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+                errors = jnp.abs(true_stats - stat_fn(sync_data))
+                elapsed_time = timer() - t0
+                print(f'GSD({dataset_name, module_name}): eps={eps:.2f}, seed={seed}'
+                      f'\t max error = {errors.max():.5f}'
+                      f'\t avg error = {errors.mean():.5f}'
+                      f'\t time = {elapsed_time:.4f}')
+                Res.append(['GSD', dataset_name, module_name, rounds, 1, eps, seed, 'Max', errors.max(), elapsed_time])
+                Res.append(['GSD', dataset_name, module_name, rounds, 1, eps, seed, 'Average', errors.mean(), elapsed_time])
 
         print()
 
@@ -83,13 +86,13 @@ if __name__ == "__main__":
     DATA = [
         'folktables_2018_coverage_CA',
         'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
+        # 'folktables_2018_income_CA',
         'folktables_2018_mobility_CA',
-        'folktables_2018_travel_CA',
+        # 'folktables_2018_travel_CA',
     ]
 
-    os.makedirs('icml_results/oneshot_categorical', exist_ok=True)
-    file_name = 'icml_results/oneshot_categorical/gsd_oneshot_categorical.csv'
+    os.makedirs('icml_results/', exist_ok=True)
+    file_name = 'icml_results/gsd_adaptive_3way_categorical_coverage.csv'
     results = None
     for data in DATA:
         results_temp = run(data, eps_values=[1.0, 0.74, 0.52, 0.23, 0.07], seeds=[0, 1, 2])
