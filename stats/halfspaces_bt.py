@@ -54,7 +54,8 @@ class HalfspacesBT(AdaptiveStatisticState):
                 intervals = []
                 upper = np.linspace(-1, 1, num=bin+1)[1:]
                 lower = np.linspace(-1, 1, num=bin+1)[:-1]
-                upper[-1] = 1.01
+                lower[0] = -100.01
+                upper[-1] = 100.01
                 # upper = upper.at[-1].set(1.01)
                 interval = list(np.vstack((upper, lower)).T)
                 intervals.append(interval)
@@ -106,7 +107,7 @@ class HalfspacesBT(AdaptiveStatisticState):
             key, key_sub = jax.random.split(key)
             h = jax.random.normal(key_sub, shape=(sz, )) / norm
 
-            x_val = x[pos]
+            x_val = x[pos].astype(int)
             sum += h[x_val]
 
         key, key_sub = jax.random.split(key)
@@ -116,17 +117,19 @@ class HalfspacesBT(AdaptiveStatisticState):
         return sum
 
 
+    def answer_fn(self, x_row: chex.Array, query_single: chex.Array):
+        key = query_single[:2].astype(jnp.uint32)
+        x_proj = self.random_linear_proj(key, x_row)
+        hi = query_single[2]
+        lo = query_single[3]
+        answers1 = lo < x_proj
+        answers2 = x_proj < hi
+        return answers1 * answers2
+
     def _get_stat_fn(self, query_ids):
-        def answer_fn(x_row: chex.Array, query_single: chex.Array):
-            key = query_single[0]
-            x_proj = self.random_linear_proj(key, x_row)
-            lo = query_single[1]
-            hi = query_single[2]
-            answers = lo < x_proj < hi
-            return answers
 
         these_queries = self.queries[query_ids]
-        temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
+        temp_stat_fn = jax.vmap(self.answer_fn, in_axes=(None, 0))
 
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, these_queries), None
@@ -168,10 +171,12 @@ class HalfspacesBT(AdaptiveStatisticState):
 
 
 if __name__ == "__main__":
-    data = Dataset.synthetic(Domain(['A'], [1]), N=10, seed=0)
-    stat = HalfspacesBT(data.domain, key=jax.random.PRNGKey(0), random_proj=1)
+    data = Dataset.synthetic(Domain(['A', 'B', 'C'], [1, 2, 3]), N=10, seed=0)
+    data_np = data.to_numpy()
+    stat = HalfspacesBT(data.domain, key=jax.random.PRNGKey(0), random_proj=10, bins=(2, 4, 8, 16))
+
+    stat.answer_fn(data_np[0], stat.queries[0])
 
     stat_fn = stat._get_dataset_statistics_fn()
-
     stats = stat_fn(data)
     print(stats)
