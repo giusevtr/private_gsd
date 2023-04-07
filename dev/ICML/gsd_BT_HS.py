@@ -49,11 +49,11 @@ def run(dataset_name, target,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
 
 
-    module = Marginals.get_all_kway_combinations(domain, k=2, bins=[2, 4, 8, 16, 32])
-    module_hs = HalfspacesBT(data.domain, key=jax.random.PRNGKey(0), random_proj=1000, bins=(2, 4, 8, 16, 32))
+    # module = Marginals.get_all_kway_combinations(domain, k=2, bins=[2, 4, 8, 16, 32])
+    module = HalfspacesBT(data.domain, key=jax.random.PRNGKey(0), random_proj=10000, bins=(2, 4, 8, 16, 32))
 
 
-    stat_module = ChainedStatistics([module_hs])
+    stat_module = ChainedStatistics([module])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module.get_dataset_statistics_fn()
@@ -74,10 +74,10 @@ def run(dataset_name, target,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.
             t0 = timer()
             sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/oneshot/oneshot/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)
-            sync_data = algo.fit_dp(key, stat_module=stat_module,
+            sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
                                            epsilon=eps, delta=delta,
                                            # oneshot_share_opt=0.9,
-                                           # rounds=5
+                                           rounds=50
                                            )
 
 

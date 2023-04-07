@@ -11,7 +11,7 @@ class Generator:
     early_stop_elapsed_time = 1
     last_time: float = None
     last_error: float = None
-    loss_change_threshold: float = 0.001
+    loss_change_threshold: float = 0.0005
 
     def early_stop_init(self):
         self.last_time: float = time.time()
@@ -53,7 +53,7 @@ class Generator:
                init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         rho = cdp_rho(epsilon, delta)
         eps2 = cdp_eps(rho, delta)
-        assert rho < epsilon, f'Error: ({rho})-zCDP -> ({eps2})-DP'
+        assert eps2 <= epsilon, f'Error: ({eps2})-zCDP -> ({eps2})-DP'
         return self.fit_zcdp(key, stat_module, rho, init_data, tolerance)
 
     def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics, rho: float,
