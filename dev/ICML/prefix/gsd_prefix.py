@@ -5,7 +5,7 @@ import os
 from models import PrivGA, SimpleGAforSyncData
 from stats import ChainedStatistics, Prefix
 import jax.numpy as jnp
-from utils import timer, Dataset, Domain , get_Xy, filter_outliers
+from utils import timer, Dataset, Domain
 from dp_data import load_domain_config, load_df
 
 

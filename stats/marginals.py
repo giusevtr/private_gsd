@@ -37,12 +37,10 @@ class Marginals(AdaptiveStatisticState):
     def set_up_stats(self):
 
         queries = []
-        diff_queries = []
         self.workload_positions = []
         for marginal in tqdm(self.kway_combinations, desc='Setting up Marginals.'):
             assert len(marginal) == self.k
             indices = self.domain.get_attribute_indices(marginal)
-            indices_onehot = [self.domain.get_attribute_onehot_indices(att) for att in marginal]
             bins = self.bins if self.is_workload_numeric(marginal) else [-1]
             start_pos = len(queries)
             for bin in bins:
@@ -70,7 +68,7 @@ class Marginals(AdaptiveStatisticState):
                     queries.append(q)  # (i1, i2), ((a1, a2), (b1, b2))
             end_pos = len(queries)
             self.workload_positions.append((start_pos, end_pos))
-            self.workload_sensitivity.append(jnp.sqrt(2))
+            self.workload_sensitivity.append(jnp.sqrt(2 * len(bins)))
 
         self.queries = jnp.array(queries)
 

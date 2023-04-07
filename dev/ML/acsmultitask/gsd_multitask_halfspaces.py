@@ -44,21 +44,19 @@ if __name__ == "__main__":
     for f in domain.attrs:
         if f not in targets:
             features.append(f)
-
-    model = 'RandomForest'
-    ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
+    ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=['LogisticRegression'])
 
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
     seeds = [0, 1, 2]
 
     queries = [
-        ('Binary_Tree_Marginals', 'BT'),
-        ('Histogram', 'Hist')
+        ('2Cat+HS', '2Cat+HS'),
+        # ('2Cat+HS_0.8', '2Cat+HS_0.8'),
     ]
     Res = []
     for eps, seed, (q_name, q_short_name) in itertools.product(epsilon_vals, seeds, queries):
 
-        sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/{eps:.2f}/sync_data_{seed}.csv'
+        sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/50/5/{eps:.2f}/sync_data_{seed}.csv'
         if not os.path.exists(sync_path):
             print(f'{sync_path} NOT FOUND')
             continue
@@ -73,7 +71,7 @@ if __name__ == "__main__":
         for i, row in res.iterrows():
             target = row['target']
             f1 = row['Score']
-            Res.append([dataset_name, 'Yes', f'GSD', q_short_name, 'oneshot', 'oneshot', model, target, eps, 'F1', seed, f1])
+            Res.append([dataset_name, 'Yes', f'GSD', q_short_name, 50, 5, 'LR', target, eps, 'F1', seed, f1])
             # Res.append([dataset_name, 'Yes', algo_name+query_name, 'LR', target, eps, 'Accuracy', seed, acc])
 
     results = pd.DataFrame(Res, columns=['Data', 'Is DP', 'Generator',
@@ -87,7 +85,7 @@ if __name__ == "__main__":
     print(results)
     file_path = 'results'
     os.makedirs(file_path, exist_ok=True)
-    file_path = f'results/results_gsd_oneshot.csv'
+    file_path = f'results/results_gsd_adaptive_hs.csv'
     # if os.path.exists(file_path):
     #     results_pre = pd.read_csv(file_path, index_col=None)
     #     results = results_pre.append(results)
