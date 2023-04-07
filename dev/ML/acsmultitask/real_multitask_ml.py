@@ -38,43 +38,28 @@ if __name__ == "__main__":
     print(f'test size:  {df_test.shape}')
     # domain = Domain.fromdict(config)
     # data = Dataset(df_train, domain)
-    targets = ['JWMNP_bin', 'PINCP', 'MIG', 'PUBCOV']
+    targets = ['JWMNP_bin', 'PINCP', 'ESR', 'MIG', 'PUBCOV']
     # targets = ['PINCP', 'PUBCOV']
     features = []
     for f in domain.attrs:
         if f not in targets:
             features.append(f)
-
-    model = 'RandomForest'
-    ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
+    ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=['LogisticRegression'])
 
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
     seeds = [0, 1, 2]
 
-    queries = [
-        ('Binary_Tree_Marginals', 'BT'),
-        ('Histogram', 'Hist')
-    ]
     Res = []
-    for eps, seed, (q_name, q_short_name) in itertools.product(epsilon_vals, seeds, queries):
-
-        sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/{eps:.2f}/sync_data_{seed}.csv'
-        if not os.path.exists(sync_path):
-            print(f'{sync_path} NOT FOUND')
-            continue
-
-        print(f'reading {sync_path}')
-        df_sync_post = pd.read_csv(sync_path)
-        res = ml_fn(df_sync_post, seed=0)
-        res = res[res['Eval Data'] == 'Test']
-        res = res[res['Metric'] == 'f1_macro']
-        print('seed=', seed, 'eps=', eps)
-        print(res)
-        for i, row in res.iterrows():
-            target = row['target']
-            f1 = row['Score']
-            Res.append([dataset_name, 'Yes', f'GSD', q_short_name, 'oneshot', 'oneshot', model, target, eps, 'F1', seed, f1])
-            # Res.append([dataset_name, 'Yes', algo_name+query_name, 'LR', target, eps, 'Accuracy', seed, acc])
+    res = ml_fn(df_train, seed=0)
+    res = res[res['Eval Data'] == 'Test']
+    res = res[res['Metric'] == 'f1_macro']
+    print(res)
+    for i, row in res.iterrows():
+        target = row['target']
+        f1 = row['Score']
+        for eps in epsilon_vals:
+            Res.append([dataset_name, 'No', f'Original', '', 'oneshot', 'oneshot', 'LR', target, eps, 'F1', 0, f1])
+        # Res.append([dataset_name, 'Yes', algo_name+query_name, 'LR', target, eps, 'Accuracy', seed, acc])
 
     results = pd.DataFrame(Res, columns=['Data', 'Is DP', 'Generator',
                                          'Statistics',
@@ -87,7 +72,7 @@ if __name__ == "__main__":
     print(results)
     file_path = 'results'
     os.makedirs(file_path, exist_ok=True)
-    file_path = f'results/results_gsd_oneshot.csv'
+    file_path = f'results/results_original.csv'
     # if os.path.exists(file_path):
     #     results_pre = pd.read_csv(file_path, index_col=None)
     #     results = results_pre.append(results)

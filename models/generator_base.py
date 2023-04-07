@@ -154,13 +154,14 @@ class Generator:
                         tolerance: float = 0,
                         start_sync=True,
                         print_progress=True,
-                        debug_fn: Callable = None, num_sample=1):
+                        debug_fn: Callable = None, num_sample=1,
+                      oneshot_share_opt=None):
         rho = cdp_rho(epsilon, delta)
         eps2 = cdp_eps(rho, delta)
 
         assert rho < epsilon, f'Error: ({rho})-zCDP -> ({eps2})-DP'
         return self.fit_zcdp_hybrid(key, stat_module, rounds, rho, tolerance,
-                                    start_sync, print_progress, debug_fn, num_sample)
+                                    start_sync, print_progress, debug_fn, num_sample, oneshot_share_opt)
 
     def fit_zcdp_hybrid(self, key: jax.random.PRNGKeyArray,
                             stat_module: ChainedStatistics,
@@ -168,11 +169,16 @@ class Generator:
                             rho: float, tolerance: float = 0,
                             start_sync=False,
                             print_progress=False,
-                            debug_fn: Callable = None, num_sample=1):
+                            debug_fn: Callable = None,
+                        num_sample=1,
+                        oneshot_share_opt=None):
         oneshot_stats_ids = [0]
         num_adaptive_queries = rounds * num_sample
         oneshot_workloads = stat_module.stat_modules[0].get_num_workloads()
-        oneshot_share = oneshot_workloads / (oneshot_workloads + num_adaptive_queries)
+        if oneshot_share_opt is not None:
+            oneshot_share = oneshot_share_opt
+        else:
+            oneshot_share = oneshot_workloads / (oneshot_workloads + num_adaptive_queries)
         print(f'oneshot_share={oneshot_share:.4f}')
         # Reset selected statistics
         stat_module.reselect_stats()

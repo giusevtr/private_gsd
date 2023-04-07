@@ -149,6 +149,37 @@ class ChainedStatistics:
             return jnp.concatenate([fn(data) for fn in workload_fn_list], axis=0)
 
         return chained_workload
+    def get_sparse_selected_statistics_fn(self, stat_modules_ids=None, threshold=0):
+        if stat_modules_ids is None:
+            stat_modules_ids = list(range(len(self.stat_modules)))
+        workload_fn_list = []
+        selected_chained_stats = []
+        for stat_id in stat_modules_ids:
+            stat_mod: AdaptiveStatisticState
+            stat_mod = self.stat_modules[stat_id]
+            temp = [selected[2] for selected in self.selected_workloads[stat_id]]
+            workload_ids = self.__get_selected_workload_ids(stat_id)
+
+            query_ids = []
+            for workload_id in workload_ids:
+                wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
+                query_ids.append(np.arange(wrk_a, wrk_b))
+            query_ids = np.concatenate(query_ids)
+
+            if len(temp) > 0:
+                priv_stats = jnp.concatenate(temp)
+                sparse_ids = jnp.argwhere(priv_stats > threshold).flatten()
+                sparse_stats = priv_stats[sparse_ids]
+                selected_chained_stats.append(sparse_stats)
+                sparse_query_ids = query_ids[sparse_ids]
+                # workload_fn_list.append(stat_mod._get_workload_fn(sparse_workloads_ids))
+                workload_fn_list.append(stat_mod._get_stat_fn(sparse_query_ids))
+
+
+        def chained_workload(X, **kwargs):
+            return jnp.concatenate([fn(X, **kwargs) for fn in workload_fn_list], axis=0)
+
+        return jnp.concatenate(selected_chained_stats), chained_workload
 
     def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
         pass

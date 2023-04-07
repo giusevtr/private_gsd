@@ -1,6 +1,7 @@
 import itertools
 import os.path
 import pickle
+import seaborn as sns
 
 import jax.random
 import matplotlib.pyplot as plt
@@ -30,26 +31,31 @@ if __name__ == "__main__":
     preprocesor: DataPreprocessor
     preprocesor = pickle.load(open(f'{root_path}/{dataset_name}/preprocessor.pkl', 'rb'))
 
-    domain = Domain.fromdict(config)
-    cat_cols = domain.get_categorical_cols()
-    num_cols = domain.get_numeric_cols()
 
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
-    # domain = Domain.fromdict(config)
-    # data = Dataset(df_train, domain)
+
+    domain = Domain.fromdict(config)
+    cat_cols = domain.get_categorical_cols()
+    num_cols = domain.get_numeric_cols()
     targets = ['JWMNP_bin', 'PINCP', 'ESR', 'MIG', 'PUBCOV']
-    # targets = ['PINCP', 'PUBCOV']
     features = []
     for f in domain.attrs:
         if f not in targets:
             features.append(f)
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=['LogisticRegression'])
 
-    params = ['(2, 50)', '(5, 50)', '(10, 50)', '(40, 50)']
+    data = Dataset(df_train, domain)
+    # Debug marginals
+    module0 = Marginals.get_kway_categorical(domain, k=2)
+    stat_module = ChainedStatistics([module0])
+    stat_module.fit(data)
+    true_stats = stat_module.get_all_true_statistics()
+    stat_fn = stat_module.get_dataset_statistics_fn()
+
     T = [50]
-    S = [2, 5, 10 , 40]
-    epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
+    S = [5]
+    epsilon_vals = [1]
     seeds = [0, 1, 2]
 
     Res = []
@@ -61,7 +67,34 @@ if __name__ == "__main__":
             continue
 
         print(f'reading {sync_path}')
-        df_sync_post = pd.read_csv(sync_path).sample(n=5000)
+        df_sync_post = pd.read_csv(sync_path)
+
+        # for cat in cat_cols:
+        #     if cat == 'ESR': continue
+        #     if cat != 'JWTR': continue
+        #     # print(cat)
+        #     df = df_train[['ESR', cat]].astype(int)
+        #     df['Type'] = 'Real'
+        #     df_sync = df_sync_post[['ESR', cat]].astype(int)
+        #     df_sync['Type'] = 'Sync'
+        #     df_concat = pd.concat([df, df_sync], ignore_index=True)
+        #     df_concat[cat] = df_concat[cat].astype(str)
+        #     # sns.histplot(data=df_concat, x=cat, hue='ESR', row='Type')
+        #
+        #     g = sns.FacetGrid(df_concat, row="Type", hue='ESR',
+        #                       sharey=False)
+        #     g.map_dataframe(sns.histplot, x=cat)
+        #
+        #
+        #     plt.show()
+        #     print('ploting cat=', cat)
+
+
+
+        sync_dataset = Dataset(df_sync_post, domain)
+        errors = np.abs(true_stats - stat_fn(sync_dataset))
+        print(f'Marginal max error ={errors.max()}, mean error ={errors.mean()}')
+
         res = ml_fn(df_sync_post, seed=0)
         res = res[res['Eval Data'] == 'Test']
         res = res[res['Metric'] == 'f1_macro']
