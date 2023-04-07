@@ -70,6 +70,7 @@ class SimpleGAforSyncData:
         # assert self.muta_rate == 1, "Only supports mutations=1"
         assert muta_rate > 0, "Mutation rate must be greater than zero."
         assert mate_rate > 0, "Mate rate must be greater than zero."
+        assert muta_rate == mate_rate, "Mutations and crossover must be the same."
         self.muta_rate = muta_rate
         self.mate_rate = mate_rate
         self.debugging = debugging
@@ -127,10 +128,12 @@ class SimpleGAforSyncData:
         pop_muta = self.muta_vmap(state.best_member, rng_muta_split, random_data)
         pop_mate = self.mate_vmap(state.best_member, rng_mate_split, x_j)
 
+        remove_row = jnp.concatenate((pop_muta.remove_row, pop_mate.remove_row), axis=0)
+        add_row = jnp.concatenate((pop_muta.add_row, pop_mate.add_row), axis=0)
         population = PopulationState(
             X=jnp.concatenate((pop_muta.X, pop_mate.X)),
-            remove_row=jnp.concatenate((pop_muta.remove_row, pop_mate.remove_row)),
-            add_row=jnp.concatenate((pop_muta.add_row, pop_mate.add_row)))
+            remove_row=remove_row,
+            add_row=add_row)
         return population
 
     @partial(jax.jit, static_argnums=(0,))
@@ -181,7 +184,7 @@ def get_mutate_fn(domain: Domain,  muta_rate: int, random_numbers):
         temp = jax.random.randint(rng1, minval=0, maxval=random_numbers.shape[0] - muta_rate, shape=(1,))
         temp_id = jnp.arange(muta_rate) + temp
         temp_id = jax.random.permutation(rng2, random_numbers[temp_id], independent=True)
-        mut_rows = temp_id[muta_rate]
+        mut_rows = temp_id
 
         ###################
         ## Mutate
@@ -324,10 +327,6 @@ class PrivGAV2(Generator):
         fitness_fn_vmap = jax.vmap(fitness_fn, in_axes=(None, 0))
         fitness_fn_jit = jax.jit(fitness_fn_vmap)
 
-        # @jax.jit
-        # def fitness_fn_jit(stats: chex.Array, pop_state: PopulationState):
-        #     fitness = jax.lax.scan(fitness_fn_scan, stats, pop_state)[1]
-        #     return fitness
 
         # INITIALIZE STATE
         key, subkey = jax.random.split(key, 2)
@@ -427,10 +426,7 @@ class PrivGAV2(Generator):
                     if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
                         elapsed_time = timer() - init_time
                         X_sync = state.best_member
-
                         print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
-                        # p_inf, p_avg, p_l2 = private_loss(X_sync)
-                        # print(f'\tprivate error(max/avg/l2)=({p_inf:.5f}/{p_avg:.7f}/{p_l2:.3f})', end='')
                         t_inf, t_avg, p_l2 = true_loss(X_sync)
                         print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
                         print(f'\t|time={elapsed_time:.4f}(s):', end='')
