@@ -2,6 +2,9 @@ import itertools
 import jax
 import jax.numpy as jnp
 import chex
+import matplotlib.pyplot as plt
+import pandas as pd
+
 from utils import Dataset, Domain
 from stats import AdaptiveStatisticState
 from tqdm import tqdm
@@ -168,15 +171,116 @@ class HalfspacesBT(AdaptiveStatisticState):
     #     return Marginals(domain, kway_combinations, k, bins=bins)
 
 
+def get_linear_proj(domain: Domain):
+    cat_pos = domain.get_attribute_indices(domain.get_categorical_cols())
+    cat_sz = [domain.size(cat) for cat in domain.get_categorical_cols()]
+    num_pos = domain.get_attribute_indices(domain.get_numeric_cols())
+
+    def random_linear_proj(key: chex.PRNGKey, x: chex.Array):
+        sum = 0
+        norm = jnp.sqrt(x.shape[0])
+        for pos, sz in zip(cat_pos, cat_sz):
+            key, key_sub = jax.random.split(key)
+            # h = jax.random.normal(key_sub, shape=(sz, )) / norm
+            h = jax.random.randint(key_sub, minval=-1, maxval=2, shape=(sz, )) / norm
+            x_val = x[pos].astype(int)
+            sum += h[x_val]
+
+        key, key_sub = jax.random.split(key)
+        # h = jax.random.normal(key_sub, shape=(num_pos.shape[0], )) / norm
+        h = jax.random.randint(key_sub, minval=-1, maxval=2, shape=(num_pos.shape[0], )) / norm
+        num_proj = x[num_pos]
+        sum += jnp.dot(h, num_proj)
+        return sum
+    return random_linear_proj
+
+
+
+def get_proj(domain: Domain):
+    linear_proj = get_linear_proj(domain)
+    linear_proj_vmap = jax.vmap(linear_proj, in_axes=(0, None))
+
+    def proj_fn(key, x):
+        m = 10
+        key, key_lp = jax.random.split(key)
+        keys = jax.random.split(key_lp, m)
+        proj = linear_proj_vmap(keys, x)
+
+        proj_relu = jax.nn.relu(proj)
+
+        key, key_h = jax.random.split(key)
+        h = jax.random.normal(key_h, shape=(m, )) / jnp.sqrt(m)
+
+        return jnp.dot(h, proj_relu)
+
+    return proj_fn
+
+
+from dp_data import load_domain_config, load_df, ml_eval
+import seaborn as sns
+def test_proj():
+    dataset_name = 'folktables_2018_coverage_CA'
+    root_path = '../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
+    config = load_domain_config(dataset_name, root_path=root_path)
+    df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
+    df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
+
+
+
+    print(f'train size: {df_train.shape}')
+    print(f'test size:  {df_test.shape}')
+    domain = Domain.fromdict(config)
+    data = Dataset(df_train.sample(2000), domain)
+
+    X = data.to_numpy()
+
+    sync_cov = pd.read_csv('/Users/vietr002/Code/evolutionary_private_synthetic_data/dev/ICML/sync_data/folktables_2018_coverage_CA/GSD/Ranges/50/10/1.00/sync_data_0.csv')
+    sync_data = Dataset(sync_cov, domain)
+    # sync_data = Dataset.synthetic(domain, N=2000, seed=0)
+    X_sync = sync_data.to_numpy()
+
+    proj_fn_0 = get_proj(domain)
+    proj_fn = jax.jit(jax.vmap(proj_fn_0, in_axes=(None, 0)))
+
+    key = jax.random.PRNGKey(2)
+
+
+    df_list = []
+    for i in range(10):
+        print(f'proj {i}')
+        key, key0 = jax.random.split(key)
+        key1, key2 = jax.random.split(key0)
+        proj_data_1 = proj_fn(key1, X)
+        proj_data_2 = proj_fn(key2, X)
+
+        df_real = pd.DataFrame(np.column_stack((proj_data_1, proj_data_2)), columns=['A', 'B'])
+        df_real['Type'] = 'Real'
+        df_real['Proj'] = i
+
+        proj_data_sync_1 = proj_fn(key1, X_sync)
+        proj_data_sync_2 = proj_fn(key2, X_sync)
+
+
+        df_sync = pd.DataFrame(np.column_stack((proj_data_sync_1, proj_data_sync_2)), columns=['A', 'B'])
+        df_sync['Type'] = 'Sync'
+        df_sync['Proj'] = i
+
+
+        df_list.append(df_real)
+        df_list.append(df_sync)
+
+    df = pd.concat(df_list)
+
+    sns.relplot(data=df, x='A', y='B', row='Proj', col='Type', alpha=0.1)
+    plt.show()
 
 
 if __name__ == "__main__":
-    data = Dataset.synthetic(Domain(['A', 'B', 'C'], [1, 2, 3]), N=10, seed=0)
-    data_np = data.to_numpy()
-    stat = HalfspacesBT(data.domain, key=jax.random.PRNGKey(0), random_proj=10, bins=(2, 4, 8, 16))
-
-    stat.answer_fn(data_np[0], stat.queries[0])
-
-    stat_fn = stat._get_dataset_statistics_fn()
-    stats = stat_fn(data)
-    print(stats)
+    test_proj()
+    # data = Dataset.synthetic(Domain(['A', 'B', 'C'], [1, 2, 3]), N=10, seed=0)
+    # data_np = data.to_numpy()
+    # stat = HalfspacesBT(data.domain, key=jax.random.PRNGKey(0), random_proj=10, bins=(2, 4, 8, 16))
+    # stat.answer_fn(data_np[0], stat.queries[0])
+    # stat_fn = stat._get_dataset_statistics_fn()
+    # stats = stat_fn(data)
+    # print(stats)
