@@ -56,7 +56,9 @@ def run(dataset_name, module_name):
         algo = PrivGAV2(num_generations=2000000,
                       domain=domain, data_size=2000, population_size=pop_size, muta_rate=1, mate_rate=1,
                       print_progress=False,
-                      stop_eary_threshold=0.014)
+                      stop_eary_threshold=0.1,
+                        # stop_eary_threshold = 0.014
+        )
 
         key = jax.random.PRNGKey(0)
         t0 = timer()
@@ -89,12 +91,12 @@ if __name__ == "__main__":
         'folktables_2018_travel_CA',
     ]
 
-    os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/oneshot_ranges/gsd_oneshot.csv'
-    results = None
-    if os.path.exists(file_name):
-        print(f'reading {file_name}')
-        results = pd.read_csv(file_name)
+    # os.makedirs('icml_results/', exist_ok=True)
+    # file_name = 'icml_results/oneshot_ranges/gsd_oneshot.csv'
+    # results = None
+    # if os.path.exists(file_name):
+    #     print(f'reading {file_name}')
+    #     results = pd.read_csv(file_name)
     for data in DATA:
         results_temp = run(data, 'Ranges')
 

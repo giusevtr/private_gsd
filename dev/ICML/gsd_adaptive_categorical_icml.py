@@ -63,7 +63,8 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
                 os.makedirs(sync_dir, exist_ok=True)
                 sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
                                                epsilon=eps, delta=delta,
-                                                 rounds=rounds, num_sample=1
+                                                 rounds=rounds, num_sample=1,
+                                                 print_progress=False
                                                )
                 sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
                 errors = jnp.abs(true_stats - stat_fn(sync_data))
@@ -84,17 +85,17 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
 if __name__ == "__main__":
 
     DATA = [
-        'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        # 'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
-        # 'folktables_2018_travel_CA',
+        # 'folktables_2018_coverage_CA',
+        # 'folktables_2018_mobility_CA',
+        # 'folktables_2018_employment_CA',
+        'folktables_2018_income_CA',
+        'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/gsd_adaptive_3way_categorical_coverage.csv'
     results = None
     for data in DATA:
+        file_name = f'icml_results/gsd_adaptive_3way_categorical_{data}.csv'
         results_temp = run(data, eps_values=[1.0, 0.74, 0.52, 0.23, 0.07], seeds=[0, 1, 2])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')

@@ -306,7 +306,7 @@ class PrivGASparse(Generator):
             sync_dataset = Dataset.synthetic(self.domain, N=self.data_size, seed=0)
         X_sync = sync_dataset.to_numpy()
 
-        for Threshold in [ 0.0]:
+        for Threshold in [0.01]:
             t0 = timer()
             selected_noised_statistics, _ = adaptive_statistic.get_sparse_selected_statistics_fn(
                 threshold=Threshold)

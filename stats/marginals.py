@@ -129,8 +129,25 @@ class Marginals(AdaptiveStatisticState):
         return Marginals(domain, kway_combinations, k, bins=[2])
 
     @staticmethod
-    def get_all_kway_combinations(domain, k, bins=(32,)):
-        kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
+    def get_all_kway_combinations(domain, k, bins=(32,), max_size=None):
+        if max_size is  None:
+            kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
+        else:
+            kway_combinations = []
+            for idx in itertools.combinations(domain.attrs, k):
+                total_size = 1
+                for col in idx:
+                    sz = domain.size(col)
+                    if sz == 1:
+                        sz = sum(bins)
+                    total_size = total_size * sz
+                if total_size <= max_size:
+                    print(f'Adding ', idx, ' size=', total_size)
+                    kway_combinations.append(list(idx))
+                else:
+                    print('\tExcluding', idx, ' size=', total_size)
+            # kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)
+            #                      if domain.size(idx) <= max_size]
         return Marginals(domain, kway_combinations, k, bins=bins)
 
     @staticmethod

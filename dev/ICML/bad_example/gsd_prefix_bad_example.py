@@ -43,7 +43,15 @@ if __name__ == "__main__":
 
     errors = jnp.abs(stat_test - sync_stats)
     print(f'max error = {errors.max()}')
+    sync_data.df['A'].hist()
+    plt.title('GSD')
+    plt.xlim([0, 0.6])
+    plt.show()
+
+
+
     data.df['A'].hist()
+    plt.title('Original')
     plt.show()
 
 
