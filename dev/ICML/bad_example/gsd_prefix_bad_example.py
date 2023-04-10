@@ -49,6 +49,7 @@ if __name__ == "__main__":
     plt.show()
 
 
+    sync_data.df.to_csv('gsd_badexample.csv', index=False)
 
     data.df['A'].hist()
     plt.title('Original')

@@ -96,7 +96,7 @@ class Prefix(AdaptiveStatisticState):
             # thresholds = jax.random.uniform(rng_h, shape=(self.k_prefix,)) # d x h
             # pos = jax.random.randint(rng_b, minval=0, maxval=numeric_dim, shape=(self.k_prefix,)) # d x h
             kway_idx = num_idx[pos]
-            below_threshold = (x_row[kway_idx] < thresholds).astype(int)  # n x d
+            below_threshold = (x_row[kway_idx] <= thresholds).astype(int)  # n x d
             prefix_answer = jnp.prod(below_threshold)
 
             return prefix_answer

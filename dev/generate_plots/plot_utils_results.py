@@ -97,5 +97,6 @@ def show_result(df):
         ax.tick_params(axis='y', which='major', labelsize=16, rotation=45)
         ax.tick_params(axis='x', which='major', labelsize=16, rotation=45)
 
+
     # plt.title(f'Input data is {dataname} and \nquery class is categorical-marginals')
     plt.show()
