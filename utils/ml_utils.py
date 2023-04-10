@@ -53,6 +53,7 @@ def get_Xy(domain: Domain, features: list, target, df_train: pd.DataFrame, df_te
     X_train = None
     X_test = None
 
+
     if len(cols_cat) > 0:
         X_cat_train = df_train[cols_cat].values
         X_cat_test = df_test[cols_cat].values
@@ -81,12 +82,6 @@ def get_Xy(domain: Domain, features: list, target, df_train: pd.DataFrame, df_te
         else:
             X_train = X_num_train
             X_test = X_num_test
-
-    # if rescale:
-    #     scaler = StandardScaler()
-    #     scaler.fit(X_train)
-    #     X_train = scaler.transform(X_train)
-    #     X_test = scaler.transform(X_test)
 
     assert X_train is not None
     assert X_test is not None

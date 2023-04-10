@@ -39,14 +39,14 @@ if __name__ == "__main__":
     print(f'test size:  {df_test.shape}')
     # domain = Domain.fromdict(config)
     # data = Dataset(df_train, domain)
-    targets = ['JWMNP_bin', 'PINCP', 'MIG', 'PUBCOV']
+    targets = ['JWMNP_bin', 'PINCP', 'MIG', 'PUBCOV', 'ESR']
     # targets = ['PINCP', 'PUBCOV']
     features = []
     for f in domain.attrs:
         if f not in targets:
             features.append(f)
 
-    model = 'RandomForest'
+    model = 'LogisticRegression'
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
 
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
@@ -54,14 +54,15 @@ if __name__ == "__main__":
 
 
     queries = [
-        # ('Binary_Tree_Marginals', 'BT'),
+        ('Binary_Tree_Marginals', 'BT'),
         # ('Histogram', 'Hist')
-        ('2Cat+HS_0.8_10m', 'HS')
+        # ('2Cat+HS_0.8_10m', 'HS')
     ]
     Res = []
     for eps, seed, (q_name, q_short_name) in itertools.product(epsilon_vals, seeds, queries):
 
-        sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/50/5/{eps:.2f}/sync_data_{seed}.csv'
+        # sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/50/5/{eps:.2f}/sync_data_{seed}.csv'
+        sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/{eps:.2f}/sync_data_{seed}.csv'
         if not os.path.exists(sync_path):
             print(f'{sync_path} NOT FOUND')
             continue
@@ -90,7 +91,7 @@ if __name__ == "__main__":
     print(results)
     file_path = 'results'
     os.makedirs(file_path, exist_ok=True)
-    file_path = f'results/results_gsd_oneshot.csv'
+    file_path = f'results/results_gsd_oneshot_2bt.csv'
     # if os.path.exists(file_path):
     #     results_pre = pd.read_csv(file_path, index_col=None)
     #     results = results_pre.append(results)
