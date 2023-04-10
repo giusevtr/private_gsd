@@ -85,7 +85,7 @@ if __name__ == "__main__":
             errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
             print(f'GSD(oneshot): eps={eps:.2f}, seed={seed}'
                   f'\t max error = {errors.max():.5f}'
-                  f'\t avg error = {errors.mean():.5f}'
+                  f'\t avg error = {errors.mean():.6f}'
                   f'\t time = {timer() - t0:.4f}')
 
         print()
