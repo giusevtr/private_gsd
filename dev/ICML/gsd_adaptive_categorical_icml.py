@@ -20,7 +20,8 @@ from dp_data import load_domain_config, load_df
 from dev.dataloading.data_functions.acs import get_acs_all
 
 
-def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
+def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0),
+        T=(100, )):
     module_name = '3-Cat'
     Res = []
 
@@ -52,7 +53,6 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
                   domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
                   print_progress=False)
 
-    T = [25, 50]
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
@@ -92,11 +92,12 @@ if __name__ == "__main__":
         # 'folktables_2018_travel_CA',
     ]
 
+    T = [100]
     os.makedirs('icml_results/', exist_ok=True)
     results = None
     for data in DATA:
         file_name = f'icml_results/gsd_adaptive_3way_categorical_{data}.csv'
-        results_temp = run(data, eps_values=[  0.07], seeds=[0])
+        results_temp = run(data, eps_values=[1, 0.74, 0.52, 0.23, 0.07], seeds=[0])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
         results.to_csv(file_name, index=False)
