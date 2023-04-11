@@ -2,7 +2,7 @@ import os, sys
 import jax.random
 import pandas as pd
 import numpy as np
-from models import GeneticSDV2, GeneticStrategy
+from models import GeneticSD, GeneticSDV2
 from stats import ChainedStatistics,  Marginals, NullCounts, Prefix
 import jax.numpy as jnp
 from dp_data import load_domain_config, load_df
@@ -15,7 +15,7 @@ inc_bins_pre = np.array([-10000,
                          -100,
                          -10,
                          0,
-                         5,
+                         # 5,
                          10,
                          50,
                          100,
@@ -103,46 +103,48 @@ def get_consistency_fn(domain, preprocessor):
     npf_idx = domain.get_attribute_indices(['NPF']).squeeze().astype(int) # Family size
     edu_idx = domain.get_attribute_indices(['EDU']).squeeze().astype(int) # Family size
     def row_inconsistency(x: jnp.ndarray):
+
         is_minor = (x[age_idx] <= age_15_encoded)
         is_married = ~jnp.isnan(x[married_idx])
         has_income = ~jnp.isnan(x[income_idx])
         has_indp = ~jnp.isnan(x[indp_idx])
         has_indp_cat = ~jnp.isnan(x[indp_cat_idx])
-        num_violations = 0
-        num_violations += jnp.isnan(x[age_idx]) # Age is null
-        num_violations += jnp.isnan(x[puma_idx])  #
-        num_violations += jnp.isnan(x[sex_idx])  #
-        num_violations += jnp.isnan(x[hisp_idx])  #
-        num_violations += jnp.isnan(x[rac1p_idx])  #
-        num_violations += jnp.isnan(x[housing_idx])  #
-        num_violations += jnp.isnan(x[own_rent_idx])  #
-        num_violations += jnp.isnan(x[density_idx])  #
-        num_violations += jnp.isnan(x[deye_idx])  #
-        num_violations += jnp.isnan(x[dear_idx])  #
+        violations = jnp.array([
+            jnp.isnan(x[age_idx]), # Age is null
+            jnp.isnan(x[puma_idx]),  #
+            jnp.isnan(x[sex_idx]),  #
+            jnp.isnan(x[hisp_idx]),  #
+            jnp.isnan(x[rac1p_idx]),  #
+            jnp.isnan(x[housing_idx]),  #
+            jnp.isnan(x[own_rent_idx]),  #
+            jnp.isnan(x[density_idx]),  #
+            jnp.isnan(x[deye_idx]),  #
+            jnp.isnan(x[dear_idx]),  #
+            (is_minor & is_married),  # Children cannot be married
+            (is_minor & has_income),  # Children cannot have income
+            (is_minor & (~jnp.isnan(x[income_decile_idx]))),  # Children cannot have income
+            jnp.isnan(x[indp_idx]) & (~jnp.isnan(x[indp_cat_idx])),  # Industry codes must match. Either
+            (~jnp.isnan(x[indp_idx])) & (jnp.isnan(x[indp_cat_idx])),  # Both are null or non-are null
+            (x[noc_idx] >= x[npf_idx]),  # Number of children must be less than family size
+            (is_minor & has_indp),  # Children don't have industry codes
+            (is_minor & has_indp_cat),  # Children don't have industry codes
+            (is_minor & (x[edu_idx] == phd_encoded))  # Children don't have phd
+        ])
 
-        num_violations += (is_minor & is_married)  # Children cannot be married
-        num_violations += (is_minor & has_income)  # Children cannot have income
-        num_violations += (is_minor & (~jnp.isnan(x[income_decile_idx])))  # Children cannot have income
-        num_violations += jnp.isnan(x[indp_idx]) & (~jnp.isnan(x[indp_cat_idx]))  # Industry codes must match. Either
-        num_violations += (~jnp.isnan(x[indp_idx])) & (jnp.isnan(x[indp_cat_idx]))  # Both are null or non-are null
-        num_violations += (x[noc_idx] >= x[npf_idx])  # Number of children must be less than family size
-        num_violations += is_minor & has_indp  # Children don't have industry codes
-        num_violations += is_minor & has_indp_cat  # Children don't have industry codes
-        num_violations += is_minor & (x[edu_idx] == phd_encoded)  # Children don't have phd
-
-        return num_violations
+        return violations
     # Dataset consistency count function
     row_inconsistency_vmap = jax.vmap(row_inconsistency, in_axes=(0, ))
     def count_inconsistency_fn(X):
         inconsistencies = row_inconsistency_vmap(X)
-        return jnp.sum(inconsistencies)
+        aggregate = (jnp.sum(inconsistencies, axis=0) / X.shape[0])**2
+        return aggregate.sum()
     count_inconsistency_population_fn = jax.jit(jax.vmap(count_inconsistency_fn, in_axes=(0, )))
     return count_inconsistency_population_fn
 
 import numpy as np
 if __name__ == "__main__":
     # epsilon_vals = [10]
-    epsilon_vals = [ 10]
+    epsilon_vals = [10]
     epsilon_vals.reverse()
     dataset_name = 'national2019'
     root_path = '../../dp-data-dev/datasets/preprocessed/sdnist_dce/'
@@ -175,13 +177,15 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = GeneticSDV2(num_generations=100000,
+    algo = GeneticSDV2(num_generations=60000,
                        print_progress=True,
-                       stop_early=False,
+                       stop_early=True,
                         domain=data.domain,
                        population_size=100,
                        data_size=2000,
-                       inconsistency_fn=get_consistency_fn(domain, preprocessor))
+                       inconsistency_fn=get_consistency_fn(domain, preprocessor),
+                       mate_perturbation=0
+                       )
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2

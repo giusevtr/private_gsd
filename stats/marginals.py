@@ -92,7 +92,7 @@ class Marginals(AdaptiveStatisticState):
                     queries.append(q)  # (i1, i2), ((a1, a2), (b1, b2))
             end_pos = len(queries)
             self.workload_positions.append((start_pos, end_pos))
-            self.workload_sensitivity.append(jnp.sqrt(2))
+            self.workload_sensitivity.append(jnp.sqrt(2 * levels))
 
         self.queries = jnp.array(queries)
 

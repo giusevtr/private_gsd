@@ -251,16 +251,25 @@ class GeneticSD(Generator):
 
     def __init__(self,
                  num_generations,
-                 strategy: GeneticStrategy,
+                 domain,
+                 population_size,
+                 data_size,
+                 muta_rate=1,
+                 mate_rate=1,
+                 # strategy: GeneticStrategy,
                  print_progress=False,
                  stop_early=True
                  ):
-        self.domain = strategy.domain
-        self.data_size = strategy.data_size
+        self.domain = domain
+        self.data_size = data_size
         self.num_generations = num_generations
         self.print_progress = print_progress
-        self.strategy = strategy
+        # self.strategy = strategy
         self.stop_early = stop_early
+
+
+        self.strategy = GeneticStrategy(domain, data_size, population_size=population_size,
+                                            muta_rate=muta_rate, mate_rate=mate_rate)
 
     def __str__(self):
         return f'GSD'

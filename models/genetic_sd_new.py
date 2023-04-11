@@ -54,6 +54,8 @@ class SimpleGAforSyncData:
                  elite_size: int = 5,
                  muta_rate: int = 1,
                  mate_rate: int = 1,
+                 null_value_frac: float = 0.02,
+                 mate_perturbation: float = 0.01,
                  debugging=False):
         """Simple Genetic Algorithm For Synthetic Data Search Adapted from (Such et al., 2017)
         Reference: https://arxiv.org/abs/1712.06567
@@ -74,6 +76,8 @@ class SimpleGAforSyncData:
         self.muta_rate = muta_rate
         self.mate_rate = mate_rate
         self.debugging = debugging
+        self.null_samples = null_value_frac
+        self.perturbation = mate_perturbation
 
     def initialize(
             self, rng: chex.PRNGKey
@@ -89,10 +93,13 @@ class SimpleGAforSyncData:
 
         rng1, rng2 = jax.random.split(rng, 2)
         random_numbers = jax.random.permutation(rng1, self.data_size, independent=True)
-        muta_fn = get_mutate_fn(self.domain, muta_rate=self.muta_rate,
-                                         random_numbers=random_numbers)
-        mate_fn = get_mating_fn(self.domain, mate_rate=self.mate_rate,
-                                         random_numbers=random_numbers)
+        muta_fn = get_mutate_fn(self.domain,
+                                            muta_rate=self.muta_rate,
+                                            random_numbers=random_numbers)
+        mate_fn = get_mating_fn(self.domain,
+                                            mate_rate=self.mate_rate,
+                                            random_numbers=random_numbers,
+                                            mate_perturbation=self.perturbation)
 
         self.muta_vmap = jax.jit(jax.vmap(muta_fn, in_axes=(None, 0, 0)))
         self.mate_vmap = jax.jit(jax.vmap(mate_fn, in_axes=(None, 0, 0)))
@@ -102,7 +109,8 @@ class SimpleGAforSyncData:
     @partial(jax.jit, static_argnums=(0,))
     def initialize_elite_population(self, rng: chex.PRNGKey):
         d = len(self.domain.attrs)
-        pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng)
+        # pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng)
+        pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng, null_values=self.null_samples)
         initialization = pop.reshape((self.elite_size, self.data_size, d))
         return initialization
 
@@ -200,7 +208,7 @@ def get_mutate_fn(domain: Domain,  muta_rate: int, random_numbers):
 
     return muta
 
-def get_mating_fn(domain: Domain, mate_rate: int, random_numbers):
+def get_mating_fn(domain: Domain, mate_rate: int, random_numbers, mate_perturbation: float):
     d = len(domain.attrs)
     numeric_idx = domain.get_attribute_indices(domain.get_numerical_cols()).astype(int)
     mask = jnp.zeros(d)
@@ -228,7 +236,7 @@ def get_mating_fn(domain: Domain, mate_rate: int, random_numbers):
 
         # Copy this row onto the dataset
         new_rows = elite_rows[add_rows_idx]
-        noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d)) * 0.01
+        noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d)) * mate_perturbation
         new_rows = new_rows + noise
         new_rows = new_rows.at[:, numeric_idx].set(jnp.clip(new_rows[:, numeric_idx], 0, 1))
 
@@ -268,7 +276,9 @@ class GeneticSDV2(Generator):
                  stop_early=True,
                  stop_early_gen=2000,
                  stop_eary_threshold=0,
-                 inconsistency_fn=None
+                 inconsistency_fn=None,
+                 null_value_frac: float = 0.02,
+                 mate_perturbation: float = 0.01,
                  ):
         self.domain = domain
         self.data_size = data_size
@@ -280,10 +290,13 @@ class GeneticSDV2(Generator):
 
         self.inconsistency_fn = inconsistency_fn
         if self.inconsistency_fn is None:
-            self.inconsistency_fn = lambda x: jnp.zeros(population_size)
+            self.inconsistency_fn = lambda x: jnp.zeros(x.shape[0])
 
-        self.strategy = SimpleGAforSyncData(domain, data_size, population_size=population_size,
-                                            muta_rate=muta_rate, mate_rate=mate_rate)
+        self.strategy = SimpleGAforSyncData(domain,
+                                            data_size, population_size=population_size,
+                                            muta_rate=muta_rate, mate_rate=mate_rate,
+                                            null_value_frac=null_value_frac,
+                                            mate_perturbation=mate_perturbation)
 
     def __str__(self):
         return f'GeneticSDV2'
@@ -300,6 +313,10 @@ class GeneticSDV2(Generator):
         selected_statistics = adaptive_statistic.get_selected_statistics_without_noise()
         statistics_fn = jax.jit(adaptive_statistic.get_selected_statistics_fn())
         statistics_fn_debug = adaptive_statistic.get_selected_statistics_fn()
+
+        if self.print_progress:
+            gau_error = jnp.abs(selected_noised_statistics - selected_statistics)
+            print(f'\tGau Error: Max={gau_error.max():<5.5}\t Average={gau_error.mean():<5.5f}')
 
         # For debugging
         @jax.jit
@@ -346,7 +363,7 @@ class GeneticSDV2(Generator):
         elite_population_fn = jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,))
         elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
                                         ord=2) ** 2
-        elite_fitness = elite_fitness + self.inconsistency_fn(state.archive) / self.data_size
+        elite_fitness = elite_fitness + self.inconsistency_fn(state.archive)
 
 
         best_member_id = elite_fitness.argmin()
@@ -408,7 +425,7 @@ class GeneticSDV2(Generator):
             t0 = timer()
             inconsistency_counts: chex.Array
             inconsistency_counts = self.inconsistency_fn(population_state.X)
-            fitness = fitness + inconsistency_counts / self.data_size
+            fitness = fitness + inconsistency_counts
             consistency_time += timer() - t0
 
             # TELL
@@ -426,7 +443,7 @@ class GeneticSDV2(Generator):
             elite_stat_time += timer() - t0
 
             if best_fitness < self.stop_eary_threshold: break
-            if t % 10 == 0:
+            if t % 50 == 0:
                 # EARLY STOP
                 best_fitness_total = min(best_fitness_total, best_fitness)
                 stop_early = False
@@ -436,14 +453,14 @@ class GeneticSDV2(Generator):
 
                 # DEBUG
                 if self.print_progress:
-                    if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
+                    if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t >= self.num_generations - 100 or stop_early:
                     # if True:
                         elapsed_time = timer() - init_time
                         X_sync = state.best_member
                         print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
                         t_inf, t_avg, p_l2 = true_loss(X_sync)
                         print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
-                        best_inconsistency_count = inconsistency_counts[best_id]
+                        best_inconsistency_count = inconsistency_counts[best_id] * self.data_size
                         print(f'\tinconsistencies={best_inconsistency_count:.0f}, ', end=' ')
                         print(f'\t|time={elapsed_time:.4f}(s):', end='')
                         print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
