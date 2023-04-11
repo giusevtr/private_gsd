@@ -365,7 +365,6 @@ class PrivGAV2(Generator):
         elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
 
         update_elite_stat_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
-        update_elite_stat_statistics_fn_jit = jax.jit(update_elite_stat_statistics_fn)
         def update_elite_stat(elite_stat_arg,
                               population_state: PopulationState,
                               replace_best,
