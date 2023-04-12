@@ -28,7 +28,7 @@ def get_cat_marginals(data: Dataset, k):
     for cols in kway_combinations:
         answers = data.project(cols).datavector()
         A.append(answers)
-    return np.concatenate(A)
+    return np.concatenate(A) / len(data.df)
 
 
 def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0),
@@ -50,44 +50,32 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
     # Create statistics and evaluate
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
 
-    module = Marginals.get_kway_categorical(domain, k=3)
-    stat_module = ChainedStatistics([module])
-    stat_module.fit(data)
-    true_stats = stat_module.get_all_true_statistics()
-    stat_fn = stat_module.get_dataset_statistics_fn()
+    true_stats = get_cat_marginals(data, k=3)
 
     print(f'{dataset_name} has {len(domain.get_numeric_cols())} real features and '
           f'{len(domain.get_categorical_cols())} cat features.')
     print(f'Data cardinality is {domain.size()}.')
     print(f'Number of queries is {true_stats.shape[0]}.')
 
-    algo = PrivGAV2(num_generations=150000,
-                  domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
-                  print_progress=False)
 
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
             for rounds in T:
-                key = jax.random.PRNGKey(seed)
                 t0 = timer()
                 sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/{rounds}/1/{eps:.2f}/'
                 os.makedirs(sync_dir, exist_ok=True)
-                if eval_only:
-                    sync_path = f'{sync_dir}/sync_data_{seed}.csv'
-                    if not os.path.exists(sync_path): continue
-                    sync_df = pd.read_csv(sync_path)
-                    sync_data = Dataset(sync_df, domain)
-                else:
-                    sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
-                                               epsilon=eps, delta=delta,
-                                                 rounds=rounds, num_sample=1,
-                                                 print_progress=True
-                                               )
-                    sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
-                errors = jnp.abs(true_stats - stat_fn(sync_data))
+                sync_path = f'{sync_dir}/sync_data_{seed}.csv'
+                if not os.path.exists(sync_path): continue
+                sync_df = pd.read_csv(sync_path)
+                sync_data = Dataset(sync_df, domain)
+
+                sync_stats = get_cat_marginals(sync_data, k=3)
+
+                errors = jnp.abs(true_stats - sync_stats)
                 elapsed_time = timer() - t0
                 print(f'GSD({dataset_name, module_name}): eps={eps:.2f}, seed={seed}'
+                      f'\t T = {rounds}'
                       f'\t max error = {errors.max():.5f}'
                       f'\t avg error = {errors.mean():.5f}'
                       f'\t time = {elapsed_time:.4f}')
@@ -115,7 +103,8 @@ if __name__ == "__main__":
     results = None
     for data in DATA:
         file_name = f'icml_results/gsd_adaptive_3way_categorical_{data}.csv'
-        results_temp = run(data, eps_values=[1, 0.74, 0.52, 0.23, 0.07], seeds=[0, 1, 2])
+        results_temp = run(data, eps_values=[1, 0.74, 0.52, 0.23, 0.07], seeds=[0, 1, 2],
+                           T=T)
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
         results.to_csv(file_name, index=False)
