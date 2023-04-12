@@ -306,7 +306,7 @@ class GeneticSDV2(Generator):
         """
         Minimize error between real_stats and sync_stats
         """
-
+        W = 10000
         init_time = time.time()
 
         selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
@@ -363,7 +363,7 @@ class GeneticSDV2(Generator):
         elite_population_fn = jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,))
         elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
                                         ord=2) ** 2
-        elite_fitness = elite_fitness + self.inconsistency_fn(state.archive)
+        elite_fitness = elite_fitness + W * (self.inconsistency_fn(state.archive)**2).sum(axis=1)
 
 
         best_member_id = elite_fitness.argmin()
@@ -425,7 +425,7 @@ class GeneticSDV2(Generator):
             t0 = timer()
             inconsistency_counts: chex.Array
             inconsistency_counts = self.inconsistency_fn(population_state.X)
-            fitness = fitness + inconsistency_counts
+            fitness = fitness + W * (inconsistency_counts**2).sum(axis=1)
             consistency_time += timer() - t0
 
             # TELL
@@ -460,7 +460,7 @@ class GeneticSDV2(Generator):
                         print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
                         t_inf, t_avg, p_l2 = true_loss(X_sync)
                         print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
-                        best_inconsistency_count = inconsistency_counts[best_id] * self.data_size
+                        best_inconsistency_count = float((inconsistency_counts[best_id, :] * self.data_size).sum())
                         print(f'\tinconsistencies={best_inconsistency_count:.0f}, ', end=' ')
                         print(f'\t|time={elapsed_time:.4f}(s):', end='')
                         print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')

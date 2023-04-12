@@ -9,6 +9,7 @@ from stats import NullCounts
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from dev.NIST.consistency import get_consistency_fn
 
 def post_nist(df):
     ALL_COLS = ["PUMA",
@@ -45,8 +46,6 @@ def post_nist(df):
         # preprocessor:
         preprocessor = pickle.load(handle)
         temp: pd.DataFrame
-        # df_orig.fillna('N', inplace=True)
-        # df_orig = df_orig.astype('str')
         temp = preprocessor.inverse_transform(df_orig)
         print(temp)
 
@@ -64,6 +63,15 @@ def post_nist(df):
     print(f'sync nulls count: ', nulls_fn(sync_data))
 
 
+    violations_fn = get_consistency_fn(domain, preprocessor)
+
+    real_violation_counts = violations_fn(data.to_numpy()) * len(data.df)
+    print(real_violation_counts)
+    sync_violation_counts = violations_fn(sync_data.to_numpy()) * len(sync_data.df)
+    print(sync_violation_counts)
+
+
+    # sys.exit()
 
     temp_cat_cols = ['RAC1P', 'DEAR', 'SEX', 'PUMA', 'DEYE', 'HOUSING_TYPE']
     df[temp_cat_cols] = df[temp_cat_cols].fillna(0).astype(int)
@@ -148,6 +156,7 @@ sync_path = sys.argv[1]
 save_post_pat = sys.argv[2]
 
 # df = pd.read_csv('sync_data/national2019/GSD/Ranges/oneshot/10.00/sync_data_0.csv')
+print(sync_path)
 df = pd.read_csv(sync_path)
 df_post = post_nist(df)
 print(save_post_pat)
