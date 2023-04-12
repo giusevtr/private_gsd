@@ -57,7 +57,6 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
     print(f'Data cardinality is {domain.size()}.')
     print(f'Number of queries is {true_stats.shape[0]}.')
 
-
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
@@ -93,9 +92,9 @@ if __name__ == "__main__":
     DATA = [
         'folktables_2018_travel_CA',
         'folktables_2018_income_CA',
-        # 'folktables_2018_coverage_CA',
-        # 'folktables_2018_mobility_CA',
-        # 'folktables_2018_employment_CA',
+        'folktables_2018_coverage_CA',
+        'folktables_2018_mobility_CA',
+        'folktables_2018_employment_CA',
     ]
 
     T = [25, 50, 75, 100]
