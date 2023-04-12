@@ -66,6 +66,7 @@ def post_nist(df):
     violations_fn = get_consistency_fn(domain, preprocessor)
 
     real_violation_counts = violations_fn(data.to_numpy()) * len(data.df)
+    print(f'\n\n\nREAL VIOLATIONS:')
     print(real_violation_counts)
     sync_violation_counts = violations_fn(sync_data.to_numpy()) * len(sync_data.df)
     print(sync_violation_counts)

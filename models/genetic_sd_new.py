@@ -306,7 +306,7 @@ class GeneticSDV2(Generator):
         """
         Minimize error between real_stats and sync_stats
         """
-        W = 10000
+        W = 1
         init_time = time.time()
 
         selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
