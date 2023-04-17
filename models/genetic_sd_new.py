@@ -110,13 +110,15 @@ class SimpleGAforSyncData:
     def initialize_elite_population(self, rng: chex.PRNGKey):
         d = len(self.domain.attrs)
         # pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng)
-        pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng, null_values=self.null_samples)
+        pop = Dataset.synthetic_jax_rng(self.domain, self.elite_size * self.data_size, rng,
+                                        null_values=self.null_samples)
         initialization = pop.reshape((self.elite_size, self.data_size, d))
         return initialization
 
     @partial(jax.jit, static_argnums=(0,))
     def initialize_random_population(self, rng: chex.PRNGKey):
-        pop = Dataset.synthetic_jax_rng(self.domain, self.population_size, rng)
+        pop = Dataset.synthetic_jax_rng(self.domain, self.population_size, rng,
+                                        null_values=self.null_samples)
         return pop
 
     def ask(self, rng: chex.PRNGKey, state: EvoState):
@@ -277,8 +279,9 @@ class GeneticSDV2(Generator):
                  stop_early_gen=2000,
                  stop_eary_threshold=0,
                  inconsistency_fn=None,
+                 inconsistency_weight: float = 1,
                  null_value_frac: float = 0.02,
-                 mate_perturbation: float = 0.01,
+                 mate_perturbation: float = 0.01
                  ):
         self.domain = domain
         self.data_size = data_size
@@ -289,6 +292,7 @@ class GeneticSDV2(Generator):
         self.stop_eary_threshold = stop_eary_threshold
 
         self.inconsistency_fn = inconsistency_fn
+        self.inconsistency_weight = inconsistency_weight
         if self.inconsistency_fn is None:
             self.inconsistency_fn = lambda x: jnp.zeros(x.shape[0])
 
@@ -306,7 +310,7 @@ class GeneticSDV2(Generator):
         """
         Minimize error between real_stats and sync_stats
         """
-        W = 1
+        W = self.inconsistency_weight
         init_time = time.time()
 
         selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
@@ -360,11 +364,10 @@ class GeneticSDV2(Generator):
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             state = state.replace(archive=new_archive)
 
-        elite_population_fn = jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,))
+        elite_population_fn = jax.jit(jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,)))
         elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
                                         ord=2) ** 2
         elite_fitness = elite_fitness + W * (self.inconsistency_fn(state.archive)**2).sum(axis=1)
-
 
         best_member_id = elite_fitness.argmin()
         state = state.replace(
@@ -381,7 +384,7 @@ class GeneticSDV2(Generator):
         fit_time = 0
         consistency_time = 0
         tell_time = 0
-        last_fitness = None
+        last_fitness_debug = None
         self.fitness_record = []
 
         if self.print_progress:
@@ -407,6 +410,7 @@ class GeneticSDV2(Generator):
             return new_elite_stat
 
         update_elite_stat_jit = jax.jit(update_elite_stat)
+        last_best_fitness = 10000
         for t in range(self.num_generations):
 
             # ASK
@@ -443,6 +447,29 @@ class GeneticSDV2(Generator):
             elite_stat_time += timer() - t0
 
             if best_fitness < self.stop_eary_threshold: break
+            if (t % 100) == 0 and t > 5000:
+                last_fit = self.fitness_record[-100]
+                loss_change = (last_fit - best_fitness) / last_fit
+                if loss_change < 0.0001 and W < 1e5:
+                    W = 2 * W
+                    if self.print_progress:
+                        print(f'Updating consistency weight: t={t}, W={W:.4f}')
+                    # best_inconsistency_count = float((inconsistency_counts[best_id, :] * self.data_size).sum())
+                    # elite_population_fn = jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,))
+                    elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
+                                                    ord=2) ** 2
+                    elite_fitness = elite_fitness + W * (self.inconsistency_fn(state.archive) ** 2).sum(axis=1)
+
+                    best_member_id = elite_fitness.argmin()
+                    state = state.replace(
+                        fitness=elite_fitness,
+                        best_member=state.archive[best_member_id],
+                        best_fitness=elite_fitness[best_member_id]
+                    )
+                    best_fitness = elite_fitness[best_member_id]
+                    last_fitness_debug = 1e5
+
+
             if t % 50 == 0:
                 # EARLY STOP
                 best_fitness_total = min(best_fitness_total, best_fitness)
@@ -453,11 +480,12 @@ class GeneticSDV2(Generator):
 
                 # DEBUG
                 if self.print_progress:
-                    if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t >= self.num_generations - 100 or stop_early:
+                    if last_fitness_debug is None or best_fitness_total < last_fitness_debug * 0.95 or t >= self.num_generations - 100 or stop_early:
                     # if True:
                         elapsed_time = timer() - init_time
                         X_sync = state.best_member
                         print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
+                        print(f'\tW={W:.4f}, ', end=' ')
                         t_inf, t_avg, p_l2 = true_loss(X_sync)
                         print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
                         best_inconsistency_count = float((inconsistency_counts[best_id, :] * self.data_size).sum())
@@ -467,7 +495,7 @@ class GeneticSDV2(Generator):
                         print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
                         print(f'consistency={consistency_time:<3.3f}(s)\t', end='')
                         print()
-                        last_fitness = best_fitness_total
+                        last_fitness_debug = best_fitness_total
 
                 if stop_early:
                     if self.print_progress:

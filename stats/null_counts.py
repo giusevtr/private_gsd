@@ -10,17 +10,19 @@ import numpy as np
 
 class NullCounts(AdaptiveStatisticState):
 
-    def __init__(self, domain):
+    def __init__(self, domain, null_cols = None):
         self.domain = domain
         self.workload_positions = []
         self.workload_sensitivity = []
         self.set_up_stats()
 
+        self.null_cols = self.domain.attrs if null_cols is None else null_cols
+
     def __str__(self):
         return f'NullCounts'
 
     def get_num_workloads(self):
-        dim = len(self.domain.attrs)
+        dim = len(self.null_cols)
         return dim
 
     def _get_workload_positions(self, workload_id: int = None) -> tuple:
@@ -30,8 +32,8 @@ class NullCounts(AdaptiveStatisticState):
         pass
 
     def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
-        dim = len(self.domain.attrs)
-        return jnp.sqrt(dim) / N
+        # dim = len(self.domain.attrs)
+        return jnp.sqrt(2) / N
 
     def _get_dataset_statistics_fn(self, workload_ids=None, jitted: bool = False):
         if jitted:
@@ -67,11 +69,15 @@ class NullCounts(AdaptiveStatisticState):
         temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
         if workload_ids is None:
             dim = len(self.domain.attrs)
-            attrs_indices = jnp.arange(dim)
-        else :
-            attrs_indices = jnp.array(workload_ids)
-        # dim = len(self.domain.attrs)
-        # attrs_indices = jnp.arange(dim)
+            # attrs_indices = jnp.arange(dim)
+            null_attrs = self.null_cols
+        else:
+            # attrs_indices = jnp.array(workload_ids)
+            null_attrs = [self.null_cols[w_id] for w_id in workload_ids]
+
+        attrs_indices = self.domain.get_attribute_indices(null_attrs)
+
+
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, attrs_indices), None
         def stat_fn(X):

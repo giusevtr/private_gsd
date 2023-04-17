@@ -2,34 +2,26 @@ from functools import reduce
 import jax.numpy as jnp
 
 class Domain:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, null_cols: list = ()):
         """ Construct a Domain object
         
         :param attrs: a list or tuple of attribute names
         :param shape: a list or tuple of domain sizes for each attribute
         """
-        # for att in config:
-        #     att_config: dict
-        #     att_config = config[att]
-        #     type = att_config['type']
-        #     if type == 'categorical':
-        # assert len(attrs) == len(shape), 'dimensions must be equal'
-        # self.attrs = tuple(attrs)
-        # self.shape = tuple(shape)
         self.attrs = list(config.keys())
         self.config = config
 
-    # @staticmethod
-    # def fromdict(config):
-    #     """ Construct a Domain object from a dictionary of { attr : size } values """
-    #     return Domain(config.keys(), config.values())
-    #
-    # def get_dimension(self):
-    #     return sum(self.shape)
+        self.__is_col_null = self._set_null_cols(null_cols)
 
-    # def get_dimension_original(self):
-    #     """dimension for the original domain"""
-    #     return len(self.shape)
+    def has_nulls(self, col):
+        return self.__is_col_null[col]
+
+    def _set_null_cols(self, null_cols):
+        is_col_null = {}
+        for col in self.attrs:
+            is_col_null[col] = col in null_cols
+        return is_col_null
+
 
     def project(self, attrs):
         """ project the domain onto a subset of attributes
@@ -44,7 +36,7 @@ class Domain:
         new_config = {}
         for a in attrs:
             new_config[a] = self.config[a]
-        return Domain(new_config)
+        return Domain(new_config, list(self.__is_col_null.keys()))
 
     # def marginalize(self, attrs):
     #     """ marginalize out some attributes from the domain (opposite of project)

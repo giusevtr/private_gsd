@@ -37,7 +37,7 @@ class ChainedStatistics:
             # self.modules_workload_fn_jit.append(jax.jit(stat_mod._get_workload_fn()))
             self.modules_workload_fn_jit.append(stat_mod._get_dataset_statistics_fn(jitted=True))
             self.modules_all_statistics.append(all_stats)
-            print(f'\nnumber of queries is {all_stats.shape[0]}\n')
+            print(f'statistics {stat_id}: number of queries is {all_stats.shape[0]}')
 
             self.selected_workloads.append([])
 

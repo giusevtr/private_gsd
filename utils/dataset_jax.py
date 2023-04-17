@@ -8,7 +8,6 @@ from utils import Domain
 from sklearn.preprocessing import OneHotEncoder
 
 
-
 class Dataset:
     def __init__(self, df, domain: Domain):
         """ create a Dataset object """
@@ -39,9 +38,11 @@ class Dataset:
             elif domain.type(att) == 'numerical':
                 c = jax.random.uniform(rng_temp0, shape=(N, ))
 
-            null_idx = jax.random.randint(rng_temp1, minval=0, maxval=N, shape=(num_nulls,))
-            c2 = c.astype(float).at[null_idx].set(jnp.nan)
-            arr.append(c2)
+            if domain.has_nulls(att):
+                null_idx = jax.random.randint(rng_temp1, minval=0, maxval=N, shape=(num_nulls,))
+                c = c.astype(float).at[null_idx].set(jnp.nan)
+            arr.append(c)
+
 
         values = jnp.array(arr).T
         return values

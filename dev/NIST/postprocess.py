@@ -10,9 +10,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from dev.NIST.consistency import get_consistency_fn
+from dev.NIST.consistency_simple import get_nist_simple_consistency_fn
 
-def post_nist(df):
-    ALL_COLS = ["PUMA",
+ALL_COLS = ["PUMA",
             "AGEP",
             "SEX",
             "MSP",
@@ -23,48 +23,47 @@ def post_nist(df):
             "HOUSING_TYPE",
             "OWN_RENT",
             "DENSITY",
-                "INDP",
-                "INDP_CAT",
-                "EDU",
-                "PINCP",
-                "PINCP_DECILE",
-                "POVPIP",
-                "DVET",
-                "DREM",
-                "DPHY",
-                "DEYE",
-                "DEAR",
-                "PWGTP",
-                "WGTP"
-                ]
-    dataset_name = 'national2019'
-    root_path = '../../dp-data-dev/datasets/preprocessed/sdnist_dce/'
-    config = load_domain_config(dataset_name, root_path=root_path)
-    df_orig = load_df(dataset_name, root_path=root_path)
-    preprocessor_path = os.path.join(root_path +dataset_name, 'preprocessor.pkl')
-    with open(preprocessor_path, 'rb') as handle:
-        # preprocessor:
-        preprocessor = pickle.load(handle)
-        temp: pd.DataFrame
-        temp = preprocessor.inverse_transform(df_orig)
-        print(temp)
-
-    domain = Domain(config)
+            "INDP",
+            "INDP_CAT",
+            "EDU",
+            "PINCP",
+            "PINCP_DECILE",
+            "POVPIP",
+            "DVET",
+            "DREM",
+            "DPHY",
+            "DEYE",
+            "DEAR",
+            "PWGTP",
+            "WGTP"
+            ]
 
 
+NULL_COLS = [
+            "MSP",
+            "NOC",
+            "NPF",
+            "DENSITY",
+            "INDP",
+            "INDP_CAT",
+            "EDU",
+            "PINCP",
+            "PINCP_DECILE",
+            "POVPIP",
+            "DVET",
+            "DREM",
+            "DPHY",
+            "PWGTP",
+            "WGTP"
+]
+from dev.NIST.consistency import INDP_CAT, INDP_CODES
+
+
+
+def count_violations(df_orig, df, domain, preprocessor):
     data = Dataset(df_orig, domain)
-
-    # df = pd.read_csv('sync_national.csv')
-
-    nulls_module = NullCounts(domain)
-    nulls_fn = nulls_module._get_dataset_statistics_fn()
     sync_data = Dataset(df, domain)
-    print(f'orig nulls count: ', nulls_fn(data))
-    print(f'sync nulls count: ', nulls_fn(sync_data))
-
-
     violations_fn = get_consistency_fn(domain, preprocessor)
-
     real_violation_counts = violations_fn(data.to_numpy()) * len(data.df)
     print(f'\n\n\nREAL VIOLATIONS:')
     print(real_violation_counts)
@@ -72,25 +71,86 @@ def post_nist(df):
     print(sync_violation_counts)
 
 
-    # sys.exit()
+def post_nist(df, dataset_name='national2019', nist_type='simple'):
+
+    # dataset_name = 'national2019'
+    root_path = '../../dp-data-dev/datasets/preprocessed/sdnist_dce/'
+    config = load_domain_config(dataset_name, root_path=root_path)
+    df_orig = load_df(dataset_name, root_path=root_path)
+    preprocessor_path = os.path.join(root_path +dataset_name, 'preprocessor.pkl')
+    with open(preprocessor_path, 'rb') as handle:
+        preprocessor = pickle.load(handle)
+
+    def get_encoded_value(feature, value):
+        if feature in preprocessor.attrs_cat:
+            enc = preprocessor.encoders[feature]
+            value = str(value)
+            v = pd.DataFrame(np.array([value]), columns=[feature])
+            return enc.transform(v)[0]
+        if feature in preprocessor.mappings_ord.keys():
+            min_val, _ = preprocessor.mappings_ord[feature]
+            return value - min_val
+    orig_domain = Domain(config)
+
+
+    all_cols = orig_domain.attrs
+    if nist_type == 'simple':
+        all_cols.remove('INDP')
+        all_cols.remove('WGTP')
+        all_cols.remove('PWGTP')
+
+        del preprocessor.mappings_cat['INDP']
+        del preprocessor.mappings_num['WGTP']
+        del preprocessor.mappings_num['PWGTP']
+
+        # consistency_fn = get_nist_simple_population_consistency_fn(domain, preprocessor)
+    elif nist_type == 'all':
+        all_cols.remove('INDP_CAT')
+        # consistency_fn = get_nist_all_population_consistency_fn(domain, preprocessor)
+    domain = orig_domain.project(all_cols)
+
+    preprocessor.attrs_cat = domain.get_categorical_cols()
+    preprocessor.attrs_num = domain.get_numerical_cols()
+    preprocessor.attrs_ord = domain.get_ordinal_cols()
+
+    INDP_MAP = {}
+
+    for indp, indp_cat in INDP_CODES.items():
+        if indp == 'N': continue
+        try:
+            if nist_type == 'all':
+                indp_enc = get_encoded_value('INDP', f'{int(indp):>03}')
+                indp_cat_enc = get_encoded_value('INDP_CAT', INDP_CAT[indp_cat])
+                INDP_MAP[indp_enc] = indp_cat_enc
+        except:
+            pass
+
+    def map_indp(cat):
+        if np.isnan(cat): return np.nan
+        indp_cat = INDP_MAP[cat]
+        return indp_cat
+    if nist_type == 'all':
+        df['INDP_CAT'] = df['INDP'].apply(map_indp)
+
+    # Remove inconsistencies
+    sync_data = Dataset(df, domain)
+    con_fn = None
+    if nist_type == 'all':
+        con_fn = get_consistency_fn(domain, preprocessor, axis=1)
+    elif nist_type == 'simple':
+        con_fn = get_nist_simple_consistency_fn(domain, preprocessor, axis=1)
+    row_consistency = con_fn(sync_data.to_numpy())
+    rem_rows_idx = row_consistency>0
+    drop = np.argwhere(rem_rows_idx).flatten()
+    drop_index = df.iloc[drop].index
+    df = df.drop(index=drop_index)
+    print(f'Removing ', rem_rows_idx.sum(), ' inconsistent rows')
 
     temp_cat_cols = ['RAC1P', 'DEAR', 'SEX', 'PUMA', 'DEYE', 'HOUSING_TYPE']
     df[temp_cat_cols] = df[temp_cat_cols].fillna(0).astype(int)
-
     df["DENSITY"] = df["DENSITY"].fillna(0).astype(float)
 
-    cutoff =0.2
-    sync = df.sample(n=len(df_orig), replace=True)
-    real = df_orig[df_orig['PINCP'] < cutoff]['PINCP'].to_frame()
-    real['Type'] = 'Real'
-    temp = sync[sync['PINCP'] < cutoff]['PINCP'].to_frame()
-    temp['Type'] = 'Sync'
-    df_income = pd.concat([real, temp])
-    sns.histplot(data=df_income, x='PINCP', hue='Type', bins=100)
-    plt.show()
-
     df_post = preprocessor.inverse_transform(df)
-
 
     REAL = domain.get_numerical_cols()
     for col in REAL:
@@ -98,10 +158,11 @@ def post_nist(df):
         df_post[col] = df_post[col].replace(to_replace='nan', value='N')
 
     INTS = ["PUMA", "SEX", "HISP", "MSP", "RAC1P", "HOUSING_TYPE", "OWN_RENT", "INDP",
-                     "INDP_CAT", "DREM", "DPHY", "DEYE", "DEAR"] + ['AGEP', 'POVPIP', 'PWGTP', 'WGTP'] +\
+                     "INDP_CAT", "DREM", "DPHY", "DEYE", "DEAR"] + ['AGEP', 'POVPIP'] +\
            ["NOC", "NPF", "EDU", "PINCP_DECILE", "DVET"]
+    if nist_type == 'simple':
+        INTS.remove('INDP')
     for col in INTS:
-        print('col', col, ': type=', df_post[col].dtypes)
         if df_post[col].dtypes == 'float64':
             df_post[col] = df_post[col].round()
             df_post[col] = df_post[col].fillna(-1000000)
@@ -111,16 +172,13 @@ def post_nist(df):
         elif df_post[col].dtypes == 'object':
             df_post[col] = df_post[col].fillna('N')
 
-
     # Manual fix: Replace all values of 8 by null
     df_post['NOC'] = df_post['NOC'] .replace('8', 'N')
 
-    df_post = df_post[ALL_COLS]
-    # df_post["PWGTP"].replace('N', 0).astype(float).round().astype(int)
-    # df_post["WGTP"].replace('N', 0).astype(float).round().astype(int)
-    # df_post["AGEP"].replace('N', 0).astype(float).round().astype(int)
+    # df_post = df_post[ALL_COLS]
 
-    ints = [
+    NON_NULL = [
+        "AGEP",
             "OWN_RENT",
             "SEX",
             "HISP",
@@ -132,7 +190,10 @@ def post_nist(df):
             "PWGTP",
             "WGTP"
     ]
-    for int_feat in ints:
+    if nist_type == 'simple':
+        NON_NULL.remove('PWGTP')
+        NON_NULL.remove('WGTP')
+    for int_feat in NON_NULL:
         int_col = df_post[int_feat]
 
         new_col = int_col.replace('N', 0)
@@ -143,24 +204,23 @@ def post_nist(df):
     # df_post.loc[ints].replace('N', 0, inplace=True)
     # df_post = df_post.astype(float).round().astype(int)
 
-
-    df_post = df_post.sample(n=len(df_orig), replace=True)
-    print(df_post)
-
     copies = len(df_orig) // len(df_post)
     df_post_upsample = pd.concat([df_post.copy() for _ in range(copies)])
-    rem = len(df_post) - len(df_post_upsample)
+    rem = len(df_orig) - len(df_post_upsample)
     df_post_upsample = pd.concat([df_post_upsample, df_post.sample(n=rem)])
     return df_post_upsample
 
-sync_path = sys.argv[1]
-save_post_pat = sys.argv[2]
+target_dataset = sys.argv[1]  # options: national2019, tx2019, ma2019
+assert target_dataset in ['national2019', 'tx2019', 'ma2019']
+nist_type = sys.argv[2]  # options: simple, all
+assert nist_type in ['simple', 'all']
+sync_path = sys.argv[3]
+save_post_pat = sys.argv[4]
 
-# df = pd.read_csv('sync_data/national2019/GSD/Ranges/oneshot/10.00/sync_data_0.csv')
-print(sync_path)
+print('Reading', sync_path)
 df = pd.read_csv(sync_path)
-df_post = post_nist(df)
+df_post = post_nist(df, dataset_name=target_dataset, nist_type=nist_type)
 print(save_post_pat)
-df_post.to_csv(save_post_pat, index=False)
+df_post.to_csv('Saving', save_post_pat, index=False)
 
 
