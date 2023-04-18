@@ -390,7 +390,7 @@ class GeneticSDConsistent(Generator):
                     if self.early_stop(t, best_fitness_total):
                         stop_early = True
 
-                if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t > self.num_generations - 2 or stop_early:
+                if last_fitness is None or best_fitness_total < last_fitness * 0.95 or t >= self.num_generations - 100 or stop_early:
                     if self.print_progress:
                         elapsed_time = timer() - init_time
                         X_sync = state.best_member
