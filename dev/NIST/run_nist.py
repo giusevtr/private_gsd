@@ -2,7 +2,8 @@ import os, sys
 import jax.random
 import pandas as pd
 import numpy as np
-from models import GeneticSD, GeneticSDV2
+from models import GeneticSDV2 as GeneticSD
+# from models import GeneticSDRejSampling as GeneticSD
 from stats import ChainedStatistics,  Marginals, NullCounts, Prefix
 import jax.numpy as jnp
 from dp_data import load_domain_config, load_df
@@ -68,7 +69,6 @@ if __name__ == "__main__":
     dataset_name = f'{dataset_name}_{nist_type}'
 
 
-
     bins = {}
     with open(preprocessor_path, 'rb') as handle:
         # preprocessor:
@@ -105,14 +105,13 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = GeneticSDV2(num_generations=150000,
+    algo = GeneticSD(num_generations=150000,
                        print_progress=True,
-                       stop_early=False,
+                       stop_early=True,
                        domain=data.domain,
                        population_size=100,
                        data_size=2000,
                        inconsistency_fn=consistency_fn,
-                       inconsistency_weight=1,
                        mate_perturbation=1e-4,
                        null_value_frac=0.01,
                        )

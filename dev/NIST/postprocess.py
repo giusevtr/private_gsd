@@ -70,6 +70,19 @@ def count_violations(df_orig, df, domain, preprocessor):
     sync_violation_counts = violations_fn(sync_data.to_numpy()) * len(sync_data.df)
     print(sync_violation_counts)
 
+def count_nulls(df_orig, df, domain):
+    data = Dataset(df_orig, domain)
+    sync_data = Dataset(df, domain)
+    null_counter = NullCounts(domain=domain)
+    null_fn = null_counter._get_dataset_statistics_fn()
+
+    real_nulls = null_fn(data)
+    sync_nulls = null_fn(sync_data)
+
+    print(f'\n\n\nREAL NULLS:')
+    print(real_nulls)
+    print(f'\n\n\nSYNC NULLS:')
+    print(sync_nulls)
 
 def post_nist(df, dataset_name='national2019', nist_type='simple'):
 
@@ -131,6 +144,11 @@ def post_nist(df, dataset_name='national2019', nist_type='simple'):
         return indp_cat
     if nist_type == 'all':
         df['INDP_CAT'] = df['INDP'].apply(map_indp)
+
+    real_data_df = df_orig[df.columns]
+
+    ## COUNT NULL VALUES
+    count_nulls(real_data_df, df, domain)
 
     # Remove inconsistencies
     sync_data = Dataset(df, domain)
@@ -220,7 +238,7 @@ save_post_pat = sys.argv[4]
 print('Reading', sync_path)
 df = pd.read_csv(sync_path)
 df_post = post_nist(df, dataset_name=target_dataset, nist_type=nist_type)
-print(save_post_pat)
-df_post.to_csv('Saving', save_post_pat, index=False)
+print('Saving',save_post_pat)
+df_post.to_csv( save_post_pat, index=False)
 
 
