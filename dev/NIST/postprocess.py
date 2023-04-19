@@ -105,6 +105,14 @@ def post_nist(df, dataset_name='national2019', nist_type='simple'):
             return value - min_val
     orig_domain = Domain(config)
 
+    # Map DENSITY values using original data.
+    puma_density_map = {}
+    puma_size = orig_domain.size('PUMA')
+    for puma_id in range(puma_size):
+        df_temp = df_orig[df_orig['PUMA'] == puma_id]
+        density = df_temp['DENSITY'].values[0]
+        puma_density_map[puma_id] = density
+    df['DENSITY'] = df['PUMA'].apply(lambda puma_id: puma_density_map[puma_id])
 
     all_cols = orig_domain.attrs
     if nist_type == 'simple':
@@ -144,11 +152,6 @@ def post_nist(df, dataset_name='national2019', nist_type='simple'):
         return indp_cat
     if nist_type == 'all':
         df['INDP_CAT'] = df['INDP'].apply(map_indp)
-
-    real_data_df = df_orig[df.columns]
-
-    ## COUNT NULL VALUES
-    count_nulls(real_data_df, df, domain)
 
     # Remove inconsistencies
     sync_data = Dataset(df, domain)

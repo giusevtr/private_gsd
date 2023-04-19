@@ -333,7 +333,7 @@ class GeneticSDV2(Generator):
         # Create statistic function.
         fitness_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
 
-        def fitness_fn(stats: chex.Array, pop_state: PopulationState):
+        def fitness_fn(stats: chex.Array, violations: chex.Array, weight: chex.Array, pop_state: PopulationState):
             # Process one member of the population
             # 1) Update the statistics of this synthetic dataset
             rem_row = pop_state.remove_row
@@ -342,17 +342,22 @@ class GeneticSDV2(Generator):
             add_stats = (num_rows * fitness_statistics_fn(add_row))
             rem_stats = (num_rows * fitness_statistics_fn(rem_row))
             upt_sync_stat = stats.reshape(-1) + add_stats - rem_stats
+
+            # Compute inconsistencies vector
+            add_vio = (num_rows * self.inconsistency_fn(add_row))
+            rem_vio = (num_rows * self.inconsistency_fn(rem_row))
+            upt_vio = violations.reshape(-1) + add_vio - rem_vio
+
             # 2) Compute its fitness based on the statistics
             fitness = jnp.linalg.norm(selected_noised_statistics - upt_sync_stat / self.data_size, ord=2) ** 2
+            fitness = fitness + jnp.dot(upt_vio, weight)
             return fitness
 
         fitness_fn_vmap = jax.vmap(fitness_fn, in_axes=(None, 0))
         fitness_fn_jit = jax.jit(fitness_fn_vmap)
 
-
         # INITIALIZE STATE
         key, subkey = jax.random.split(key, 2)
-
         state = self.strategy.initialize(subkey)
 
         if sync_dataset is not None:
@@ -362,8 +367,7 @@ class GeneticSDV2(Generator):
             state = state.replace(archive=new_archive)
 
         elite_population_fn = jax.jit(jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,)))
-        elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
-                                        ord=2) ** 2
+
         archive_inconsistency_fn = jax.jit(self.inconsistency_fn)
         population_inconsistency_fn = jax.jit(self.inconsistency_fn)
 
@@ -371,6 +375,9 @@ class GeneticSDV2(Generator):
         num_constraints = violations_vec.shape[1]
         W = jnp.ones(num_constraints)
         # elite_fitness = elite_fitness + W * (self.inconsistency_fn(state.archive)**2).sum(axis=1)
+
+        elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
+                                        ord=2) ** 2
         elite_fitness = elite_fitness + jnp.dot(violations_vec, W)
 
         best_member_id = elite_fitness.argmin()
@@ -393,10 +400,11 @@ class GeneticSDV2(Generator):
             timer(init_time, '\tSetup time = ')
 
         elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
-        # elite_violations = self.data_size * self.inconsistency_fn(state.best_member)  # Statistics of best SD
+        elite_violations = self.data_size * self.inconsistency_fn(state.best_member)  # Statistics of best SD
 
         update_elite_stat_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
         def update_elite_stat(elite_stat_arg,
+                              elite_violations_arg,
                               population_state: PopulationState,
                               replace_best,
                               best_id_arg
@@ -410,7 +418,14 @@ class GeneticSDV2(Generator):
                     + (num_rows * update_elite_stat_statistics_fn(population_state.add_row[best_id_arg])),
                 elite_stat_arg
             )
-            return new_elite_stat
+            new_elite_vio = jax.lax.select(
+                replace_best,
+                elite_violations_arg
+                - (num_rows * self.inconsistency_fn(population_state.remove_row[best_id_arg]))
+                + (num_rows * self.inconsistency_fn(population_state.add_row[best_id_arg])),
+                elite_violations_arg
+            )
+            return new_elite_stat, new_elite_vio
 
         update_elite_stat_jit = jax.jit(update_elite_stat)
         LAST_LAG_FITNESS = 1e5
