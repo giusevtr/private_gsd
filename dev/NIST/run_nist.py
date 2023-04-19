@@ -2,17 +2,15 @@ import os, sys
 import jax.random
 import pandas as pd
 import numpy as np
-from models import GeneticSDV2 as GeneticSD
-# from models import GeneticSDRejSampling as GeneticSD
-from stats import ChainedStatistics,  Marginals, NullCounts, Prefix
+from models import GeneticSDConsistent as GeneticSD
+from stats import ChainedStatistics,  Marginals, NullCounts
 import jax.numpy as jnp
 from dp_data import load_domain_config, load_df
 from dp_data.data_preprocessor import DataPreprocessor
-from utils import timer, Dataset, Domain, filter_outliers
+from utils import timer, Dataset, Domain
 import pickle
-import matplotlib.pyplot as plt
-from dev.NIST.consistency import get_nist_all_population_consistency_fn
-from dev.NIST.consistency_simple import get_nist_simple_population_consistency_fn
+from dev.NIST.consistency import get_consistency_fn
+from dev.NIST.consistency_simple import get_nist_simple_consistency_fn
 
 
 NULL_COLS = [
@@ -87,10 +85,10 @@ if __name__ == "__main__":
         all_cols.remove('WGTP')
         all_cols.remove('PWGTP')
         all_cols.remove('DENSITY')
-        consistency_fn = get_nist_simple_population_consistency_fn(domain, preprocessor)
+        consistency_fn = get_nist_simple_consistency_fn(domain, preprocessor)
     elif nist_type == 'all':
         all_cols.remove('INDP_CAT')
-        consistency_fn = get_nist_all_population_consistency_fn(domain, preprocessor)
+        consistency_fn = get_consistency_fn(domain, preprocessor)
 
     data = data.project(all_cols)
     domain = data.domain

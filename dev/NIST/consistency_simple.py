@@ -166,7 +166,6 @@ def get_nist_simple_consistency_fn(domain: Domain, preprocessor, axis=0):
         return aggregate
     return count_inconsistency_fn
 
-
 def get_nist_simple_population_consistency_fn(domain, preprocessor):
     count_inconsistency_fn = get_nist_simple_consistency_fn(domain, preprocessor)
     count_inconsistency_population_fn = jax.vmap(count_inconsistency_fn, in_axes=(0, ))

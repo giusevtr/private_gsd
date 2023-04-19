@@ -265,7 +265,7 @@ def get_mating_fn(domain: Domain, mate_rate: int, random_numbers, mate_perturbat
 
 
 # @dataclass
-class GeneticSDV2(Generator):
+class GeneticSDConsistent(Generator):
 
     def __init__(self,
                  num_generations,
@@ -350,11 +350,10 @@ class GeneticSDV2(Generator):
 
             # 2) Compute its fitness based on the statistics
             fitness = jnp.linalg.norm(selected_noised_statistics - upt_sync_stat / self.data_size, ord=2) ** 2
-            fitness = fitness + jnp.dot(upt_vio, weight)
+            fitness = fitness + jnp.dot(upt_vio / self.data_size, weight)
             return fitness
 
-        fitness_fn_vmap = jax.vmap(fitness_fn, in_axes=(None, 0))
-        fitness_fn_jit = jax.jit(fitness_fn_vmap)
+        fitness_fn_vmap_jit_pop = jax.jit(jax.vmap(fitness_fn, in_axes=(None, None, None, 0)))
 
         # INITIALIZE STATE
         key, subkey = jax.random.split(key, 2)
@@ -368,14 +367,11 @@ class GeneticSDV2(Generator):
 
         elite_population_fn = jax.jit(jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,)))
 
-        archive_inconsistency_fn = jax.jit(self.inconsistency_fn)
-        population_inconsistency_fn = jax.jit(self.inconsistency_fn)
+        archive_inconsistency_fn = jax.jit(jax.vmap(self.inconsistency_fn, in_axes=(0,)))
 
         violations_vec = archive_inconsistency_fn(state.archive)
         num_constraints = violations_vec.shape[1]
         W = jnp.ones(num_constraints)
-        # elite_fitness = elite_fitness + W * (self.inconsistency_fn(state.archive)**2).sum(axis=1)
-
         elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
                                         ord=2) ** 2
         elite_fitness = elite_fitness + jnp.dot(violations_vec, W)
@@ -440,15 +436,8 @@ class GeneticSDV2(Generator):
 
             # FIT
             t0 = timer()
-            fitness = fitness_fn_jit(elite_stat, population_state).block_until_ready()
+            fitness = fitness_fn_vmap_jit_pop(elite_stat, elite_violations, W, population_state).block_until_ready()
             fit_time += timer() - t0
-
-
-            t0 = timer()
-            pop_inconsistency_counts: chex.Array
-            pop_inconsistency_counts = population_inconsistency_fn(population_state.X).block_until_ready()
-            fitness = fitness + jnp.dot(pop_inconsistency_counts, W).block_until_ready()
-            consistency_time += timer() - t0
 
             # TELL
             t0 = timer()
@@ -459,7 +448,8 @@ class GeneticSDV2(Generator):
 
             # UPDATE elite_states
             t0 = timer()
-            elite_stat = update_elite_stat_jit(elite_stat, population_state, rep_best, best_id).block_until_ready()
+            elite_stat, elite_violations = update_elite_stat_jit(elite_stat, elite_violations, population_state, rep_best, best_id)
+            elite_stat.block_until_ready()
             elite_stat_time += timer() - t0
 
             if best_fitness < self.stop_eary_threshold: break
@@ -468,27 +458,15 @@ class GeneticSDV2(Generator):
                 loss_change = jnp.abs(LAST_LAG_FITNESS - best_fitness) / LAST_LAG_FITNESS
 
                 if loss_change < 0.0001:
-                    best_inconsistencies = pop_inconsistency_counts[best_id]
-                    if best_inconsistencies.sum() == 0 and self.stop_early:
+                    if elite_violations.sum() == 0 and self.stop_early:
                         if self.print_progress: print(f'\t\t### Stop early at {t} ###')
                         break
 
-                    # W = W + best_inconsistencies
-                    W = W * jnp.exp(best_inconsistencies)
+                    W = W * jnp.exp(elite_violations / self.data_size)
                     if self.print_progress:
                         print(f'\t\tUpdating consistency weight: t={t:>5}, W.max()={W.max():.4f}, W.mean()={W.mean():.4f}')
-                    violations_vec = archive_inconsistency_fn(state.archive)
-                    elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
-                                                    ord=2) ** 2
-                    elite_fitness = elite_fitness + jnp.dot(violations_vec, W)
-
-                    best_member_id = elite_fitness.argmin()
-                    state = state.replace(
-                        fitness=elite_fitness,
-                        best_member=state.archive[best_member_id],
-                        best_fitness=elite_fitness[best_member_id]
-                    )
-                    last_fitness_debug = 1e6
+                    state = state.replace(best_fitness=1e9) # For the algorithm to update the next generation
+                    last_fitness_debug = 1e9
 
                 LAST_LAG_FITNESS = state.best_fitness
 
@@ -503,11 +481,10 @@ class GeneticSDV2(Generator):
                         print(f'\tGen {t:05}, fit={best_fitness:.6f}, ', end=' ')
                         t_inf, t_avg, p_l2 = true_loss(X_sync)
                         print(f'true error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f}), ', end='')
-                        best_inconsistency_count = float((pop_inconsistency_counts[best_id, :] * self.data_size).sum())
+                        best_inconsistency_count = float((elite_violations).sum())
                         print(f'inconsistencies={best_inconsistency_count:.0f}, ', end=' ')
                         print(f'|time={elapsed_time:.4f}(s):', end='')
                         print(f'ask={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
-                        print(f'consistency_time={consistency_time:<3.3f}(s)\t', end='')
                         print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
                         print()
                         last_fitness_debug = best_fitness
