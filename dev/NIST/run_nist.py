@@ -110,6 +110,7 @@ if __name__ == "__main__":
                        stop_early=False,
                        domain=data.domain,
                        population_size=100,
+                       multiple_round=15,
                        data_size=2000,
                        inconsistency_fn=consistency_fn,
                        inconsistency_weight=1,
