@@ -2,6 +2,7 @@ import jax.random
 import pandas as pd
 import numpy as np
 import jax.numpy as jnp
+from utils import Domain
 
 INDP_CAT = {
         "N": "N",
@@ -28,7 +29,7 @@ INDP_CAT = {
 
 
 
-def get_nist_simple_consistency_fn(domain, preprocessor, axis=0):
+def get_nist_simple_consistency_fn(domain: Domain, preprocessor, axis=0):
 
     def get_encoded_value(feature, value):
         if feature in preprocessor.attrs_cat:
@@ -40,6 +41,16 @@ def get_nist_simple_consistency_fn(domain, preprocessor, axis=0):
             min_val, _ = preprocessor.mappings_ord[feature]
             return value - min_val
 
+    noc_map = jnp.zeros(domain.size('NOC'))
+    npf_map = jnp.zeros(domain.size('NPF'))
+
+    noc_min, noc_max = preprocessor.mappings_ord['NOC']
+    for i in range(noc_max - noc_min + 1):
+        noc_map = noc_map.at[i].set(i + noc_min)
+
+    npf_min, npf_max = preprocessor.mappings_ord['NPF']
+    for i in range(npf_max - npf_min + 1):
+        npf_map = npf_map.at[i].set(i + npf_min)
 
     age_15_encoded = get_encoded_value('AGEP', 15)
     age_10_encoded = get_encoded_value('AGEP', 10)
@@ -63,7 +74,7 @@ def get_nist_simple_consistency_fn(domain, preprocessor, axis=0):
     rac1p_idx = domain.get_attribute_indices(['RAC1P']).squeeze().astype(int)
     housing_idx = domain.get_attribute_indices(['HOUSING_TYPE']).squeeze().astype(int)
     own_rent_idx = domain.get_attribute_indices(['OWN_RENT']).squeeze().astype(int)
-    density_idx = domain.get_attribute_indices(['DENSITY']).squeeze().astype(int)
+    # density_idx = domain.get_attribute_indices(['DENSITY']).squeeze().astype(int)
     deye_idx = domain.get_attribute_indices(['DEYE']).squeeze().astype(int)
     dear_idx = domain.get_attribute_indices(['DEAR']).squeeze().astype(int)
     age_idx = domain.get_attribute_indices(['AGEP']).squeeze().astype(int)
@@ -94,7 +105,6 @@ def get_nist_simple_consistency_fn(domain, preprocessor, axis=0):
         is_minor = (x[age_idx] < age_15_encoded)
         is_married = ~jnp.isnan(x[married_idx])
         has_income = ~jnp.isnan(x[income_idx])
-        # has_indp = ~jnp.isnan(x[indp_idx])
         has_indp_cat = ~jnp.isnan(x[indp_cat_idx])
         violations = [
             jnp.isnan(x[age_idx]), # Age is null
@@ -104,7 +114,6 @@ def get_nist_simple_consistency_fn(domain, preprocessor, axis=0):
             jnp.isnan(x[rac1p_idx]),  #
             jnp.isnan(x[housing_idx]),  #
             jnp.isnan(x[own_rent_idx]),  #
-            jnp.isnan(x[density_idx]),  #
             jnp.isnan(x[deye_idx]),  #
             jnp.isnan(x[dear_idx]),  #
             (is_minor & is_married),  # Children cannot be married
@@ -114,7 +123,6 @@ def get_nist_simple_consistency_fn(domain, preprocessor, axis=0):
             (is_minor & (x[edu_idx] == phd_encoded)),  # Children don't have phd
             ((is_minor) & (~jnp.isnan(x[dvet_idx]))),
 
-            # (x[age_idx] < age_10_encoded) & (~jnp.isnan(x[noc_idx])),
             (x[age_idx] < age_5_encoded) & (~jnp.isnan(x[dphy_idx])),
             (x[age_idx] < age_5_encoded) & (~jnp.isnan(x[drem_idx])),
             (x[age_idx] < age_5_encoded) & (x[edu_idx] == edu_5_encoded), # toddler_diploma
@@ -123,13 +131,18 @@ def get_nist_simple_consistency_fn(domain, preprocessor, axis=0):
             (x[age_idx] < age_5_encoded) & (x[edu_idx] == hs_diploma_encoded), # toddler_diploma
             (x[age_idx] < age_5_encoded) & (x[edu_idx] == edu_9_encoded), # toddler_diploma
             (x[age_idx] < age_5_encoded) & (x[edu_idx] == edu_10_encoded), # toddler_diploma
-            (x[age_idx] < age_5_encoded) & (x[edu_idx] == edu_10_encoded), # toddler_diploma
+            (x[age_idx] < age_5_encoded) & (x[edu_idx] == edu_11_encoded), # toddler_diploma
             (x[age_idx] < age_3_encoded) & (~jnp.isnan(x[edu_idx])), # infant_EDU: Infants (< 3) aren't in school
 
-            (x[age_idx] >= age_15_encoded) & (jnp.isnan(x[dphy_idx]) | jnp.isnan(x[drem_idx]) | jnp.isnan(x[edu_idx]) | jnp.isnan(x[msp_idx]) | jnp.isnan(x[income_idx]) | jnp.isnan(x[income_decile_idx])),
+            (x[age_idx] >= age_15_encoded) & (jnp.isnan(x[dphy_idx])),
+            (x[age_idx] >= age_15_encoded) & (jnp.isnan(x[drem_idx])),
+            (x[age_idx] >= age_15_encoded) & (jnp.isnan(x[edu_idx])),
+            (x[age_idx] >= age_15_encoded) & (jnp.isnan(x[msp_idx])),
+            (x[age_idx] >= age_15_encoded) & (jnp.isnan(x[income_idx])),
+            (x[age_idx] >= age_15_encoded) & (jnp.isnan(x[income_decile_idx])),
 
             # Housing-based
-            (~jnp.isnan(x[noc_idx])) & (~jnp.isnan(x[npf_idx])) & (x[noc_idx] >= x[npf_idx]) ,  # too_many_children
+            (~jnp.isnan(x[noc_idx])) & (~jnp.isnan(x[npf_idx])) & (noc_map[x[noc_idx].astype(int)] >= npf_map[x[npf_idx].astype(int)]),  # too_many_children
             (x[housing_type_idx] == housing_type_3_encoded) & (x[own_rent_idx] == own_rent_1_encoded),
             (x[housing_type_idx] == housing_type_2_encoded) & (x[own_rent_idx] == own_rent_2_encoded),
             (x[housing_type_idx] == housing_type_2_encoded) & (x[own_rent_idx] == own_rent_1_encoded),
@@ -145,17 +158,15 @@ def get_nist_simple_consistency_fn(domain, preprocessor, axis=0):
 
         violations = jnp.array(violations)
         return violations
-    # Dataset consistency count function
     row_inconsistency_vmap = jax.vmap(row_inconsistency, in_axes=(0, ))
+
     def count_inconsistency_fn(X):
         inconsistencies = row_inconsistency_vmap(X)
         aggregate = (jnp.sum(inconsistencies, axis=axis) / X.shape[0])
         return aggregate
-    # count_inconsistency_population_fn = jax.jit(jax.vmap(count_inconsistency_fn, in_axes=(0, )))
     return count_inconsistency_fn
-
 
 def get_nist_simple_population_consistency_fn(domain, preprocessor):
     count_inconsistency_fn = get_nist_simple_consistency_fn(domain, preprocessor)
-    count_inconsistency_population_fn = jax.jit(jax.vmap(count_inconsistency_fn, in_axes=(0, )))
+    count_inconsistency_population_fn = jax.vmap(count_inconsistency_fn, in_axes=(0, ))
     return count_inconsistency_population_fn

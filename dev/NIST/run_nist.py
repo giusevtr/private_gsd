@@ -2,17 +2,15 @@ import os, sys
 import jax.random
 import pandas as pd
 import numpy as np
-from models import GeneticSD, GeneticSDV2
-from stats import ChainedStatistics,  Marginals, NullCounts, Prefix
+from models import GeneticSDConsistent as GeneticSD
+from stats import ChainedStatistics, Marginals, NullCounts
 import jax.numpy as jnp
 from dp_data import load_domain_config, load_df
 from dp_data.data_preprocessor import DataPreprocessor
-from utils import timer, Dataset, Domain, filter_outliers
+from utils import timer, Dataset, Domain
 import pickle
-import matplotlib.pyplot as plt
-from dev.NIST.consistency import get_nist_all_population_consistency_fn
-from dev.NIST.consistency_simple import get_nist_simple_population_consistency_fn
-
+from dev.NIST.consistency import get_consistency_fn
+from dev.NIST.consistency_simple import get_nist_simple_consistency_fn
 
 NULL_COLS = [
     "MSP",
@@ -48,16 +46,15 @@ inc_bins_pre = np.array([-10000, -100, -10, -5,
                          100000, 101300, 140020,
                          200000, 300000, 400000, 500000, 1166000])
 
-
 if __name__ == "__main__":
-
     dataset_name = sys.argv[1]
     nist_type = str(sys.argv[2])
     eps = int(sys.argv[3])
+    data_size = int(sys.argv[4])
 
     assert nist_type in ['all', 'simple']
 
-    print(f'Input data {dataset_name}, epsilon={eps:.2f} ')
+    print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size} ')
     root_path = '../../dp-data-dev/datasets/preprocessed/sdnist_dce/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path)
@@ -66,8 +63,6 @@ if __name__ == "__main__":
     data = Dataset(df_train, domain)
     preprocessor_path = os.path.join(root_path + dataset_name, 'preprocessor.pkl')
     dataset_name = f'{dataset_name}_{nist_type}'
-
-
 
     bins = {}
     with open(preprocessor_path, 'rb') as handle:
@@ -86,10 +81,11 @@ if __name__ == "__main__":
         all_cols.remove('INDP')
         all_cols.remove('WGTP')
         all_cols.remove('PWGTP')
-        consistency_fn = get_nist_simple_population_consistency_fn(domain, preprocessor)
+        all_cols.remove('DENSITY')
+        consistency_fn = get_nist_simple_consistency_fn(domain, preprocessor)
     elif nist_type == 'all':
         all_cols.remove('INDP_CAT')
-        consistency_fn = get_nist_all_population_consistency_fn(domain, preprocessor)
+        consistency_fn = get_consistency_fn(domain, preprocessor)
 
     data = data.project(all_cols)
     domain = data.domain
@@ -105,18 +101,18 @@ if __name__ == "__main__":
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module._get_workload_fn()
 
-    algo = GeneticSDV2(num_generations=150000,
-                       print_progress=True,
-                       stop_early=False,
-                       domain=data.domain,
-                       population_size=100,
-                       multiple_round=15,
-                       data_size=2000,
-                       inconsistency_fn=consistency_fn,
-                       inconsistency_weight=1,
-                       mate_perturbation=1e-4,
-                       null_value_frac=0.01,
-                       )
+    N = len(data.df)
+    algo = GeneticSD(num_generations=300000,
+                     print_progress=True,
+                     stop_early=True,
+                     domain=data.domain,
+                     population_size=100,
+                     data_size=N,
+                     round_data_size=5000,
+                     inconsistency_fn=consistency_fn,
+                     mate_perturbation=1e-4,
+                     null_value_frac=0.01,
+                     )
     # Choose algorithm parameters
 
     delta = 1.0 / len(data) ** 2
@@ -126,18 +122,19 @@ if __name__ == "__main__":
         t0 = timer()
 
         sync_data = algo.fit_dp(key, stat_module=stat_module,
-                           epsilon=eps,
-                           delta=delta)
+                                epsilon=eps,
+                                delta=delta)
 
-        sync_dir = f'sync_data/{dataset_name}/{eps:.2f}/oneshot'
+        sync_dir = f'sync_data/{dataset_name}/{eps:.2f}/{N}/oneshot'
         os.makedirs(sync_dir, exist_ok=True)
         print(f'Saving {sync_dir}/sync_data_{seed}.csv')
         sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
         errors = jnp.abs(true_stats - stat_fn(sync_data.to_numpy()))
-        print(f'GSD(oneshot): eps={eps:.2f}, seed={seed}'
+
+        print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size}, seed={seed}')
+        print(f'GSD(oneshot):  '
               f'\t max error = {errors.max():.5f}'
               f'\t avg error = {errors.mean():.6f}'
               f'\t time = {timer() - t0:.4f}')
 
     print()
-

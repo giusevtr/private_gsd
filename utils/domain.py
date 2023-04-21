@@ -11,10 +11,11 @@ class Domain:
         self.attrs = list(config.keys())
         self.config = config
 
-        self.__is_col_null = self._set_null_cols(null_cols)
+        self.null_cols = null_cols
+        self._is_col_null = self._set_null_cols(null_cols)
 
     def has_nulls(self, col):
-        return self.__is_col_null[col]
+        return self._is_col_null[col]
 
     def _set_null_cols(self, null_cols):
         is_col_null = {}
@@ -36,7 +37,7 @@ class Domain:
         new_config = {}
         for a in attrs:
             new_config[a] = self.config[a]
-        return Domain(new_config, list(self.__is_col_null.keys()))
+        return Domain(new_config, null_cols=self.null_cols)
 
     # def marginalize(self, attrs):
     #     """ marginalize out some attributes from the domain (opposite of project)

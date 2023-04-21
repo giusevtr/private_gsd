@@ -70,6 +70,19 @@ def count_violations(df_orig, df, domain, preprocessor):
     sync_violation_counts = violations_fn(sync_data.to_numpy()) * len(sync_data.df)
     print(sync_violation_counts)
 
+def count_nulls(df_orig, df, domain):
+    data = Dataset(df_orig, domain)
+    sync_data = Dataset(df, domain)
+    null_counter = NullCounts(domain=domain)
+    null_fn = null_counter._get_dataset_statistics_fn()
+
+    real_nulls = null_fn(data)
+    sync_nulls = null_fn(sync_data)
+
+    print(f'\n\n\nREAL NULLS:')
+    print(real_nulls)
+    print(f'\n\n\nSYNC NULLS:')
+    print(sync_nulls)
 
 def post_nist(df, dataset_name='national2019', nist_type='simple'):
 
@@ -92,6 +105,14 @@ def post_nist(df, dataset_name='national2019', nist_type='simple'):
             return value - min_val
     orig_domain = Domain(config)
 
+    # Map DENSITY values using original data.
+    puma_density_map = {}
+    puma_size = orig_domain.size('PUMA')
+    for puma_id in range(puma_size):
+        df_temp = df_orig[df_orig['PUMA'] == puma_id]
+        density = df_temp['DENSITY'].values[0]
+        puma_density_map[puma_id] = density
+    df['DENSITY'] = df['PUMA'].apply(lambda puma_id: puma_density_map[puma_id])
 
     all_cols = orig_domain.attrs
     if nist_type == 'simple':
@@ -220,7 +241,7 @@ save_post_pat = sys.argv[4]
 print('Reading', sync_path)
 df = pd.read_csv(sync_path)
 df_post = post_nist(df, dataset_name=target_dataset, nist_type=nist_type)
-print(save_post_pat)
-df_post.to_csv('Saving', save_post_pat, index=False)
+print('Saving',save_post_pat)
+df_post.to_csv( save_post_pat, index=False)
 
 
