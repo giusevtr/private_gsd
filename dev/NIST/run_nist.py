@@ -52,22 +52,24 @@ inc_bins_pre = np.array([-10000, -100, -10, -5,
 if __name__ == "__main__":
     dataset_name = sys.argv[1]
     nist_type = str(sys.argv[2])
-    eps = int(sys.argv[3])
-    data_size = int(sys.argv[4])
-    k = int(sys.argv[5])
 
     assert nist_type in ['all', 'simple']
 
-    print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size} ')
     root_path = '../../dp-data-dev/datasets/preprocessed/sdnist_dce/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path)
 
     domain = Domain(config, NULL_COLS)
     data = Dataset(df_train, domain)
+    N = len(data.df)
     preprocessor_path = os.path.join(root_path + dataset_name, 'preprocessor.pkl')
     dataset_name = f'{dataset_name}_{nist_type}'
 
+    eps = float(sys.argv[3])
+    data_size = N if sys.argv[4] == 'N' else int(sys.argv[4])
+    k = int(sys.argv[5])
+
+    print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size}, k={k} ')
 
     bins = {}
     with open(preprocessor_path, 'rb') as handle:
@@ -101,9 +103,10 @@ if __name__ == "__main__":
 
     module1 = None
     if k == 3:
-        kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, 3)
-                             if 'PUMA' in list(idx)]
-        module1 = Marginals(data.domain, k=3, kway_combinations=kway_combinations, levels=5)
+        module1 = Marginals.get_all_kway_combinations(data.domain, k=3, levels=5,
+                                                      bins=bins,
+                                                      max_workload_size=40000,
+                                                      include_feature='PUMA')
     elif k == 2:
         module1 = Marginals.get_all_kway_combinations(data.domain, k=2, levels=5,
                                                       bins=bins,

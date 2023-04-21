@@ -157,7 +157,8 @@ class Marginals(AdaptiveStatisticState):
         return Marginals(domain, kway_combinations, k, bins=None)
 
     @staticmethod
-    def get_all_kway_combinations(domain, k, bins=None, levels=3, max_workload_size=None):
+    def get_all_kway_combinations(domain, k, bins=None, levels=3, max_workload_size=None,
+                                  include_feature=None):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
 
         if max_workload_size is not None:
@@ -176,8 +177,8 @@ class Marginals(AdaptiveStatisticState):
 
 
                 if workload_size < max_workload_size:
-                    # kway_combinations.remove(comb)
-                    new_kway_comb.append(comb)
+                    if include_feature is None or include_feature in comb:
+                        new_kway_comb.append(comb)
             kway_combinations = new_kway_comb
 
         return Marginals(domain, kway_combinations, k, bins=bins, levels=levels)

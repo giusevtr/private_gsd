@@ -455,14 +455,14 @@ class GeneticSDConsistent(Generator):
             if best_fitness < self.stop_eary_threshold: break
             if (t % self.stop_early_min_generation) == 0 and t > self.stop_early_min_generation:
                 # last_fit = self.fitness_record[-100]
-                loss_change = jnp.abs(LAST_LAG_FITNESS - best_fitness) / LAST_LAG_FITNESS
+                loss_change = jnp.abs(LAST_LAG_FITNESS - state.best_fitness) / LAST_LAG_FITNESS
 
                 if loss_change < 0.0001:
-                    if elite_violations.sum() == 0 and self.stop_early:
+                    if elite_violations.sum() < 10 and self.stop_early:
                         if self.print_progress: print(f'\t\t### Stop early at {t} ###')
                         break
-
-                    W = W * jnp.exp(elite_violations )
+                    if W.max() < 30:
+                        W = W + elite_violations
                     if self.print_progress:
                         print(f'\t\tUpdating consistency weight: t={t:>5}, W.max()={W.max():.4f}, W.mean()={W.mean():.4f}')
                     state = state.replace(best_fitness=1e9) # For the algorithm to update the next generation
