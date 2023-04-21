@@ -51,7 +51,7 @@ class Dataset:
     def synthetic_rng(domain: Domain, N, rng, null_values: float=0.0):
         """ Generate synthetic data conforming to the given domain """
         arr = [rng.uniform(size=N) if domain.type(att) == 'numerical'
-                else rng.integers(low=0, high=domain.size(att), size=N) for att in domain.attrs]
+                else rng.integers(low=0, high=domain.size(att), size=N).astype(float) for att in domain.attrs]
 
         values = np.array(arr).T
         temp = rng.uniform(low=0, high=1, size=values.shape) < null_values
@@ -141,14 +141,12 @@ class Dataset:
         return Dataset(df, domain=domain)
 
     def to_numpy(self):
-        # cols = [self.df.values[:, i].astype(float) if self.domain.type(att) == 'numerical' else
-        #          self.df.values[:, i].astype(int)
-        #         for i, att in enumerate(self.domain.attrs)]
-        # df_numpy = jnp.vstack(cols).T
-
         array = jnp.array(self.df.values)
         return array
 
+    def to_numpy_np(self):
+        array = np.array(self.df.values)
+        return array
     # def to_onehot(self) -> jnp.ndarray:
     #     df_data = self.df
     #     oh_encoded = []
