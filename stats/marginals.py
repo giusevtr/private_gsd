@@ -142,10 +142,8 @@ class Marginals(AdaptiveStatisticState):
                         sz = sum(bins)
                     total_size = total_size * sz
                 if total_size <= max_size:
-                    print(f'Adding ', idx, ' size=', total_size)
+                    # print(f'Adding ', idx, ' size=', total_size)
                     kway_combinations.append(list(idx))
-                else:
-                    print('\tExcluding', idx, ' size=', total_size)
             # kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)
             #                      if domain.size(idx) <= max_size]
         return Marginals(domain, kway_combinations, k, bins=bins)
