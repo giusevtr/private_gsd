@@ -462,7 +462,7 @@ class GeneticSDConsistent(Generator):
                         if self.print_progress: print(f'\t\t### Stop early at {t} ###')
                         break
 
-                    W = W * jnp.exp(elite_violations / self.data_size)
+                    W = W * jnp.exp(elite_violations )
                     if self.print_progress:
                         print(f'\t\tUpdating consistency weight: t={t:>5}, W.max()={W.max():.4f}, W.mean()={W.mean():.4f}')
                     state = state.replace(best_fitness=1e9) # For the algorithm to update the next generation

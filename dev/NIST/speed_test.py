@@ -12,7 +12,7 @@ import pickle
 from dev.NIST.consistency import get_consistency_fn
 from dev.NIST.consistency_simple import get_nist_simple_consistency_fn
 import itertools
-
+from tqdm import  tqdm
 
 NULL_COLS = [
     "MSP",
@@ -54,7 +54,6 @@ if __name__ == "__main__":
     nist_type = str(sys.argv[2])
     eps = int(sys.argv[3])
     data_size = int(sys.argv[4])
-    k = int(sys.argv[5])
 
     assert nist_type in ['all', 'simple']
 
@@ -97,59 +96,32 @@ if __name__ == "__main__":
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
     # One-shot queries
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=bins, levels=5)
+    # module0 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=bins, levels=5)
+    # kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, 3)
+    #                      if 'PUMA' in list(idx)]
+    # module1 = Marginals(data.domain, k=3, kway_combinations=kway_combinations, levels=5)
 
-    module1 = None
-    if k == 3:
-        kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, 3)
-                             if 'PUMA' in list(idx)]
-        module1 = Marginals(data.domain, k=3, kway_combinations=kway_combinations, levels=5)
-    elif k == 2:
-        module1 = Marginals.get_all_kway_combinations(data.domain, k=2, levels=5,
-                                                      bins=bins,
-                                                      max_workload_size=20000)
+    # module0 = MarginalsV2.get_kway_categorical(data.domain, k=1)
 
-    module_nulls = NullCounts(data.domain, null_cols=NULL_COLS)
-    stat_module = ChainedStatistics([module0, module1, module_nulls])
-    stat_module.fit(data)
+    t0 = timer()
+    module0 = Marginals.get_kway_categorical(data.domain, k=4)
+    stat_fn0 = jax.jit(module0._get_workload_fn())
+    X = data.to_numpy()
+    X_temp = X[:100, :]
+    for _ in tqdm(range(10000), desc='running stat_fn0'):
+        stat_0 = stat_fn0(X_temp).block_until_ready()
+    print(f'time0=', timer() - t0, 'stat_0.shape', stat_0.shape)
 
-    true_stats = stat_module.get_all_true_statistics()
-    stat_fn0 = stat_module._get_workload_fn()
+    t0 = timer()
+    module1 = MarginalsV2.get_kway_categorical(data.domain, k=4)
+    # stat_fn1 = module1._get_dataset_statistics_fn()
+    stat_fn1 = module1._get_workload_fn()
+    X = data.to_numpy_np()
 
-    N = len(data.df)
-    algo = GeneticSD(num_generations=500000,
-                       print_progress=True,
-                       stop_early=True,
-                       domain=data.domain,
-                       population_size=100,
-                       data_size=data_size,
-                       inconsistency_fn=consistency_fn,
-                       mate_perturbation=1e-4,
-                       null_value_frac=0.01,
-                       )
-    # Choose algorithm parameters
+    X_temp = X[:100, :]
+    for _ in tqdm(range(10000), desc='running stat_fn1'):
 
-    delta = 1.0 / len(data) ** 2
-    # Generate differentially private synthetic data with ADAPTIVE mechanism
-    for seed in [0]:
-        key = jax.random.PRNGKey(seed)
-        t0 = timer()
-
-        sync_data = algo.fit_dp(key, stat_module=stat_module,
-                           epsilon=eps,
-                           delta=delta)
-
-        sync_dir = f'sync_data/{dataset_name}/{eps:.2f}/{data_size}/oneshot'
-        os.makedirs(sync_dir, exist_ok=True)
-        print(f'Saving {sync_dir}/sync_data_{seed}.csv')
-        sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
-        errors = jnp.abs(true_stats - stat_fn0(sync_data.to_numpy()))
-
-        print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size}, seed={seed}')
-        print(f'GSD(oneshot):  '
-              f'\t max error = {errors.max():.5f}'
-              f'\t avg error = {errors.mean():.6f}'
-              f'\t time = {timer() - t0:.4f}')
-
-    print()
+        stat_1 = stat_fn1(X_temp)
+        # stat_1 = jnp.stack([stat_fn1(X_temp[i]) for i in range(100)])
+    print(f'time1=', timer() - t0, 'stat_1.shape', stat_1.shape)
 
