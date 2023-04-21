@@ -3,7 +3,7 @@ import jax.random
 import pandas as pd
 import numpy as np
 from models import GeneticSDConsistent as GeneticSD
-from stats import ChainedStatistics,  Marginals, NullCounts, MarginalsV2, MarginalsV3
+from stats import ChainedStatistics,  Marginals, NullCounts
 import jax.numpy as jnp
 from dp_data import load_domain_config, load_df
 from dp_data.data_preprocessor import DataPreprocessor
