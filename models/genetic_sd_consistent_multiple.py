@@ -293,7 +293,7 @@ class GeneticSDConsistent(Generator):
         else:
             self.round_data_size = round_data_size
         self.round = jnp.ceil(self.data_size / self.round_data_size).astype(int)
-        print(f"\ttotal round: {self.round} data size of each round:{self.round_data_size}")
+        print(f"total round: {self.round} data size of each round:{self.round_data_size}")
         self.num_generations = num_generations
         self.print_progress = print_progress
         self.stop_early = stop_early
