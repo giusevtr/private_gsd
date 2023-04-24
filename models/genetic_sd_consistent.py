@@ -310,10 +310,15 @@ class GeneticSDConsistent(Generator):
         """
         init_time = time.time()
 
-        selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
-        selected_statistics = adaptive_statistic.get_selected_statistics_without_noise()
-        statistics_fn = jax.jit(adaptive_statistic.get_selected_statistics_fn())
-        statistics_fn_debug = adaptive_statistic.get_selected_statistics_fn()
+        selected_statistics, selected_noised_statistics, statistics_fn = adaptive_statistic.get_selected_trimmed_statistics_fn()
+        print(f'\tNum queries = {selected_statistics.shape[0]}')
+
+        # fitness_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
+
+        # selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
+        # selected_statistics = adaptive_statistic.get_selected_statistics_without_noise()
+        # statistics_fn = jax.jit(adaptive_statistic.get_selected_statistics_fn())
+        # statistics_fn_debug = adaptive_statistic.get_selected_statistics_fn()
 
         if self.print_progress:
             gau_error = jnp.abs(selected_noised_statistics - selected_statistics)
@@ -322,16 +327,15 @@ class GeneticSDConsistent(Generator):
         # For debugging
         @jax.jit
         def true_loss(X_arg):
-            error = jnp.abs(selected_statistics - statistics_fn_debug(X_arg))
+            error = jnp.abs(selected_statistics - statistics_fn(X_arg))
             return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
 
         @jax.jit
         def private_loss(X_arg):
-            error = jnp.abs(selected_noised_statistics - statistics_fn_debug(X_arg))
+            error = jnp.abs(selected_noised_statistics - statistics_fn(X_arg))
             return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
 
         # Create statistic function.
-        fitness_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
 
         def fitness_fn(stats: chex.Array, violations: chex.Array, weight: chex.Array, pop_state: PopulationState):
             # Process one member of the population
@@ -339,8 +343,8 @@ class GeneticSDConsistent(Generator):
             rem_row = pop_state.remove_row
             add_row = pop_state.add_row
             num_rows = rem_row.shape[0]
-            add_stats = (num_rows * fitness_statistics_fn(add_row))
-            rem_stats = (num_rows * fitness_statistics_fn(rem_row))
+            add_stats = (num_rows * statistics_fn(add_row))
+            rem_stats = (num_rows * statistics_fn(rem_row))
             upt_sync_stat = stats.reshape(-1) + add_stats - rem_stats
 
             # Compute inconsistencies vector
@@ -365,7 +369,8 @@ class GeneticSDConsistent(Generator):
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             state = state.replace(archive=new_archive)
 
-        elite_population_fn = jax.jit(jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,)))
+        # elite_population_fn = jax.jit(jax.vmap(adaptive_statistic.get_selected_statistics_fn(), in_axes=(0,)))
+        elite_population_fn = jax.jit(jax.vmap(statistics_fn, in_axes=(0,)))
 
         archive_inconsistency_fn = jax.jit(jax.vmap(self.inconsistency_fn, in_axes=(0,)))
 
@@ -398,7 +403,7 @@ class GeneticSDConsistent(Generator):
         elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
         elite_violations = self.data_size * self.inconsistency_fn(state.best_member)  # Statistics of best SD
 
-        update_elite_stat_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
+        # update_elite_stat_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
         def update_elite_stat(elite_stat_arg,
                               elite_violations_arg,
                               population_state: PopulationState,
@@ -410,8 +415,8 @@ class GeneticSDConsistent(Generator):
             new_elite_stat = jax.lax.select(
                 replace_best,
                 elite_stat_arg
-                    - (num_rows * update_elite_stat_statistics_fn(population_state.remove_row[best_id_arg]))
-                    + (num_rows * update_elite_stat_statistics_fn(population_state.add_row[best_id_arg])),
+                    - (num_rows * statistics_fn(population_state.remove_row[best_id_arg]))
+                    + (num_rows * statistics_fn(population_state.add_row[best_id_arg])),
                 elite_stat_arg
             )
             new_elite_vio = jax.lax.select(

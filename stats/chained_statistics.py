@@ -7,7 +7,7 @@ from utils import Dataset, Domain, timer
 from tqdm import tqdm
 from stats import AdaptiveStatisticState
 
-
+cpu = jax.devices("cpu")
 class ChainedStatistics:
     all_workloads: list
     selected_workloads: list
@@ -19,10 +19,11 @@ class ChainedStatistics:
     def __init__(self, stat_modules: list):
         self.stat_modules = stat_modules
 
-    def fit(self, data: Dataset):
+    def fit(self, data: Dataset, max_queries_per_workload=-1):
         # X = data.to_numpy()
         self.data = data
         self.N = len(self.data.df)
+        self.max_queries_per_workload = self.N if max_queries_per_workload == -1 else max_queries_per_workload
         self.domain = data.domain
         self.all_workloads = []
         self.modules_workload_fn_jit = []
@@ -35,7 +36,7 @@ class ChainedStatistics:
             data_workload_fn = stat_mod._get_dataset_statistics_fn()
             all_stats = data_workload_fn(data)
             # self.modules_workload_fn_jit.append(jax.jit(stat_mod._get_workload_fn()))
-            self.modules_workload_fn_jit.append(stat_mod._get_dataset_statistics_fn(jitted=True))
+            self.modules_workload_fn_jit.append(stat_mod._get_dataset_statistics_fn(jitted=False))
             self.modules_all_statistics.append(all_stats)
             print(f'statistics {stat_id}: number of queries is {all_stats.shape[0]}')
 
@@ -261,6 +262,51 @@ class ChainedStatistics:
             gau_noise = jax.random.normal(key_gaussian, shape=stats.shape) * sigma_gaussian
             selected_noised_stat = jnp.clip(stats + gau_noise, 0, 1)
             self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
+
+    def get_selected_trimmed_statistics_fn(self, stat_modules_ids=None):
+        if stat_modules_ids is None:
+            stat_modules_ids = list(range(len(self.stat_modules)))
+        workload_fn_list = []
+        selected_true_chained_stats = []
+        selected_noised_chained_stats = []
+        for stat_id in stat_modules_ids:
+            stat_mod: AdaptiveStatisticState
+            stat_mod = self.stat_modules[stat_id]
+
+            query_ids_list = []
+            for workload_id, workload_fn, noised_workload_stats, true_workload_stats in self.selected_workloads[stat_id]:
+                wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
+                query_ids = np.arange(wrk_a, wrk_b)
+
+                sorted_ids = jnp.argsort(-noised_workload_stats)
+                workload_top_k = min(noised_workload_stats.shape[0], self.max_queries_per_workload)
+                topk_ids = sorted_ids[:workload_top_k]
+                selected_true_chained_stats.append(true_workload_stats[topk_ids])
+                selected_noised_chained_stats.append(noised_workload_stats[topk_ids])
+                query_ids_list.append(query_ids[topk_ids])
+            query_ids_concat = jnp.concatenate(query_ids_list)
+            tmp_fn = stat_mod._get_stat_fn(query_ids_concat)
+            tmp_ans = tmp_fn(self.data.to_numpy())
+            assert tmp_ans.shape[0] == query_ids_concat.shape[0]
+            workload_fn_list.append(tmp_fn)
+
+            # if len(noised_stats) > 0:
+            #     true_stats = jnp.concatenate(true_stats)
+            #     priv_stats = jnp.concatenate(noised_stats)
+            #     sorted_ids = jnp.argsort(-priv_stats)
+            #     workload_top_k = min(priv_stats.shape[0], self.max_queries_per_workload)
+            #     sparse_ids = sorted_ids[workload_top_k]
+            #     selected_true_chained_stats.append(true_stats[sparse_ids])
+            #     selected_noised_chained_stats.append(priv_stats[sparse_ids])
+            #     sparse_query_ids = query_ids[sparse_ids]
+            #     # workload_fn_list.append(stat_mod._get_workload_fn(sparse_workloads_ids))
+            #     workload_fn_list.append(stat_mod._get_stat_fn(sparse_query_ids))
+
+        def chained_workload(X, **kwargs):
+            return jnp.concatenate([fn(X, **kwargs) for fn in workload_fn_list], axis=0)
+
+        return jnp.concatenate(selected_true_chained_stats), jnp.concatenate(selected_noised_chained_stats), chained_workload
+
 
     def reselect_stats(self):
         self.selected_workloads = []

@@ -66,7 +66,8 @@ if __name__ == "__main__":
     dataset_name = f'{dataset_name}_{nist_type}'
 
     eps = float(sys.argv[3])
-    data_size = N if sys.argv[4] == 'N' else int(sys.argv[4])
+    data_size_str = sys.argv[4]
+    data_size = N if data_size_str == 'N' else int(data_size_str)
     k = int(sys.argv[5])
 
     print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size}, k={k} ')
@@ -102,19 +103,23 @@ if __name__ == "__main__":
     module0 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=bins, levels=5)
 
     module1 = None
+    modules = []
+    modules.append(module0)
     if k == 3:
         module1 = Marginals.get_all_kway_combinations(data.domain, k=3, levels=5,
                                                       bins=bins,
-                                                      max_workload_size=40000,
+                                                      # max_workload_size=40000,
                                                       include_feature='PUMA')
     elif k == 2:
         module1 = Marginals.get_all_kway_combinations(data.domain, k=2, levels=5,
                                                       bins=bins,
-                                                      max_workload_size=20000)
+                                                      # max_workload_size=20000
+                                                      )
 
-    module_nulls = NullCounts(data.domain, null_cols=NULL_COLS)
-    stat_module = ChainedStatistics([module0, module1, module_nulls])
-    stat_module.fit(data)
+    modules.append(module1)
+    # module_nulls = NullCounts(data.domain, null_cols=NULL_COLS)
+    stat_module = ChainedStatistics(modules)
+    stat_module.fit(data, max_queries_per_workload=1000)
 
     true_stats = stat_module.get_all_true_statistics()
     stat_fn0 = stat_module._get_workload_fn()
@@ -142,7 +147,7 @@ if __name__ == "__main__":
                            epsilon=eps,
                            delta=delta)
 
-        sync_dir = f'sync_data/{dataset_name}/{eps:.2f}/{data_size}/oneshot'
+        sync_dir = f'sync_data/{dataset_name}/{eps:.2f}/{data_size_str}/oneshot'
         os.makedirs(sync_dir, exist_ok=True)
         print(f'Saving {sync_dir}/sync_data_{seed}.csv')
         sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
