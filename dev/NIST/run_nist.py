@@ -160,4 +160,3 @@ if __name__ == "__main__":
               f'\t time = {timer() - t0:.4f}')
 
     print()
-
