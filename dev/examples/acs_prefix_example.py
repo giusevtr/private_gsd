@@ -29,7 +29,7 @@ if __name__ == "__main__":
     print(f'Dataset: {data_name}')
 
     # Create statistics and evaluate
-    marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bin_edges=[2, 4, 8, 16, 32])
 <<<<<<< HEAD:dev/examples/acs_prefix_example.py
     rng = jax.random.PRNGKey(0)
     prefix_module = Prefix.get_kway_prefixes(domain=data.domain, k_cat=1, k_num=2, rng=rng, random_prefixes=100)

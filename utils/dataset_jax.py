@@ -36,7 +36,18 @@ class Dataset:
             if domain.type(att) == 'categorical' or domain.type(att) == 'ordinal':
                 c = jax.random.randint(rng_temp0, shape=(N,), minval=0, maxval=domain.size(att))
             elif domain.type(att) == 'numerical':
-                c = jax.random.uniform(rng_temp0, shape=(N, ))
+                has_bin_edges, bin_edges = domain.get_bin_edges(att)
+                if has_bin_edges:
+                    rng_bin_0, rng_bin_1 = jax.random.split(rng_temp0, 2)
+                    num_bins = bin_edges.shape[0]
+                    bin_pos = jax.random.randint(rng_bin_0, shape=(N,), minval=1, maxval=num_bins)
+                    right_edge = bin_edges[bin_pos]
+                    left_edge = bin_edges[bin_pos-1]
+                    u = jax.random.uniform(rng_bin_1, shape=(N, ))
+                    c = (right_edge - left_edge) * u + left_edge
+
+                else:
+                    c = jax.random.uniform(rng_temp0, shape=(N, ))
 
             if domain.has_nulls(att):
                 null_idx = jax.random.randint(rng_temp1, minval=0, maxval=N, shape=(num_nulls,))

@@ -20,8 +20,8 @@ if __name__ == "__main__":
     print(f'Dataset: {data_name}')
 
     # Create statistics and evaluate
-    marginal_module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[2, 4, 8, 16, 32])
-    marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    marginal_module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bin_edges=[2, 4, 8, 16, 32])
+    marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bin_edges=[2, 4, 8, 16, 32])
     marginal_module = ChainedStatistics([marginal_module1, marginal_module2])
     marginal_module.fit(data)
 

@@ -276,7 +276,7 @@ class GeneticSDConsistent(Generator):
                  mate_rate=1,
                  print_progress=False,
                  stop_early=True,
-                 stop_early_gen=1000,
+                 stop_early_gen=None,
                  stop_eary_threshold=0,
                  inconsistency_fn=None,
                  null_value_frac: float = 0.02,
@@ -287,7 +287,7 @@ class GeneticSDConsistent(Generator):
         self.num_generations = num_generations
         self.print_progress = print_progress
         self.stop_early = stop_early
-        self.stop_early_min_generation = stop_early_gen
+        self.stop_early_min_generation = stop_early_gen if stop_early_gen is not None else data_size
         self.stop_eary_threshold = stop_eary_threshold
 
         self.inconsistency_fn = inconsistency_fn
@@ -463,11 +463,13 @@ class GeneticSDConsistent(Generator):
                 loss_change = jnp.abs(LAST_LAG_FITNESS - state.best_fitness) / LAST_LAG_FITNESS
 
                 if loss_change < 0.0001:
-                    if elite_violations.sum() < 10 and self.stop_early:
+                    if (elite_violations.sum() < 10 and self.stop_early) or W.max() > 1e6:
                         if self.print_progress: print(f'\t\t### Stop early at {t} ###')
                         break
-                    if W.max() < 30:
-                        W = W + elite_violations
+                    # W = W * (jnp.exp(elite_violations))
+                    W = W * jnp.min(jnp.vstack((2 * jnp.ones_like(W), jnp.exp(elite_violations))), axis=0)
+                    W = W * jnp.max(jnp.vstack((2 * jnp.zeros_like(W), W)), axis=0)
+
                     if self.print_progress:
                         print(f'\t\tUpdating consistency weight: t={t:>5}, W.max()={W.max():.4f}, W.mean()={W.mean():.4f}')
                     state = state.replace(best_fitness=1e9) # For the algorithm to update the next generation
@@ -488,9 +490,8 @@ class GeneticSDConsistent(Generator):
                         print(f'true error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f}), ', end='')
                         best_inconsistency_count = float((elite_violations).sum())
                         print(f'inconsistencies={best_inconsistency_count:.0f}, ', end=' ')
-                        print(f'|time={elapsed_time:.4f}(s):', end='')
-                        print(f'ask={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
-                        print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
+                        print(f'|time={elapsed_time:.4f}(s): ', end='')
+                        print(f'ask,fit,tell,elite=({ask_time:<3.3f},{fit_time:<3.3f}, {tell_time:<3.3f}, {elite_stat_time:<3.3f}), ', end='')
                         print()
                         last_fitness_debug = best_fitness
 

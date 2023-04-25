@@ -327,8 +327,8 @@ if __name__ == "__main__":
 
     data = get_classification()
 
-    marginal_module1, _ = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[2, 4])
-    marginal_module2, _ = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4])
+    marginal_module1, _ = Marginals.get_all_kway_combinations(data.domain, k=1, bin_edges=[2, 4])
+    marginal_module2, _ = Marginals.get_all_kway_combinations(data.domain, k=2, bin_edges=[2, 4])
 
     marginal_module1.fit(data)
     marginal_module2.fit(data)

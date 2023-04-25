@@ -15,7 +15,7 @@ if __name__ == "__main__":
     print(f'Dataset: {data_name}')
 
     # Create statistics and evaluate
-    marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bin_edges=[2, 4, 8, 16, 32])
 
     stat_module = ChainedStatistics([
                                          marginal_module2,

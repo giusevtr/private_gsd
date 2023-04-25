@@ -21,7 +21,7 @@ class Marginals(AdaptiveStatisticState):
         self.bins = bins if bins is not None else {}
         for num_col in domain.get_numerical_cols():
             if num_col not in self.bins:
-                self.bins[num_col] = np.linspace(0, 1, 64)
+                self.bins[num_col] = np.linspace(0, 1, 2 ** levels)
 
         self.set_up_stats()
 
@@ -150,31 +150,30 @@ class Marginals(AdaptiveStatisticState):
         return Marginals(domain, kway_combinations, k, bins=None)
 
     @staticmethod
-    def get_all_kway_combinations(domain, k, bins=None, levels=3, max_workload_size=None,
+    def get_all_kway_combinations(domain, k, bin_edges=None, levels=3, max_workload_size=None,
                                   include_feature=None):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
 
-        if max_workload_size is not None:
-            new_kway_comb = []
-            for comb in kway_combinations:
-                workload_size = 1
-                for att in comb:
-                    sz = domain.size(att)
-                    if sz > 1:
-                        workload_size = workload_size * sz
+        new_kway_comb = []
+        for comb in kway_combinations:
+            workload_size = 1
+            for att in comb:
+                sz = domain.size(att)
+                if sz > 1:
+                    workload_size = workload_size * sz
+                else:
+                    if bin_edges is not None and att in bin_edges:
+                        workload_size = workload_size * len(bin_edges[att])
                     else:
-                        if att in bins:
-                            workload_size = workload_size * len(bins[att])
-                        else:
-                            workload_size = workload_size * 64
+                        workload_size = workload_size * 64
 
 
-                if workload_size < max_workload_size:
-                    if include_feature is None or include_feature in comb:
-                        new_kway_comb.append(comb)
-            kway_combinations = new_kway_comb
+            if (max_workload_size is None) or workload_size < max_workload_size:
+                if include_feature is None or include_feature in comb:
+                    new_kway_comb.append(comb)
+        kway_combinations = new_kway_comb
 
-        return Marginals(domain, kway_combinations, k, bins=bins, levels=levels)
+        return Marginals(domain, kway_combinations, k, bins=bin_edges, levels=levels)
 
     @staticmethod
     def get_all_kway_mixed_combinations_v1(domain, k, bins=(32,)):
