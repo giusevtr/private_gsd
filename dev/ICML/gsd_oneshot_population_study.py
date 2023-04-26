@@ -48,15 +48,15 @@ def run(dataset_name, module_name):
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     delta = 1.0 / len(data) ** 2
-    for pop_size in [5, 10, 20, 30, 40, 80, 160, 320]:
+    for pop_size in [5, 10, 20, 40, 80, 160, 320, 640, 1280]:
         # algo = PrivGA(num_generations=500000,
         #               strategy=SimpleGAforSyncData(domain, 2000, population_size=pop_size, muta_rate=1, mate_rate=1),
         #               print_progress=False,
         #               stop_eary_threshold=0.014)
-        algo = PrivGAV2(num_generations=2000000,
+        algo = PrivGAV2(num_generations=2000000, stop_early=True,
                       domain=domain, data_size=2000, population_size=pop_size, muta_rate=1, mate_rate=1,
                       print_progress=False,
-                      stop_eary_threshold=0.1,
+                      # stop_eary_threshold=0.1,
                         # stop_eary_threshold = 0.014
         )
 
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     DATA = [
         # 'folktables_2018_real_CA',
-        # 'folktables_2018_coverage_CA',
+        'folktables_2018_coverage_CA',
         # 'folktables_2018_employment_CA',
         # 'folktables_2018_income_CA',
         # 'folktables_2018_mobility_CA',

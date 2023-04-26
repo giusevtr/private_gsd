@@ -186,7 +186,7 @@ class MarginalsDiff(AdaptiveStatisticState):
         self.set_up_stats()
 
     def __str__(self):
-        return f'Marginals(Differentiable)'
+        return f'Marginals'
 
     def get_num_workloads(self):
         return len(self.workload_positions)
