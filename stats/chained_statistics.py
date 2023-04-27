@@ -277,13 +277,12 @@ class ChainedStatistics:
             for workload_id, workload_fn, noised_workload_stats, true_workload_stats in self.selected_workloads[stat_id]:
                 wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
                 query_ids = np.arange(wrk_a, wrk_b)
-
                 sorted_ids = jnp.argsort(-noised_workload_stats)
                 workload_top_k = min(noised_workload_stats.shape[0], self.max_queries_per_workload)
                 topk_ids = sorted_ids[:workload_top_k]
                 selected_true_chained_stats.append(true_workload_stats[topk_ids])
                 selected_noised_chained_stats.append(noised_workload_stats[topk_ids])
-                query_ids_list.append(query_ids[topk_ids])
+                query_ids_list.append(query_ids[np.array(topk_ids)])
             query_ids_concat = jnp.concatenate(query_ids_list)
             tmp_fn = stat_mod._get_stat_fn(query_ids_concat)
             tmp_ans = tmp_fn(self.data.to_numpy())
