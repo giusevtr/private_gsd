@@ -251,7 +251,7 @@ from typing import Tuple, Callable
 ######################################################################
 ######################################################################
 
-from models.priv_ga_v2 import SimpleGAforSyncData, PopulationState
+from models.priv_ga import SimpleGAforSyncData, PopulationState
 # @dataclass
 class PrivGASparse(Generator):
 

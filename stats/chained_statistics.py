@@ -211,6 +211,7 @@ class ChainedStatistics:
                 sigma_gaussian = float(np.sqrt(sensitivity ** 2 / (2 * rho_per_marginal)))
                 gau_noise = jax.random.normal(key_gaussian, shape=stats.shape) * sigma_gaussian
                 selected_noised_stat = jnp.clip(stats + gau_noise, 0, 1)
+                # selected_noised_stat = stats + gau_noise
                 self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
 
     def get_sync_data_errors(self, data: Dataset):
@@ -304,10 +305,45 @@ class ChainedStatistics:
             selected_noised_stat = jnp.clip(stats + gau_noise, 0, 1)
             self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
 
+    def get_selected_trimmed_statistics_fn(self, stat_modules_ids=None):
+        if stat_modules_ids is None:
+            stat_modules_ids = list(range(len(self.stat_modules)))
+        workload_fn_list = []
+        selected_true_chained_stats = []
+        selected_noised_chained_stats = []
+        for stat_id in stat_modules_ids:
+            stat_mod: AdaptiveStatisticState
+            stat_mod = self.stat_modules[stat_id]
+            query_ids_list = []
+            for workload_id, workload_fn, noised_workload_stats, true_workload_stats in self.selected_workloads[stat_id]:
+                S = stat_mod._get_workload_sensitivity(workload_id, 1)**2 / 2
+                wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
+                query_ids = jnp.arange(wrk_a, wrk_b)
+                sorted_ids = jnp.argsort(-noised_workload_stats)
+                sorted_values = noised_workload_stats[sorted_ids]
+                cumsum_sorted_values = jnp.cumsum(sorted_values)
+                q_id = jnp.searchsorted(cumsum_sorted_values, S)
+                # workload_top_k = min(noised_workload_stats.shape[0], self.max_queries_per_workload)
+                topk_ids = sorted_ids[:q_id]
+                selected_true_chained_stats.append(true_workload_stats[topk_ids])
+                selected_noised_chained_stats.append(noised_workload_stats[topk_ids])
+                query_ids_list.append(query_ids[topk_ids])
+            query_ids_concat = jnp.concatenate(query_ids_list)
+            tmp_fn = stat_mod._get_stat_fn(query_ids_concat)
+            workload_fn_list.append(tmp_fn)
+
+        def chained_workload(X, **kwargs):
+            return jnp.concatenate([fn(X, **kwargs) for fn in workload_fn_list], axis=0)
+
+        return jnp.concatenate(selected_true_chained_stats), jnp.concatenate(selected_noised_chained_stats), chained_workload
+
     def reselect_stats(self):
         self.selected_workloads = []
         for stat_id in range(len(self.stat_modules)):
             self.selected_workloads.append([])
+
+
+
 
 
 def exponential_mechanism(key: jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
@@ -323,24 +359,11 @@ if __name__ == "__main__":
 
     data = get_classification()
 
-    marginal_module1, _ = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[2, 4])
-    marginal_module2, _ = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4])
-
-    marginal_module1.fit(data)
-    marginal_module2.fit(data)
-    alls_stats0 = jnp.concatenate([marginal_module1.get_all_true_statistics(),
-                                   marginal_module2.get_all_true_statistics()])
-
-    chained_module = ChainedStatistics([marginal_module1, marginal_module2])
+    # marginal_module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[2, 4])
+    marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    chained_module = ChainedStatistics([marginal_module2])
     chained_module.fit(data)
+    chained_module.private_measure_all_statistics(key=jax.random.PRNGKey(0), rho=10)
 
-    all_stats1 = chained_module.get_all_true_statistics()
+    chained_module.get_selected_trimmed_statistics_fn()
 
-    all_stats2 = chained_module.all_statistics_fn(data.to_numpy())
-    stat_fn = chained_module.get_all_statistics_fn()
-    all_stats3 = stat_fn(data.to_numpy())
-
-    print(alls_stats0)
-    print(all_stats1)
-    print(all_stats2)
-    print(all_stats3)

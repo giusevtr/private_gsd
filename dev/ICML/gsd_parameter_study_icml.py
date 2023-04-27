@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGAV2, SimpleGAforSyncData
+from models import PrivGA, SimpleGAforSyncData
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -52,7 +52,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 
     for mut, cross in itertools.product(mutations, crossover):
 
-        algo = PrivGAV2(num_generations=300000,
+        algo = PrivGA(num_generations=300000,
                       domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1)
         delta = 1.0 / len(data) ** 2
         for seed in seeds:

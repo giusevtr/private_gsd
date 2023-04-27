@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, PrivGAV2, PrivGAJit
+from models import PrivGA, PrivGA, PrivGAJit
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -52,7 +52,7 @@ def run(dataset_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0))
 
 
     # algo = PrivGAJit(num_generations=80000, domain=domain, data_size=2000, population_size=100, print_progress=True)
-    algo = PrivGAV2(num_generations=1000000,
+    algo = PrivGA(num_generations=1000000,
                   domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
                   print_progress=True)
 

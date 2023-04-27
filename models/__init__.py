@@ -1,7 +1,6 @@
 from models.generator_base import Generator
-from models.priv_ga import PrivGA, SimpleGAforSyncData
 from models.priv_ga_sparse import PrivGASparse
-from models.priv_ga_v2 import PrivGAV2
+from models.priv_ga import PrivGA
 from models.priv_ga_jit import PrivGAJit
 from models.relaxed_projection_pp import RelaxedProjectionPP
 from models.relaxed_projection_pp_v2 import RelaxedProjectionPP_v2

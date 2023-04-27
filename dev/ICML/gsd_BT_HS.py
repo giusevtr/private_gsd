@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGAV2, SimpleGAforSyncData, PrivGAJit
+from models import PrivGA, SimpleGAforSyncData, PrivGAJit
 from stats import ChainedStatistics, Marginals, HalfspacesBT
 # from utils.utils_data import get_data
 from utils import timer
@@ -63,7 +63,7 @@ def run(dataset_name, target,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.
     print(f'Data cardinality is {domain.size()}.')
     print(f'Number of queries is {true_stats.shape[0]}.')
 
-    algo = PrivGAV2(num_generations=20000,
+    algo = PrivGA(num_generations=20000,
                   domain=domain, data_size=1000, population_size=100, muta_rate=1, mate_rate=1,
                   print_progress=True)
 
