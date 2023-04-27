@@ -105,8 +105,9 @@ if __name__ == "__main__":
     key = jax.random.PRNGKey(0)
     # One-shot queries
     modules = []
-    # bins = None
-    modules.append(Marginals.get_all_kway_combinations(data.domain, k=1, bin_edges=bins, levels=5))
+    bins = None
+    modules.append(Marginals.get_all_kway_combinations(data.domain, k=1, bin_edges=bins, levels=20))
+    modules.append(Marginals.get_all_kway_combinations(data.domain, k=2, levels=10, include_feature='PUMA'))
     # modules.append(Marginals.get_all_kway_combinations(data.domain, k=1, levels=10))
     if k == 3:
         modules.append(Marginals.get_all_kway_combinations(data.domain, k=2, levels=5, bin_edges=bins))
