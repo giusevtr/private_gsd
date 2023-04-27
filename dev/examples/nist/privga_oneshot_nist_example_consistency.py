@@ -81,7 +81,7 @@ if __name__ == "__main__":
     key = jax.random.PRNGKey(0)
     # One-shot queries
     # module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32, 64])
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=bins, levels=5)
+    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bin_edges=bins, levels=5)
     stat_module = ChainedStatistics([module0])
     stat_module.fit(data)
 

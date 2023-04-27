@@ -1,6 +1,7 @@
 import os
 import sys
 
+import jax
 import pandas as pd
 from dp_data import load_domain_config, load_df
 from utils import timer, Dataset, Domain, filter_outliers
@@ -160,6 +161,7 @@ def post_nist(df, dataset_name='national2019', nist_type='simple'):
         con_fn = get_consistency_fn(domain, preprocessor, axis=1)
     elif nist_type == 'simple':
         con_fn = get_nist_simple_consistency_fn(domain, preprocessor, axis=1)
+
     row_consistency = con_fn(sync_data.to_numpy())
     rem_rows_idx = row_consistency>0
     drop = np.argwhere(rem_rows_idx).flatten()
@@ -241,7 +243,8 @@ save_post_pat = sys.argv[4]
 print('Reading', sync_path)
 df = pd.read_csv(sync_path)
 df_post = post_nist(df, dataset_name=target_dataset, nist_type=nist_type)
-print('Saving',save_post_pat)
-df_post.to_csv( save_post_pat, index=False)
+print('Saving', save_post_pat)
+os.makedirs('post_sync_data', exist_ok=True)
+df_post.to_csv(save_post_pat, index=False)
 
 

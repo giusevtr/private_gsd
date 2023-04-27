@@ -427,7 +427,7 @@ def test_jit_ask():
     domain = Domain([f'A {i}' for i in range(d)], [3 for _ in range(d)])
     data = Dataset.synthetic(domain, N=10, seed=0)
     domain = data.domain
-    marginals, _ = Marginals.get_all_kway_combinations(domain, k=k, bins=[2])
+    marginals, _ = Marginals.get_all_kway_combinations(domain, k=k, bin_edges=[2])
     marginals.fit(data)
     get_stats_vmap = lambda x: marginals.get_stats_jax_vmap(x)
     strategy = GeneticStrategy(domain, population_size=200, elite_size=10, data_size=2000,

@@ -2,7 +2,7 @@ from functools import reduce
 import jax.numpy as jnp
 
 class Domain:
-    def __init__(self, config: dict, null_cols: list = ()):
+    def __init__(self, config: dict, null_cols: list = (), bin_edges=None):
         """ Construct a Domain object
         
         :param attrs: a list or tuple of attribute names
@@ -11,8 +11,12 @@ class Domain:
         self.attrs = list(config.keys())
         self.config = config
 
+
         self.null_cols = null_cols
         self._is_col_null = self._set_null_cols(null_cols)
+
+        # Edges of real-value features used for discretization.
+        self._bin_edges = bin_edges
 
     def has_nulls(self, col):
         return self._is_col_null[col]
@@ -23,6 +27,13 @@ class Domain:
             is_col_null[col] = col in null_cols
         return is_col_null
 
+    def get_bin_edges(self, col):
+        """ Returns: First argument is a boolean indicating if col has bin edges defined. """
+        if self._bin_edges is None:
+            return False, None
+        if col not in self._bin_edges:
+            return False, None
+        return True, self._bin_edges[col]
 
     def project(self, attrs):
         """ project the domain onto a subset of attributes
@@ -37,7 +48,7 @@ class Domain:
         new_config = {}
         for a in attrs:
             new_config[a] = self.config[a]
-        return Domain(new_config, null_cols=self.null_cols)
+        return Domain(new_config, null_cols=self.null_cols, bin_edges=self._bin_edges)
 
     # def marginalize(self, attrs):
     #     """ marginalize out some attributes from the domain (opposite of project)

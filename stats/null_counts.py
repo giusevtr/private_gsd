@@ -47,36 +47,19 @@ class NullCounts(AdaptiveStatisticState):
         return data_fn
 
     def _get_workload_fn(self, workload_ids=None):
-        """
-        Returns marginals function and sensitivity
-        :return:
-        """
+        return self._get_stat_fn(workload_ids)
+
+    def _get_stat_fn(self, query_ids):
 
         def answer_fn(x_row: chex.Array, col_index: chex.Array):
             return jnp.isnan(x_row[col_index]).astype(int)
-
-        # if workload_ids is None:
-        #     these_queries = self.queries
-        # else:
-        #     these_queries = []
-        #     query_positions = []
-        #     for stat_id in workload_ids:
-        #         a, b = self.workload_positions[stat_id]
-        #         q_pos = jnp.arange(a, b)
-        #         query_positions.append(q_pos)
-        #         these_queries.append(self.queries[a:b, :])
-        #     these_queries = jnp.concatenate(these_queries, axis=0)
         temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
-        if workload_ids is None:
-            dim = len(self.domain.attrs)
-            # attrs_indices = jnp.arange(dim)
+        if query_ids is None:
             null_attrs = self.null_cols
         else:
             # attrs_indices = jnp.array(workload_ids)
-            null_attrs = [self.null_cols[w_id] for w_id in workload_ids]
-
+            null_attrs = [self.null_cols[w_id] for w_id in query_ids]
         attrs_indices = self.domain.get_attribute_indices(null_attrs)
-
 
         def scan_fun(carry, x):
             return carry + temp_stat_fn(x, attrs_indices), None
@@ -86,5 +69,4 @@ class NullCounts(AdaptiveStatisticState):
             return stats / X.shape[0]
 
         return stat_fn
-
 

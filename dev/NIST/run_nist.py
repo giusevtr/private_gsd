@@ -31,7 +31,7 @@ NULL_COLS = [
     "PWGTP",
     "WGTP"]
 
-inc_bins_pre = np.array([-10000, -100, -10, -5,
+inc_bins_pre = jnp.array([-10000, -100, -10, -5,
                          1,
                          5,
                          10, 50, 100, 200,
@@ -59,18 +59,7 @@ if __name__ == "__main__":
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path)
 
-    domain = Domain(config, NULL_COLS)
-    data = Dataset(df_train, domain)
-    N = len(data.df)
     preprocessor_path = os.path.join(root_path + dataset_name, 'preprocessor.pkl')
-    dataset_name = f'{dataset_name}_{nist_type}'
-
-    eps = float(sys.argv[3])
-    data_size = N if sys.argv[4] == 'N' else int(sys.argv[4])
-    k = int(sys.argv[5])
-
-    print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size}, k={k} ')
-
     bins = {}
     with open(preprocessor_path, 'rb') as handle:
         # preprocessor:
@@ -81,6 +70,22 @@ if __name__ == "__main__":
         print(min_val, max_val)
         inc_bins = (inc_bins_pre - min_val) / (max_val - min_val)
         bins['PINCP'] = inc_bins
+
+    domain = Domain(config, NULL_COLS, bin_edges=bins)
+    data = Dataset(df_train, domain)
+
+
+    N = len(data.df)
+    dataset_name = f'{dataset_name}_{nist_type}'
+
+    eps = float(sys.argv[3])
+    data_size_str = sys.argv[4]
+    data_size = N if data_size_str == 'N' else int(data_size_str)
+    k = int(sys.argv[5])
+
+    print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size}, k={k} ')
+
+
 
     all_cols = domain.attrs
     consistency_fn = None
@@ -99,40 +104,40 @@ if __name__ == "__main__":
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
     # One-shot queries
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=bins, levels=5)
-
-    module1 = None
+    modules = []
+    # bins = None
+    modules.append(Marginals.get_all_kway_combinations(data.domain, k=1, bin_edges=bins, levels=5))
+    # modules.append(Marginals.get_all_kway_combinations(data.domain, k=1, levels=10))
     if k == 3:
-        module1 = Marginals.get_all_kway_combinations(data.domain, k=3, levels=5,
-                                                      bins=bins,
-                                                      max_workload_size=40000,
-                                                      include_feature='PUMA')
+        modules.append(Marginals.get_all_kway_combinations(data.domain, k=2, levels=5, bin_edges=bins))
+        modules.append(Marginals.get_all_kway_combinations(data.domain, k=3, levels=5, bin_edges=bins,
+                                                           include_feature='PUMA'))
     elif k == 2:
-        module1 = Marginals.get_all_kway_combinations(data.domain, k=2, levels=5,
-                                                      bins=bins,
-                                                      max_workload_size=20000)
+        modules.append(Marginals.get_all_kway_combinations(data.domain, k=2, levels=5, bin_edges=bins))
 
-    module_nulls = NullCounts(data.domain, null_cols=NULL_COLS)
-    stat_module = ChainedStatistics([module0, module1, module_nulls])
-    stat_module.fit(data)
+    # module_nulls = NullCounts(data.domain, null_cols=NULL_COLS)
+    stat_module = ChainedStatistics(modules)
+    stat_module.fit(data, max_queries_per_workload=2000)
 
     true_stats = stat_module.get_all_true_statistics()
     stat_fn0 = stat_module._get_workload_fn()
 
     N = len(data.df)
-    algo = GeneticSD(num_generations=500000,
+    algo = GeneticSD(num_generations=1000000,
                        print_progress=True,
                        stop_early=True,
                        domain=data.domain,
                        population_size=100,
                        data_size=data_size,
+                        stop_early_gen=data_size,
                        inconsistency_fn=consistency_fn,
                        mate_perturbation=1e-4,
                        null_value_frac=0.01,
                        )
     # Choose algorithm parameters
 
-    delta = 1.0 / len(data) ** 2
+    # delta = 1.0 / len(data) ** 2
+    delta = 10**(-5)
     # Generate differentially private synthetic data with ADAPTIVE mechanism
     for seed in [0]:
         key = jax.random.PRNGKey(seed)
@@ -142,14 +147,14 @@ if __name__ == "__main__":
                            epsilon=eps,
                            delta=delta)
 
-        sync_dir = f'sync_data/{dataset_name}/{eps:.2f}/{data_size}/oneshot'
+        sync_dir = f'sync_data/{dataset_name}/{k}/{eps:.2f}/{data_size_str}/oneshot'
         os.makedirs(sync_dir, exist_ok=True)
         print(f'Saving {sync_dir}/sync_data_{seed}.csv')
         sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
         errors = jnp.abs(true_stats - stat_fn0(sync_data.to_numpy()))
 
-        print(f'Input data {dataset_name}, epsilon={eps:.2f}, data_size={data_size}, seed={seed}')
-        print(f'GSD(oneshot):  '
+        print(f'Input data {dataset_name}, k={k}, epsilon={eps:.2f}, data_size={data_size}, seed={seed}')
+        print(f'GSD(oneshot):'
               f'\t max error = {errors.max():.5f}'
               f'\t avg error = {errors.mean():.6f}'
               f'\t time = {timer() - t0:.4f}')

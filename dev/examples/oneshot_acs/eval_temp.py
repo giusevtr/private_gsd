@@ -142,7 +142,7 @@ if __name__ == "__main__":
 
 
 
-    marginal_module, _ = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    marginal_module, _ = Marginals.get_all_kway_combinations(data.domain, k=2, bin_edges=[2, 4, 8, 16, 32])
     marginal_module.fit(data)
     true_stats = marginal_module.get_all_true_statistics()
     stat_fn = marginal_module._get_workload_fn()

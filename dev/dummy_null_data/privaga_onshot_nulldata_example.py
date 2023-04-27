@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     # Create statistics and evaluate
     key = jax.random.PRNGKey(0)
-    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
+    module0 = Marginals.get_all_kway_combinations(data.domain, k=2, bin_edges=[2, 4, 8, 16, 32])
     module1 = NullCounts(domain)
     stat_module = ChainedStatistics([module0, module1])
     stat_module.fit(data)

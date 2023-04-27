@@ -30,7 +30,7 @@ if __name__ == "__main__":
     SYNC_DATA_SIZE = 2000
     # Create statistics and evaluate
     k = 2
-    marginal_module, _ = Marginals.get_all_kway_combinations(data.domain, k=k, bins=[2, 4, 8, 16, 32])
+    marginal_module, _ = Marginals.get_all_kway_combinations(data.domain, k=k, bin_edges=[2, 4, 8, 16, 32])
     marginal_module.fit(data)
 
     true_stats = marginal_module.get_all_true_statistics()
