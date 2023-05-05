@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     # module_nulls = NullCounts(data.domain, null_cols=NULL_COLS)
     stat_module = ChainedStatistics(modules)
-    stat_module.fit(data, max_queries_per_workload=2000)
+    stat_module.fit(data, max_queries_per_workload=5000)
 
     true_stats = stat_module.get_all_true_statistics()
     stat_fn0 = stat_module._get_workload_fn()
