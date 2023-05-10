@@ -31,6 +31,7 @@ if __name__ == "__main__":
     preprocesor = pickle.load(open(f'{root_path}/{dataset_name}/preprocessor.pkl', 'rb'))
 
     domain = Domain.fromdict(config)
+    data = Dataset(df_train, domain)
     cat_cols = domain.get_categorical_cols()
     num_cols = domain.get_numeric_cols()
 
@@ -38,32 +39,53 @@ if __name__ == "__main__":
     print(f'test size:  {df_test.shape}')
     # domain = Domain.fromdict(config)
     # data = Dataset(df_train, domain)
-    targets = ['JWMNP_bin', 'PINCP', 'ESR', 'MIG', 'PUBCOV']
+    targets = ['JWMNP_bin', 'PINCP', 'MIG', 'PUBCOV', 'ESR']
     # targets = ['PINCP', 'PUBCOV']
     features = []
     for f in domain.attrs:
         if f not in targets:
             features.append(f)
-    # model = 'XGBoost'
-    model = 'LogisticRegression'
+
+    # model = 'LogisticRegression'
+    model = 'XGBoost'
+    # model = 'RandomForest'
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
 
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
     seeds = [0, 1, 2]
 
-    Res = []
-    res = ml_fn(df_train, seed=0)
-    res = res[res['Eval Data'] == 'Test']
-    print(res)
-    for i, row in res.iterrows():
-        target = row['target']
-        metric = row['Metric']
-        score = row['Score']
-        for eps in epsilon_vals:
-            Res.append([dataset_name, 'No', f'Original', '', 'oneshot', 'oneshot', model, target, eps, metric, 0, score])
-        # Res.append([dataset_name, 'Yes', algo_name+query_name, 'LR', target, eps, 'Accuracy', seed, acc])
 
-    results = pd.DataFrame(Res, columns=['Data', 'Is DP', 'Generator',
+    queries = [
+        # ('Binary_Tree_Marginals', 'BT'),
+        # ('Histogram', 'Hist')
+        ('2Cat+HS_0.8_10m', 'HS')
+        # ('2Cat+Prefix', 'Prefix')
+    ]
+    Res = []
+    for eps, seed, (q_name, q_short_name) in itertools.product(epsilon_vals, seeds, queries):
+
+        sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/50/5/{eps:.2f}/sync_data_{seed}.csv'
+        # sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/{eps:.2f}/sync_data_{seed}.csv'
+        if not os.path.exists(sync_path):
+            print(f'{sync_path} NOT FOUND')
+            continue
+
+        print(f'reading {sync_path}')
+        df_sync_post = pd.read_csv(sync_path)
+        res = ml_fn(df_sync_post, seed=0)
+        res = res[res['Eval Data'] == 'Test']
+        # res = res[res['Metric'] == 'f1_macro']
+        print('seed=', seed, 'eps=', eps)
+        print(res)
+        for i, row in res.iterrows():
+            target = row['target']
+            metric = row['Metric']
+            score = row['Score']
+            Res.append([dataset_name, 'Yes', f'GSD', q_short_name, '50', '5', model, target, eps, metric, seed, score])
+            # Res.append([dataset_name, 'Yes', algo_name+query_name, 'LR', target, eps, 'Accuracy', seed, acc])
+
+    results = pd.DataFrame(Res, columns=['Data', 'Is DP',
+                                         'Generator',
                                          'Statistics',
                                          'T', 'S',
                                          'Model',
@@ -72,8 +94,10 @@ if __name__ == "__main__":
                                          'Score'])
 
     print(results)
-    os.makedirs('results_final', exist_ok=True)
-    file_path = f'results_final/results_original_{model}.csv'
+    file_path = 'results'
+    os.makedirs(file_path, exist_ok=True)
+    # file_path = f'results/results_gsd_oneshot_2bt_{model}.csv'
+    file_path = f'results/results_gsd_ada_hs_{model}.csv'
     # if os.path.exists(file_path):
     #     results_pre = pd.read_csv(file_path, index_col=None)
     #     results = results_pre.append(results)

@@ -20,7 +20,7 @@ from dp_data import load_domain_config, load_df
 from dev.dataloading.data_functions.acs import get_acs_all
 
 
-def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
+def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0), eval_only=False):
     module_name = '3-Cat'
     Res = []
 
@@ -61,11 +61,20 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
                 t0 = timer()
                 sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/{rounds}/1/{eps:.2f}/'
                 os.makedirs(sync_dir, exist_ok=True)
-                sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
-                                               epsilon=eps, delta=delta,
-                                                 rounds=rounds, num_sample=1
-                                               )
-                sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+                sync_path = f'{sync_dir}/sync_data_{seed}.csv'
+
+                if eval_only:
+                    if not os.path.exists(sync_path): continue
+                    print(f'Reading {sync_path}')
+                    sync_df = pd.read_csv(sync_path)
+                    sync_data = Dataset(sync_df, domain)
+                else:
+                    sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
+                                                   epsilon=eps, delta=delta,
+                                                     rounds=rounds, num_sample=1
+                                                   )
+                    sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+
                 errors = jnp.abs(true_stats - stat_fn(sync_data))
                 elapsed_time = timer() - t0
                 print(f'GSD({dataset_name, module_name}): eps={eps:.2f}, seed={seed}'
@@ -84,19 +93,19 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
 if __name__ == "__main__":
 
     DATA = [
-        'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        # 'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
-        # 'folktables_2018_travel_CA',
+        # 'folktables_2018_coverage_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_mobility_CA',
+        'folktables_2018_income_CA',
+        'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/gsd_adaptive_3way_categorical_coverage.csv'
-    results = None
+    # results = None
     for data in DATA:
-        results_temp = run(data, eps_values=[1.0, 0.74, 0.52, 0.23, 0.07], seeds=[0, 1, 2])
-        results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
+        file_name = f'icml_results/gsd_adaptive_3way_categorical_{data}.csv'
+        results = run(data, eps_values=[1.0, 0.74, 0.52, 0.23, 0.07], seeds=[0, 1, 2], eval_only=True)
+        # results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
         results.to_csv(file_name, index=False)
 

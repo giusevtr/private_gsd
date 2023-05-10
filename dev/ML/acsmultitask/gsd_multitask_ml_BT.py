@@ -47,6 +47,8 @@ if __name__ == "__main__":
             features.append(f)
 
     model = 'LogisticRegression'
+    # model = 'XGBoost'
+    # model = 'RandomForest'
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
 
     epsilon_vals = [0.07, 0.23, 0.52, 0.74, 1]
@@ -57,6 +59,7 @@ if __name__ == "__main__":
         ('Binary_Tree_Marginals', 'BT'),
         # ('Histogram', 'Hist')
         # ('2Cat+HS_0.8_10m', 'HS')
+        # ('2Cat+Prefix', 'Prefix')
     ]
     Res = []
     for eps, seed, (q_name, q_short_name) in itertools.product(epsilon_vals, seeds, queries):
@@ -71,16 +74,18 @@ if __name__ == "__main__":
         df_sync_post = pd.read_csv(sync_path)
         res = ml_fn(df_sync_post, seed=0)
         res = res[res['Eval Data'] == 'Test']
-        res = res[res['Metric'] == 'f1_macro']
+        # res = res[res['Metric'] == 'f1_macro']
         print('seed=', seed, 'eps=', eps)
         print(res)
         for i, row in res.iterrows():
             target = row['target']
-            f1 = row['Score']
-            Res.append([dataset_name, 'Yes', f'GSD', q_short_name, 'oneshot', 'oneshot', model, target, eps, 'F1', seed, f1])
-            # Res.append([dataset_name, 'Yes', algo_name+query_name, 'LR', target, eps, 'Accuracy', seed, acc])
+            metric = row['Metric']
+            score = row['Score']
+            Res.append([dataset_name, 'Yes', f'GSD', q_short_name, 'oneshot', 'oneshot', model, target, eps, metric, seed, score])
+            # Res.append([dataset_name, 'Yes', f'GSD', q_short_name, 'LR', target, eps, 'Accuracy', seed, acc])
 
-    results = pd.DataFrame(Res, columns=['Data', 'Is DP', 'Generator',
+    results = pd.DataFrame(Res, columns=['Data', 'Is DP',
+                                         'Generator',
                                          'Statistics',
                                          'T', 'S',
                                          'Model',
@@ -89,9 +94,9 @@ if __name__ == "__main__":
                                          'Score'])
 
     print(results)
-    file_path = 'results'
-    os.makedirs(file_path, exist_ok=True)
-    file_path = f'results/results_gsd_oneshot_2bt.csv'
+    os.makedirs('results_final', exist_ok=True)
+    file_path = f'results_final/results_gsd_oneshot_2bt_{model}.csv'
+    # file_path = f'results/results_gsd_ada_hs_{model}.csv'
     # if os.path.exists(file_path):
     #     results_pre = pd.read_csv(file_path, index_col=None)
     #     results = results_pre.append(results)

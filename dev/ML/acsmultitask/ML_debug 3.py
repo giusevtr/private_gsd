@@ -74,7 +74,7 @@ def test_rf(pca, X_train, y_train, X_test, y_test, title=''):
     return metric_test
 
 
-RESCALE = True
+RESCALE =False
 
 def plot_marginal_dist(real_df, sync_df, feature_col, label_col):
 
@@ -141,12 +141,13 @@ if __name__ == "__main__":
     for num_c in cols_num:
         columns.append(f'{num_c}')
 
-    sync_df = pd.read_csv(f'sync_data/GSD/folktables_2018_multitask_CA/GSD/Binary_Tree_Marginals/{epsilon:.2f}/sync_data_0.csv')
+    # sync_df = pd.read_csv(f'sync_data/GSD/folktables_2018_multitask_CA/GSD/Binary_Tree_Marginals/{epsilon:.2f}/sync_data_0.csv')
+    sync_df = pd.read_csv(f'sync_data/GSD/folktables_2018_multitask_CA/GSD/2Cat+Prefix/1.00/sync_data_0.csv')
 
 
-    # plot_marginal_dist(train_df, sync_df, feature_col='WKHP', label_col='PINCP')
-    # plot_marginal_dist(train_df, sync_df, feature_col='INTP', label_col='PINCP')
-    # plot_marginal_dist(train_df, sync_df, feature_col='SEMP', label_col='PINCP')
+    plot_marginal_dist(train_df, sync_df, feature_col='WKHP', label_col='PINCP')
+    plot_marginal_dist(train_df, sync_df, feature_col='INTP', label_col='PINCP')
+    plot_marginal_dist(train_df, sync_df, feature_col='SEMP', label_col='PINCP')
     plot_marginal_dist(train_df, sync_df, feature_col='WAGP', label_col='PINCP')
 
 

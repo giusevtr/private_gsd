@@ -131,18 +131,20 @@ if __name__ == "__main__":
     df_sync['Type'] = 'Sync'
     df = pd.concat([df_real.sample(n=2000), df_sync], ignore_index=True)
     alpha = 0.1
-    df1 = df[df['L'] == 1].drop(columns=['L'])
-    df0 = df[df['L'] == 0].drop(columns=['L'])
+    # df1 = df[df['L'] == 1].drop(columns=['L'])
+    # df0 = df[df['L'] == 0].drop(columns=['L'])
 
+    df_real = df_real[['x_0', 'x_1', 'L']]
+    g = sns.PairGrid(df_real.sample(n=2000), hue='L')
+    g.map_diag(sns.histplot, alpha=alpha)
+    g.map_offdiag(sns.scatterplot, alpha=alpha)
+    plt.show()
 
-    # g = sns.PairGrid(df1, hue='Type')
-    # g.map_diag(sns.histplot, alpha=alpha)
-    # g.map_offdiag(sns.scatterplot, alpha=alpha)
-    # plt.show()
-    # g = sns.PairGrid(df0, hue='Type')
-    # g.map_diag(sns.histplot, alpha=alpha)
-    # g.map_offdiag(sns.scatterplot, alpha=alpha)
-    # plt.show()
+    df_sync = df_sync[['x_0', 'x_1', 'L']]
+    g = sns.PairGrid(df_sync, hue='L')
+    g.map_diag(sns.histplot, alpha=alpha)
+    g.map_offdiag(sns.scatterplot, alpha=alpha)
+    plt.show()
 
 
 
@@ -151,7 +153,7 @@ if __name__ == "__main__":
     bins = 64
     max_error_total = 0
     avg_error_total = 0
-    df = pd.concat([df_real, df_sync], ignore_index=True)
+    # df = pd.concat([df_real, df_sync], ignore_index=True)
     for L in [0, 1]:
         df_L = df[df['L'] == L].drop(columns=['L'])
         for i, j in itertools.product(range(n_components), range(n_components)):
@@ -166,12 +168,16 @@ if __name__ == "__main__":
             y_s = df1_sync[f'x_{j}'].values
 
             if i == j:
+
+                sns.histplot()
+
+
                 H_real, _ = np.histogram(x_r, range=[-range_w, range_w], bins=bins)
                 H_sync, _ = np.histogram(x_s, range=[-range_w, range_w], bins=bins)
                 H_real = H_real.astype(float) / N
                 H_sync = H_sync.astype(float) / N_sync
                 errors = np.abs(H_real - H_sync)
-                # plt.bar(x=np.arange(errors.shape[0]), height=errors)
+                plt.bar(x=np.arange(errors.shape[0]), height=errors)
                 # plt.show()
                 max_errror = errors.max()
                 avg_errror = errors.sum()

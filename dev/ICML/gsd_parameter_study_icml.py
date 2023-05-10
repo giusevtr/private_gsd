@@ -22,17 +22,20 @@ from dev.dataloading.data_functions.acs import get_acs_all
 
 def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)):
     Res = []
-
+    print(dataset_name)
     root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
     config = load_domain_config(dataset_name, root_path=root_path)
     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
 
+
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
     domain = Domain.fromdict(config)
     data = Dataset(df_train, domain)
+    print(len(domain.get_numeric_cols()), len(domain.get_categorical_cols()))
 
+    return None
     # Create statistics and evaluate
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
 
@@ -90,11 +93,11 @@ if __name__ == "__main__":
 
     DATA = [
         # 'folktables_2018_real_CA',
-        # 'folktables_2018_coverage_CA',
-        # 'folktables_2018_employment_CA',
+        'folktables_2018_coverage_CA',
+        'folktables_2018_employment_CA',
         'folktables_2018_income_CA',
-        # 'folktables_2018_mobility_CA',
-        # 'folktables_2018_travel_CA',
+        'folktables_2018_mobility_CA',
+        'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
@@ -107,6 +110,6 @@ if __name__ == "__main__":
     for data in DATA:
         results_temp = run(data, 'Ranges', eps_values=[1.0])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
-        print(f'Saving: {file_name}')
-        results.to_csv(file_name, index=False)
+        # print(f'Saving: {file_name}')
+        # results.to_csv(file_name, index=False)
 

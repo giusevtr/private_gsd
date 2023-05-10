@@ -105,7 +105,6 @@ if __name__ == "__main__":
         if f not in targets:
             features.append(f)
 
-    epsilon = 1
     # for epsilon in [0.07, 0.23, 0.52, 0.74, 1]:
     for epsilon in [1.0]:
         print(f'Epsilon= {epsilon}')
