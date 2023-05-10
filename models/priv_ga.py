@@ -380,12 +380,12 @@ class PrivGA(Generator):
             num_rows = population_state.remove_row[0].shape[0]
 
             new_elite_stat = jax.lax.select(
-                replace_best,
-                elite_stat_arg
-                    - (num_rows * statistics_fn(population_state.remove_row[best_id_arg]))
-                    + (num_rows * statistics_fn(population_state.add_row[best_id_arg])),
-                elite_stat_arg
-            )
+                    replace_best,
+                    elite_stat_arg
+                        - (num_rows * statistics_fn(population_state.remove_row[best_id_arg]))
+                        + (num_rows * statistics_fn(population_state.add_row[best_id_arg])),
+                    elite_stat_arg
+                )
             return new_elite_stat
 
         update_elite_stat_jit = jax.jit(update_elite_stat)
@@ -406,7 +406,6 @@ class PrivGA(Generator):
 
             # TELL
             t0 = timer()
-
             state, rep_best, best_id = self.strategy.tell(population_state.X, fitness, state)
             state.archive.block_until_ready()
             best_fitness = state.best_fitness
@@ -420,17 +419,18 @@ class PrivGA(Generator):
 
             if best_fitness < self.stop_eary_threshold: break
 
-
             if best_fitness < self.stop_eary_threshold: break
             if (t % self.stop_early_min_generation) == 0 and t > self.stop_early_min_generation and self.stop_early:
                 loss_change = jnp.abs(LAST_LAG_FITNESS - state.best_fitness) / LAST_LAG_FITNESS
-                if loss_change < 0.0001:
-                    if self.print_progress: print(f'\t\t ### Stop early at {t} ###')
-                    break
+
                 if self.print_progress:
                     print(f'\t\t{t:<4}: Best.Fitness={state.best_fitness:<4.5f}, '
                           f'Last.Fitness={LAST_LAG_FITNESS:4.5f}, '
                           f'Loss change={loss_change:.5f}')
+
+                if loss_change < 0.0001:
+                    if self.print_progress: print(f'\t\t ### Stop early at {t} ###')
+                    break
                 LAST_LAG_FITNESS = state.best_fitness
 
             if t % 50 == 0:

@@ -33,11 +33,11 @@ class ChainedStatistics:
             stat_mod: AdaptiveStatisticState
             stat_mod = self.stat_modules[stat_id]
 
-            data_workload_fn = stat_mod._get_dataset_statistics_fn()
+            data_workload_fn = stat_mod._get_dataset_statistics_fn(jitted=False)
 
             all_stats = data_workload_fn(data)
             # self.modules_workload_fn_jit.append(jax.jit(stat_mod._get_workload_fn()))
-            self.modules_workload_fn_jit.append(stat_mod._get_dataset_statistics_fn(jitted=True))
+            self.modules_workload_fn_jit.append(stat_mod._get_dataset_statistics_fn(jitted=False))
             self.modules_all_statistics.append(all_stats)
             print(f'\nnumber of queries is {all_stats.shape[0]}\n')
 
