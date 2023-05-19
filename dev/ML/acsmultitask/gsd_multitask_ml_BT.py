@@ -37,8 +37,6 @@ if __name__ == "__main__":
 
     print(f'train size: {df_train.shape}')
     print(f'test size:  {df_test.shape}')
-    # domain = Domain.fromdict(config)
-    # data = Dataset(df_train, domain)
     targets = ['JWMNP_bin', 'PINCP', 'MIG', 'PUBCOV', 'ESR']
     # targets = ['PINCP', 'PUBCOV']
     features = []

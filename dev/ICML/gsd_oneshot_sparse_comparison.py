@@ -14,7 +14,7 @@ from utils import timer, Dataset, Domain
 from dp_data import load_domain_config, load_df
 
 
-def run(dataset_name, module_name):
+def run(dataset_name, module_name, sparse):
     Res = []
 
     root_path = '../../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
@@ -42,49 +42,34 @@ def run(dataset_name, module_name):
     print(f'Number of queries is {true_stats.shape[0]}.')
 
     delta = 1.0 / len(data) ** 2
-    for pop_size in [5, 10, 20, 40, 80, 160, 320, 640, 1280]:
-        # algo = PrivGA(num_generations=500000,
-        #               strategy=SimpleGAforSyncData(domain, 2000, population_size=pop_size, muta_rate=1, mate_rate=1),
-        #               print_progress=False,
-        #               stop_eary_threshold=0.014)
-        algo = PrivGA(num_generations=2000000, stop_early=True,
-                      domain=domain, data_size=2000, population_size=pop_size, muta_rate=1, mate_rate=1,
-                      print_progress=False,
-                      # stop_eary_threshold=0.1,
-                      # stop_eary_threshold = 0.014
-                      sparse_statistics=True
-                      )
 
-        key = jax.random.PRNGKey(0)
-        t0 = timer()
-        sync_data = algo.fit_dp(key, stat_module=stat_module,
-                                       epsilon=1, delta=delta,
+    algo = PrivGA(num_generations=2000000, stop_early=True,
+                  domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
+                  print_progress=True, sparse_statistics=sparse
+                  )
 
-                                       )
-        errors = jnp.abs(true_stats - stat_fn(sync_data))
-        elapsed_time = timer() - t0
-        print(f'{algo}, GSD({dataset_name, module_name}): '
-              f'data_size={20000}, '
-              f'pop_size={pop_size}, '
-              f'eps={1:.2f}, seed={0}'
-              f'\t max error = {errors.max():.5f}'
-              f'\t avg error = {errors.mean():.6f}'
-              f'\t time = {elapsed_time:.4f}')
+    key = jax.random.PRNGKey(0)
+    t0 = timer()
+    sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=1, delta=delta)
+    errors = jnp.abs(true_stats - stat_fn(sync_data))
+    elapsed_time = timer() - t0
+    print(f'{algo}, GSD({dataset_name, module_name}): '
+          f'pop_size={100}, '
+          f'sparse={sparse}, '
+          f'eps={1:.2f}, seed={0}'
+          f'\t max error = {errors.max():.5f}'
+          f'\t avg error = {errors.mean():.5f}'
+          f'\t time = {elapsed_time:.4f}')
 
-        print()
-
-    columns = ['Generator', 'Data', 'Statistics', 'T', 'S', 'epsilon', 'seed', 'error type', 'error', 'time']
-    results_df = pd.DataFrame(Res, columns=columns)
-    return results_df
+    print()
 
 if __name__ == "__main__":
 
     DATA = [
-        # 'folktables_2018_real_CA',
-        'folktables_2018_coverage_CA',
-        'folktables_2018_employment_CA',
-        'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
+        # 'folktables_2018_coverage_CA',
+        # 'folktables_2018_employment_CA',
+        # 'folktables_2018_income_CA',
+        # 'folktables_2018_mobility_CA',
         'folktables_2018_travel_CA',
     ]
 
@@ -95,5 +80,6 @@ if __name__ == "__main__":
     #     print(f'reading {file_name}')
     #     results = pd.read_csv(file_name)
     for data in DATA:
-        results_temp = run(data, 'Ranges')
+        results_temp = run(data, 'Ranges', sparse=True)
+
 

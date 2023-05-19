@@ -1,31 +1,15 @@
-import itertools
-import os.path
 import pickle
-
-import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
-import sklearn as sk
 from sklearn.decomposition import PCA
-from models import PrivGA, SimpleGAforSyncData
-from stats import ChainedStatistics, Halfspace, Marginals
-# from utils.utils_data import get_data
 import jax.numpy as jnp
-# from dp_data.data import get_data
 from dp_data import load_domain_config, load_df, DataPreprocessor, ml_eval
 from utils import timer, Dataset, Domain, get_Xy, separate_cat_and_num_cols
 from utils.cdp2adp import cdp_rho, cdp_eps
 import numpy as np
-from dev.ML.ml_utils import evaluate_machine_learning_task
-
-from sklearn.linear_model import LogisticRegression
 import seaborn as sns
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC, LinearSVC
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
-from xgboost import XGBClassifier
 from sklearn.metrics import make_scorer, f1_score, roc_auc_score, average_precision_score, accuracy_score
 
 
@@ -41,7 +25,8 @@ def test_ml(pca, X_train, y_train, X_test, y_test,  col_names, title=''):
     clf.fit(X_train_proj, y_train)
     metric_test = scorer(clf, X_test_proj, y_test)
 
-    df = pd.DataFrame(clf.coef_, columns=col_names)
+    # df = pd.DataFrame(clf.coef_, columns=col_names)
+    df = pd.DataFrame(clf.coef_)
     df['Kind'] = title
 
 
@@ -155,8 +140,10 @@ if __name__ == "__main__":
             ##  ML Test
             f1, real_coef_df = test_ml(pca_sync, X_train, y_train, X_test, y_test, columns, title='Real w/ Sync-PCA:')
             print(f'Real w/ Sync-PCA: f1={f1:.3f}')
+            print(real_coef_df)
             f1, sync_coef_df = test_ml(pca_sync, X_train_sync, y_train_sync, X_test, y_test, columns, title='Sync w/ Sync-PCA:')
             print(f'Sync w/ Sync-PCA: f1={f1:.3f}')
+            print(sync_coef_df)
 
 
             df = pd.concat([real_coef_df, sync_coef_df])

@@ -19,18 +19,19 @@ if __name__ == "__main__":
         # 'folktables_2018_coverage_CA',
         # 'folktables_2018_employment_CA',
         # 'folktables_2018_income_CA',
-        'folktables_2018_mobility_CA',
+        # 'folktables_2018_mobility_CA',
         # 'folktables_2018_travel_CA',
+        'folktables_2018_multitask_CA',
     ]
 
     PARAMS = [
-        (200, 50),   # 10,000
-        (150, 50),   # 7,500
-        (100, 50),   # 5,000
-        (40, 50),    # 2,000
-        (20, 50),    # 1,000
-        (10, 50),       # 500
-        (5, 50),        # 250
+        # (200, 50),   # 10,000
+        # (150, 50),   # 7,500
+        # (100, 50),   # 5,000
+        # (40, 50),    # 2,000
+        # (20, 50),    # 1,000
+        # (10, 50),       # 500
+        (1, 50),        # 250
     ]
 
     os.makedirs('icml_results/', exist_ok=True)

@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData
+from models import PrivGA
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -55,7 +55,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 
     for mut, cross in itertools.product(mutations, crossover):
 
-        algo = PrivGA(num_generations=60000,
+        algo = PrivGA(num_generations=300000,
                       domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1)
         delta = 1.0 / len(data) ** 2
         for seed in seeds:
@@ -67,7 +67,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
                 sync_data = algo.fit_dp(key, stat_module=stat_module,
                                                epsilon=eps, delta=delta,
                                                )
-                sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+                # sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
                 errors = jnp.abs(true_stats - stat_fn(sync_data))
                 elapsed_time = timer() - t0
                 print(f'GSD({dataset_name, module_name}):'
@@ -92,7 +92,6 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 if __name__ == "__main__":
 
     DATA = [
-        # 'folktables_2018_real_CA',
         'folktables_2018_coverage_CA',
         'folktables_2018_employment_CA',
         'folktables_2018_income_CA',

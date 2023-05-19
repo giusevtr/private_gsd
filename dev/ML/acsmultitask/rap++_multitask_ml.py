@@ -7,7 +7,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from models import PrivGA, SimpleGAforSyncData
+from models import PrivGA
 from stats import ChainedStatistics, Halfspace, Marginals
 # from utils.utils_data import get_data
 import jax.numpy as jnp
@@ -16,9 +16,6 @@ from dp_data import load_domain_config, load_df, DataPreprocessor, ml_eval
 from utils import timer, Dataset, Domain
 from utils.cdp2adp import cdp_rho, cdp_eps
 import numpy as np
-from dev.ML.ml_utils import evaluate_machine_learning_task
-
-from sklearn.linear_model import LogisticRegression
 
 
 if __name__ == "__main__":
@@ -47,16 +44,11 @@ if __name__ == "__main__":
     q_short_name = 'HS'
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
 
-    data = Dataset(df_train, domain)
     # Debug marginals
-    module0 = Marginals.get_kway_categorical(domain, k=2)
-    stat_module = ChainedStatistics([module0])
-    stat_module.fit(data)
-    true_stats = stat_module.get_all_true_statistics()
-    stat_fn = stat_module.get_dataset_statistics_fn()
 
     T = [50]
     S = [5]
+    # epsilon_vals = [1, 0.74, 0.52, 0.23, 0.07]
     epsilon_vals = [1]
     seeds = [0, 1, 2]
 
@@ -70,10 +62,6 @@ if __name__ == "__main__":
 
         print(f'reading {sync_path}')
         df_sync_post = pd.read_csv(sync_path)
-
-        sync_dataset = Dataset(df_sync_post, domain)
-        errors = np.abs(true_stats - stat_fn(sync_dataset))
-        print(f'Marginal max error ={errors.max()}, mean error ={errors.mean()}')
 
         res = ml_fn(df_sync_post, seed=0)
         res = res[res['Eval Data'] == 'Test']

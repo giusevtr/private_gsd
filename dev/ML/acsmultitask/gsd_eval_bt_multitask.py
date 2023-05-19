@@ -48,12 +48,12 @@ if __name__ == "__main__":
     queries = [
         # ('Binary_Tree_Marginals', 'BT'),
         # ('Histogram', 'Hist')
-        ('2Cat+HS_0.8_10m', 'HS')
+        ('2Cat+HS_0.8', 'HS')
     ]
     Res = []
     for eps, seed, (q_name, q_short_name) in itertools.product(epsilon_vals, seeds, queries):
 
-        sync_path = f'sync_data/GSD/folktables_2018_multitask_CA/GSD/{q_name}/50/5/{eps:.2f}/sync_data_{seed}.csv'
+        sync_path = f'sync_data/GSD/{q_name}/50/5/{eps:.2f}/sync_data_{seed}.csv'
         if not os.path.exists(sync_path):
             print(f'{sync_path} NOT FOUND')
             continue
@@ -69,7 +69,7 @@ if __name__ == "__main__":
         max_error = errors.max()
         avg_error = errors.mean()
 
-        print(f'eps={eps:.2f}, max={ errors.max():.3f}, avg={errors.mean():.3f}')
+        print(f'eps={eps:.2f}, max={ errors.max():.3f}, avg={errors.mean():.7f}')
         Res.append(['GSD', dataset_name, 'BT', 50, 5, eps, seed, 'Max', errors.max(), 0])
         Res.append(['GSD', dataset_name, 'BT', 50, 5, eps, seed, 'Average', errors.mean(), 0])
 

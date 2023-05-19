@@ -53,7 +53,7 @@ class Generator:
                init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         rho = cdp_rho(epsilon, delta)
         eps2 = cdp_eps(rho, delta)
-        assert rho < epsilon, f'Error: ({rho})-zCDP -> ({eps2})-DP'
+        assert eps2 <= epsilon, f'Error: ({eps2})-zCDP -> ({eps2})-DP'
         return self.fit_zcdp(key, stat_module, rho, init_data, tolerance)
 
     def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics, rho: float,
@@ -198,11 +198,23 @@ class Generator:
         init_seed = int(jax.random.randint(key_init, minval=0, maxval=2 ** 20, shape=(1,))[0])
         sync_dataset = Dataset.synthetic(stat_module.get_domain(), N=self.data_size, seed=init_seed)
 
+        key, key_oneshot_fit = jax.random.split(key, 2)
+        sync_dataset = self.fit(key_oneshot_fit, stat_module, sync_dataset, tolerance=tolerance)
+
+        priv_stats = stat_module.get_selected_noised_statistics()
+        selected_true_stats = stat_module.get_selected_statistics_without_noise()
+        stat_fn = stat_module.get_selected_dataset_statistics_fn()
+        oneshot_error = jnp.abs(selected_true_stats - stat_fn(sync_dataset))
+        gau_error = jnp.abs(selected_true_stats - priv_stats)
+        print(f'Epoch oneshot: '
+              f'\tTrue error(max/l2) is {oneshot_error.max():.5f}/{oneshot_error.mean():.7f}.'
+              f'\tGaussian error(max/l2) is {gau_error.max():.5f}/{gau_error.mean():.7f}.')
+
         for i in range(1, rounds + 1):
-            if i < rounds:
-                self.loss_change_threshold = 0.01
-            else:
-                self.loss_change_threshold = 0.001
+            # if i < rounds:
+            #     self.loss_change_threshold = 0.01
+            # else:
+            #     self.loss_change_threshold = 0.001
 
             # Select a query with max error using the exponential mechanism and evaluate
             select_time = timer()

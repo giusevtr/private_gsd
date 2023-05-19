@@ -6,7 +6,7 @@ import jax
 import chex
 from flax import struct
 from utils import Dataset, Domain, timer
-from models.priv_ga_v2 import SimpleGAforSyncData, EvoState, PopulationState
+from models.priv_ga import SimpleGAforSyncData, EvoState, PopulationState
 ######################################################################
 ######################################################################
 ######################################################################
