@@ -29,7 +29,7 @@ def read_result(data_path, error_type='max error'):
 
 def show_result(df):
     fontsize = 24
-    gens = ['PrivGA', 'GEM', 'RAP', 'PGM', 'RAP++']
+    gens = ['PrivGA', 'GEM', 'RAP', 'PGM', 'RAP++_old']
 
     gens_in_df = df['generator'].unique()
     hue_order = []

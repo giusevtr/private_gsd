@@ -7,7 +7,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from models import PrivGA, SimpleGAforSyncData
+from models import PrivGA
 from stats import ChainedStatistics, Halfspace, Marginals
 # from utils.utils_data import get_data
 import jax.numpy as jnp
@@ -45,18 +45,25 @@ if __name__ == "__main__":
             features.append(f)
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=['LogisticRegression'])
 
-    data = Dataset(df_train, domain)
-    # Debug marginals
-    module0 = Marginals.get_kway_categorical(domain, k=2)
-    stat_module = ChainedStatistics([module0])
-    stat_module.fit(data)
-    true_stats = stat_module.get_all_true_statistics()
-    stat_fn = stat_module.get_dataset_statistics_fn()
+    # data = Dataset(df_train, domain)
+    # # Debug marginals
+    # module0 = Marginals.get_kway_categorical(domain, k=2)
+    # stat_module = ChainedStatistics([module0])
+    # stat_module.fit(data)
+    # true_stats = stat_module.get_all_true_statistics()
+    # stat_fn = stat_module.get_dataset_statistics_fn()
+    # hs = Halfspace(domain=domain,
+    #                                      k_cat=1,
+    #              cat_kway_combinations=[(c,) for c in targets],
+    #              rng=jax.random.PRNGKey(0),
+    #              num_random_halfspaces=200000)
+    # hs_stat_fn = hs._get_dataset_statistics_fn()
+    # hs_true_stats = hs_stat_fn(data)
 
-    T = [50]
+    T = [100]
     S = [5]
     epsilon_vals = [1]
-    seeds = [0, 1, 2]
+    seeds = [0]
 
     Res = []
     for eps, seed, t, s in itertools.product(epsilon_vals, seeds, T, S):
@@ -69,42 +76,25 @@ if __name__ == "__main__":
         print(f'reading {sync_path}')
         df_sync_post = pd.read_csv(sync_path)
 
-        # for cat in cat_cols:
-        #     if cat == 'ESR': continue
-        #     if cat != 'JWTR': continue
-        #     # print(cat)
-        #     df = df_train[['ESR', cat]].astype(int)
-        #     df['Type'] = 'Real'
-        #     df_sync = df_sync_post[['ESR', cat]].astype(int)
-        #     df_sync['Type'] = 'Sync'
-        #     df_concat = pd.concat([df, df_sync], ignore_index=True)
-        #     df_concat[cat] = df_concat[cat].astype(str)
-        #     # sns.histplot(data=df_concat, x=cat, hue='ESR', row='Type')
-        #
-        #     g = sns.FacetGrid(df_concat, row="Type", hue='ESR',
-        #                       sharey=False)
-        #     g.map_dataframe(sns.histplot, x=cat)
-        #
-        #
-        #     plt.show()
-        #     print('ploting cat=', cat)
-
-
-
-        sync_dataset = Dataset(df_sync_post, domain)
-        errors = np.abs(true_stats - stat_fn(sync_dataset))
-        print(f'Marginal max error ={errors.max()}, mean error ={errors.mean()}')
+        # sync_dataset = Dataset(df_sync_post, domain)
+        # errors = np.abs(true_stats - stat_fn(sync_dataset))
+        # hs_errors = np.abs(hs_true_stats - hs_stat_fn(sync_dataset))
+        # print(f'Marginal max error ={errors.max()}, mean error ={errors.mean()}')
+        # print(f'HS max error ={hs_errors.max()}, mean error ={hs_errors.mean()}')
 
         res = ml_fn(df_sync_post, seed=0)
         res = res[res['Eval Data'] == 'Test']
-        res = res[res['Metric'] == 'f1_macro']
+        # res = res[res['Metric'] == 'f1_macro']
         print('seed=', seed, 'eps=', eps)
         print(res)
         for i, row in res.iterrows():
             target = row['target']
-            f1 = row['Score']
-            Res.append([dataset_name, 'Yes', 'RAP++', '2Cat+HS', t, s, 'LR', target, eps, 'F1', seed, f1])
+            score = row['Score']
+            metric = row['Metric']
+            Res.append([dataset_name, 'Yes', 'RAP++', '2Cat+HS', t, s, 'LR', target, eps, metric, seed, score])
             # Res.append([dataset_name, 'Yes', algo_name+query_name, 'LR', target, eps, 'Accuracy', seed, acc])
+
+            print(f'target={target:<5}, metric={metric:<5}, score={score:.5f}')
 
     results = pd.DataFrame(Res, columns=['Data', 'Is DP', 'Generator',
                                          'T', 'S',

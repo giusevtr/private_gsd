@@ -68,7 +68,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
         for eps in eps_values:
             key = jax.random.PRNGKey(seed)
             t0 = timer()
-            sync_dir = f'sync_data/{dataset_name}/RAP++/{module_name}/{rounds}/{num_sample}/{eps:.2f}/'
+            sync_dir = f'sync_data/{dataset_name}/RAP++_old/{module_name}/{rounds}/{num_sample}/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)
             sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
                                            rounds=rounds,
@@ -77,12 +77,12 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
                                            )
             sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
             errors = jnp.abs(true_stats - stat_fn(sync_data))
-            print(f'RAP++({dataset_name, module_name}): eps={eps:.2f}, seed={seed}'
+            print(f'RAP++_old({dataset_name, module_name}): eps={eps:.2f}, seed={seed}'
                   f'\t max error = {errors.max():.5f}'
                   f'\t avg error = {errors.mean():.5f}'
                   f'\t time = {timer() - t0:.4f}')
-            Res.append(['RAP++', dataset_name, module_name, rounds, num_sample, eps, seed, 'Max', errors.max()])
-            Res.append(['RAP++', dataset_name, module_name, rounds, num_sample, eps, seed, 'Average', errors.mean()])
+            Res.append(['RAP++_old', dataset_name, module_name, rounds, num_sample, eps, seed, 'Max', errors.max()])
+            Res.append(['RAP++_old', dataset_name, module_name, rounds, num_sample, eps, seed, 'Average', errors.mean()])
 
         print()
 

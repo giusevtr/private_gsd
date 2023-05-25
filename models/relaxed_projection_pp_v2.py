@@ -47,7 +47,7 @@ class RelaxedProjectionPP_v2(Generator):
         self.learning_rate.reverse()
 
     def __str__(self):
-        return 'RAP++'
+        return 'RAP++_old'
 
     # def init_categorical_stats(self,
     #     categorical_statistics: ChainedStatistics):

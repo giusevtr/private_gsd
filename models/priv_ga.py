@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import pandas as pd
 from models import Generator
 import time
 from stats import ChainedStatistics
@@ -50,7 +51,9 @@ def get_best_fitness_member(
 class SimpleGAforSyncData:
     def __init__(self, domain: Domain,
                  data_size: int,
-                 population_size: int = 100,
+                 population_size_muta: int = 50,
+                 population_size_cross: int = 50,
+                 population_size: int = None,
                  elite_size: int = 5,
                  muta_rate: int = 1,
                  mate_rate: int = 1,
@@ -59,7 +62,13 @@ class SimpleGAforSyncData:
         Reference: https://arxiv.org/abs/1712.06567
         Inspired by: https://github.com/hardmaru/estool/blob/master/es.py"""
 
-        self.population_size = population_size
+        if population_size is not None:
+            self.population_size_muta = population_size // 2
+            self.population_size_cross = population_size // 2
+        else:
+            self.population_size_muta = population_size_muta
+            self.population_size_cross = population_size_cross
+        self.population_size = self.population_size_muta + self.population_size_cross
         self.elite_size = elite_size
         self.data_size = data_size
 
@@ -89,10 +98,8 @@ class SimpleGAforSyncData:
 
         rng1, rng2 = jax.random.split(rng, 2)
         random_numbers = jax.random.permutation(rng1, self.data_size, independent=True)
-        muta_fn = get_mutate_fn(self.domain, muta_rate=self.muta_rate,
-                                         random_numbers=random_numbers)
-        mate_fn = get_mating_fn(self.domain, mate_rate=self.mate_rate,
-                                         random_numbers=random_numbers)
+        muta_fn = get_mutate_fn(muta_rate=self.muta_rate, random_numbers=random_numbers)
+        mate_fn = get_mating_fn(self.domain, mate_rate=self.mate_rate, random_numbers=random_numbers)
 
         self.muta_vmap = jax.jit(jax.vmap(muta_fn, in_axes=(None, 0, 0)))
         self.mate_vmap = jax.jit(jax.vmap(mate_fn, in_axes=(None, 0, 0)))
@@ -118,14 +125,15 @@ class SimpleGAforSyncData:
 
     @partial(jax.jit, static_argnums=(0,))
     def ask_strategy(self, rng: chex.PRNGKey, random_data, state: EvoState):
-        pop_size = self.population_size
         rng, rng_i, rng_j, rng_k, rng_muta, rng_mate, rng_mutate = jax.random.split(rng, 7)
-        j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(pop_size//2,))
-        x_j = state.archive[j]
-        random_data = random_data[:self.population_size // 2, :]
-        rng_muta_split = jax.random.split(rng_muta, pop_size//2)
-        rng_mate_split = jax.random.split(rng_mate, pop_size//2)
+
+        random_data = random_data[:self.population_size_muta, :]
+        rng_muta_split = jax.random.split(rng_muta, self.population_size_muta)
         pop_muta = self.muta_vmap(state.best_member, rng_muta_split, random_data)
+
+        rng_mate_split = jax.random.split(rng_mate, self.population_size_cross)
+        j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(self.population_size_cross,))
+        x_j = state.archive[j]
         pop_mate = self.mate_vmap(state.best_member, rng_mate_split, x_j)
 
         remove_row = jnp.concatenate((pop_muta.remove_row, pop_mate.remove_row), axis=0)
@@ -171,7 +179,7 @@ class SimpleGAforSyncData:
         return new_state
 
 
-def get_mutate_fn(domain: Domain,  muta_rate: int, random_numbers):
+def get_mutate_fn(muta_rate: int, random_numbers):
     def muta(
             X0,
             rng: chex.PRNGKey,  initialization
@@ -260,8 +268,10 @@ class PrivGA(Generator):
     def __init__(self,
                  num_generations,
                  domain,
-                 population_size,
                  data_size,
+                 population_size_muta=50,
+                 population_size_cross=50,
+                 population_size=None,
                  muta_rate=1,
                  mate_rate=1,
                  # strategy: SimpleGAforSyncData,
@@ -276,12 +286,15 @@ class PrivGA(Generator):
         self.num_generations = num_generations
         self.print_progress = print_progress
         self.stop_early = stop_early
-        self.stop_early_min_generation = stop_early_gen
         self.stop_eary_threshold = stop_eary_threshold
         self.sparse_statistics = sparse_statistics
         self.stop_early_min_generation = stop_early_gen if stop_early_gen is not None else data_size
-        self.strategy = SimpleGAforSyncData(domain, data_size, population_size=population_size,
+        self.strategy = SimpleGAforSyncData(domain, data_size,
+                                            population_size_muta=population_size_muta,
+                                            population_size_cross=population_size_cross,
+                                            population_size=population_size,
                                             muta_rate=muta_rate, mate_rate=mate_rate)
+        self.stop_generation = None
 
     def __str__(self):
         return f'PrivGA'
@@ -292,6 +305,7 @@ class PrivGA(Generator):
         Minimize error between real_stats and sync_stats
         """
 
+        self.stop_generation = None
         init_time = timer()
 
         if self.sparse_statistics:
@@ -390,8 +404,9 @@ class PrivGA(Generator):
 
         update_elite_stat_jit = jax.jit(update_elite_stat)
         LAST_LAG_FITNESS = state.best_fitness
+        true_results = []
         for t in range(self.num_generations):
-
+            self.stop_generation = t  # Update the stop generation
             # ASK
             t0 = timer()
             key, ask_subkey = jax.random.split(key, 2)
@@ -414,53 +429,40 @@ class PrivGA(Generator):
             tell_time += timer() - t0
             # UPDATE elite_states
             elite_stat = update_elite_stat_jit(elite_stat, population_state, rep_best, best_id).block_until_ready()
-
             elite_stat_time += timer() - t0
-
-            if best_fitness < self.stop_eary_threshold: break
 
             if best_fitness < self.stop_eary_threshold: break
             if (t % self.stop_early_min_generation) == 0 and t > self.stop_early_min_generation and self.stop_early:
                 loss_change = jnp.abs(LAST_LAG_FITNESS - state.best_fitness) / LAST_LAG_FITNESS
 
-                if self.print_progress:
-                    print(f'\t\t{t:<4}: Best.Fitness={state.best_fitness:<4.5f}, '
-                          f'Last.Fitness={LAST_LAG_FITNESS:4.5f}, '
-                          f'Loss change={loss_change:.5f}')
+                # if self.print_progress:
+                #     print(f'\t\t{t:<4}: Best.Fitness={state.best_fitness:<4.5f}, '
+                #           f'Last.Fitness={LAST_LAG_FITNESS:4.5f}, '
+                #           f'Loss change={loss_change:.5f}')
 
                 if loss_change < 0.0001:
                     if self.print_progress: print(f'\t\t ### Stop early at {t} ###')
                     break
                 LAST_LAG_FITNESS = state.best_fitness
 
-            if t % 50 == 0:
-                # EARLY STOP
-                best_fitness_total = min(best_fitness_total, best_fitness)
-
-                stop_early = False
-                if self.stop_early and t > int(self.data_size):
-                    if self.early_stop(t, best_fitness_total):
-                        stop_early = True
-
+            if (t % 50 == 0) and self.print_progress:
                 # DEBUG
-                if self.print_progress:
-                    if last_fitness is None or best_fitness_total < last_fitness * 0.99 or t > self.num_generations - 2 or stop_early:
-                        elapsed_time = timer() - init_time
-                        X_sync = state.best_member
-                        print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
-                        t_inf, t_avg, p_l2 = true_loss(X_sync)
-                        print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
-                        print(f'\t|time={elapsed_time:.4f}(s):', end='')
-                        print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
-                        print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
-                        print()
-                        last_fitness = best_fitness_total
+                best_fitness_total = min(best_fitness_total, best_fitness)
+                if last_fitness is None or best_fitness_total < last_fitness * 0.99 or t > self.num_generations - 2:
+                    elapsed_time = timer() - init_time
+                    X_sync = state.best_member
+                    print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
+                    t_inf, t_avg, p_l2 = true_loss(X_sync)
+                    true_results.append([t, float(t_inf), float(t_avg), float(p_l2)])
+                    print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
+                    print(f'\t|time={elapsed_time:.4f}(s):', end='')
+                    print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
+                    print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
+                    print()
+                    last_fitness = best_fitness_total
 
-                if stop_early:
-                    if self.print_progress:
-                        print(f'\t\tStop early at t={t}')
-                    break
-
+        self.true_results_df = pd.DataFrame(true_results, columns=['G', 'Max', 'Avg', 'L2'])
+        # true_results_df.to_csv('gsd_progress.csv')
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         return sync_dataset

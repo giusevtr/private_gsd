@@ -50,42 +50,54 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 
     # mutations = [1, 2, 5, 10, 25]
     # crossover = [ 2, 5, 10, 25]
-    mutations_crossover = [1, 2, 5, 10, 25]
 
-    for mut_cross in mutations_crossover:
+    # mutation_pop = [20, 40, 60, 80]
+    mutation_pop = [20, 40, 60, 80, 100, 200]
+    # crossover_pop = [0, 20, 40, 80, 100]
+    crossover_pop = [0, 5, 10, 15, 20, 30, 40, 50]
+
+    for mut_pop, cross_pop in itertools.product(mutation_pop, crossover_pop):
 
         algo = PrivGA(num_generations=300000,
-                      domain=domain, data_size=1000, population_size=80, muta_rate=mut_cross, mate_rate=mut_cross)
+                      domain=domain, data_size=1000,
+                      population_size_muta=mut_pop,
+                      population_size_cross=cross_pop,
+                      muta_rate=1,
+                      mate_rate=1, print_progress=False)
         delta = 1.0 / len(data) ** 2
         for seed in seeds:
             for eps in eps_values:
                 key = jax.random.PRNGKey(seed)
                 t0 = timer()
-                sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/oneshot/oneshot/{eps:.2f}/'
-                os.makedirs(sync_dir, exist_ok=True)
                 sync_data = algo.fit_dp(key, stat_module=stat_module,
                                                epsilon=eps, delta=delta,
                                                )
-                # sync_data.df.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+
+                # df = algo.true_results_df
+                # df.to_csv(f'gsd_progress_{dataset_name}_{mut_pop}_{cross_pop}.csv')
+                # sns.relplot(data=df, x='G', y='L2')
+                # plt.show()
+
                 errors = jnp.abs(true_stats - stat_fn(sync_data))
                 elapsed_time = timer() - t0
                 print(f'GSD({dataset_name, module_name}):'
-                      f'\tmutations={mut_cross:<2}, cross={mut_cross:<2}'
-                      f' eps={eps:.2f}, seed={seed}'
-                      f'\t max error = {errors.max():.5f}'
-                      f'\t avg error = {errors.mean():.5f}'
-                      f'\t generations = {algo.stop_generation}'
+                      f'\tpop mutations={mut_pop}, '
+                      f'pop cross={cross_pop}, '
+                      f'eps={eps:.2f}, seed={seed}, '
+                      f'max error = {errors.max():.5f}, '
+                      f'avg error = {errors.mean():.5f}, '
+                      f'generations = {algo.stop_generation}, '
                       f'\t time = {elapsed_time:.4f}')
                 Res.append(['GSD', dataset_name, module_name, "oneshot", "oneshot",
                             eps, seed, 'Max', errors.max(), elapsed_time,
-                            mut_cross, mut_cross, num_queries, algo.stop_generation])
+                            mut_pop, cross_pop, num_queries, algo.stop_generation])
                 Res.append(['GSD', dataset_name, module_name, "oneshot", "oneshot",
                             eps, seed, 'Average', errors.mean(), elapsed_time,
-                            mut_cross, mut_cross, num_queries, algo.stop_generation])
+                            mut_pop, cross_pop, num_queries, algo.stop_generation])
 
 
     columns = ['Generator', 'Data', 'Statistics', 'T', 'S', 'Epsilon', 'Seed', 'Error type', 'Error', 'Time',
-               'Mutations', 'Crossover', 'Queries', 'Generations']
+               'Mutations Pop', 'Crossover Pop', 'Queries', 'Generations']
     results_df = pd.DataFrame(Res, columns=columns)
     return results_df
 
@@ -93,22 +105,22 @@ if __name__ == "__main__":
 
     DATA = [
         # 'folktables_2018_coverage_CA',
-        # 'folktables_2018_employment_CA',
+        'folktables_2018_employment_CA',
         'folktables_2018_mobility_CA',
-        # 'folktables_2018_income_CA',
-        # 'folktables_2018_travel_CA',
+        'folktables_2018_income_CA',
+        'folktables_2018_travel_CA',
     ]
 
     os.makedirs('icml_results/', exist_ok=True)
-    file_name = 'icml_results/parameters/gsd_parameters_v2.csv'
-    results = None
-    if os.path.exists(file_name):
-        print(f'reading {file_name}')
-        results = pd.read_csv(file_name)
+    # results = None
+    # if os.path.exists(file_name):
+    #     print(f'reading {file_name}')
+    #     results = pd.read_csv(file_name)
 
     for data in DATA:
-        results_temp = run(data, 'Ranges', eps_values=[1.0], seeds=[0])
-        results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
+        file_name = f'icml_results/parameters/gsd_muta_cross_population_{data}.csv'
+        results = run(data, 'Ranges', eps_values=[1.0], seeds=[0, 1, 2])
+        # results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
         results.to_csv(file_name, index=False)
 

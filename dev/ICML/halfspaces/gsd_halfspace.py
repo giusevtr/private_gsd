@@ -2,7 +2,7 @@ import itertools
 import jax.random
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData
+from models import PrivGA
 from stats import ChainedStatistics, Halfspace
 import jax.numpy as jnp
 from utils import timer, Dataset, Domain , get_Xy, filter_outliers

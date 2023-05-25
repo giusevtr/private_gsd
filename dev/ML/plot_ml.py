@@ -5,7 +5,7 @@ import seaborn as sns
 sns.set_style('whitegrid')
 
 
-## Read RAP++
+## Read RAP++_old
 rap_df = pd.read_csv('rap++_ml_results/acs_NY/RAP(Marginal&Halfspace)/LR/result.csv')
 
 rap_df = rap_df[['epsilon', 'seed', 'label', '(macro) f1']]
@@ -16,7 +16,7 @@ rap_df.rename(columns={'label': 'Target',
               inplace=True)
 # rap_df = rap_df[(rap_df['Target'] == 'PINCP')]
 
-rap_df['Method'] = 'RAP++'
+rap_df['Method'] = 'RAP++_old'
 rap_df['Model'] = 'LR'
 rap_df['Metric'] = 'F1'
 rap_df['Is DP'] = 'Yes'
