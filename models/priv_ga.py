@@ -236,7 +236,7 @@ def get_mating_fn(domain: Domain, mate_rate: int, random_numbers):
 
         # Copy this row onto the dataset
         new_rows = elite_rows[add_rows_idx]
-        noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d)) * 0.01
+        noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d))
         new_rows = new_rows + noise
         new_rows = new_rows.at[:, numeric_idx].set(jnp.clip(new_rows[:, numeric_idx], 0, 1))
 

@@ -52,12 +52,13 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     # crossover = [ 2, 5, 10, 25]
 
     # mutation_pop = [20, 40, 60, 80]
-    mutation_pop = [20, 40, 60, 80, 100, 200]
+    # mutation_pop = [20, 40, 60, 80, 100, 200, 300]
+    mutation_pop = [5, 10, 15, 20, 40, 60, 80, 100, 200, 300]
     # crossover_pop = [0, 20, 40, 80, 100]
-    crossover_pop = [0, 5, 10, 15, 20, 30, 40, 50]
+    crossover_pop = [0, 5, 10, 15, 20, 40, 60, 80, 100]
 
     for mut_pop, cross_pop in itertools.product(mutation_pop, crossover_pop):
-
+        if mut_pop < cross_pop: continue
         algo = PrivGA(num_generations=300000,
                       domain=domain, data_size=1000,
                       population_size_muta=mut_pop,
@@ -102,9 +103,8 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     return results_df
 
 if __name__ == "__main__":
-
     DATA = [
-        # 'folktables_2018_coverage_CA',
+        'folktables_2018_coverage_CA',
         'folktables_2018_employment_CA',
         'folktables_2018_mobility_CA',
         'folktables_2018_income_CA',
@@ -117,10 +117,11 @@ if __name__ == "__main__":
     #     print(f'reading {file_name}')
     #     results = pd.read_csv(file_name)
 
-    for data in DATA:
-        file_name = f'icml_results/parameters/gsd_muta_cross_population_{data}.csv'
-        results = run(data, 'Ranges', eps_values=[1.0], seeds=[0, 1, 2])
-        # results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
-        print(f'Saving: {file_name}')
-        results.to_csv(file_name, index=False)
+    for seed in [0, 1, 2]:
+        for data in DATA:
+            file_name = f'icml_results/parameters/gsd_param_{data}_seed{seed}.csv'
+            results = run(data, 'Ranges', eps_values=[1.0], seeds=[seed])
+            # results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
+            print(f'Saving: {file_name}')
+            results.to_csv(file_name, index=False)
 
