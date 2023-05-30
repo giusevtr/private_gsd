@@ -35,7 +35,7 @@ class RelaxedProjectionPPneurips(Generator):
 
 
     def __str__(self):
-        return 'RAP++'
+        return 'RAP++_old'
 
     def fit(self, key, adaptive_statistic: ChainedStatistics, init_data: Dataset=None, tolerance=0, adaptive_epoch=1):
 

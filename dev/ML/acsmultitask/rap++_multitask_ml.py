@@ -44,13 +44,32 @@ if __name__ == "__main__":
     q_short_name = 'HS'
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
 
+<<<<<<< HEAD
     # Debug marginals
 
     T = [50]
+=======
+    # data = Dataset(df_train, domain)
+    # # Debug marginals
+    # module0 = Marginals.get_kway_categorical(domain, k=2)
+    # stat_module = ChainedStatistics([module0])
+    # stat_module.fit(data)
+    # true_stats = stat_module.get_all_true_statistics()
+    # stat_fn = stat_module.get_dataset_statistics_fn()
+    # hs = Halfspace(domain=domain,
+    #                                      k_cat=1,
+    #              cat_kway_combinations=[(c,) for c in targets],
+    #              rng=jax.random.PRNGKey(0),
+    #              num_random_halfspaces=200000)
+    # hs_stat_fn = hs._get_dataset_statistics_fn()
+    # hs_true_stats = hs_stat_fn(data)
+
+    T = [100]
+>>>>>>> 5959434720650aeb3e5867105da945038e42f97c
     S = [5]
     # epsilon_vals = [1, 0.74, 0.52, 0.23, 0.07]
     epsilon_vals = [1]
-    seeds = [0, 1, 2]
+    seeds = [0]
 
     Res = []
     for eps, seed, t, s in itertools.product(epsilon_vals, seeds, T, S):
@@ -63,6 +82,15 @@ if __name__ == "__main__":
         print(f'reading {sync_path}')
         df_sync_post = pd.read_csv(sync_path)
 
+<<<<<<< HEAD
+=======
+        # sync_dataset = Dataset(df_sync_post, domain)
+        # errors = np.abs(true_stats - stat_fn(sync_dataset))
+        # hs_errors = np.abs(hs_true_stats - hs_stat_fn(sync_dataset))
+        # print(f'Marginal max error ={errors.max()}, mean error ={errors.mean()}')
+        # print(f'HS max error ={hs_errors.max()}, mean error ={hs_errors.mean()}')
+
+>>>>>>> 5959434720650aeb3e5867105da945038e42f97c
         res = ml_fn(df_sync_post, seed=0)
         res = res[res['Eval Data'] == 'Test']
         # res = res[res['Metric'] == 'f1_macro']
@@ -70,6 +98,7 @@ if __name__ == "__main__":
         print(res)
         for i, row in res.iterrows():
             target = row['target']
+<<<<<<< HEAD
             f1 = row['Score']
             metric = row['Metric']
             score = row['Score']
@@ -78,6 +107,16 @@ if __name__ == "__main__":
     results = pd.DataFrame(Res, columns=['Data', 'Is DP',
                                          'Generator',
                                          'Statistics',
+=======
+            score = row['Score']
+            metric = row['Metric']
+            Res.append([dataset_name, 'Yes', 'RAP++', '2Cat+HS', t, s, 'LR', target, eps, metric, seed, score])
+            # Res.append([dataset_name, 'Yes', algo_name+query_name, 'LR', target, eps, 'Accuracy', seed, acc])
+
+            print(f'target={target:<5}, metric={metric:<5}, score={score:.5f}')
+
+    results = pd.DataFrame(Res, columns=['Data', 'Is DP', 'Generator',
+>>>>>>> 5959434720650aeb3e5867105da945038e42f97c
                                          'T', 'S',
                                          'Model',
                                          'Target', 'epsilon', 'Metric',

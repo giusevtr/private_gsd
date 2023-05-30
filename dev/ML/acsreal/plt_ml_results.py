@@ -14,10 +14,10 @@ if __name__ == '__main__':
     results_privga_pr['Method'] = 'PrivGA(Prefix)'
 
     results_rappp = pd.read_csv('acsreal_results_RAP++_Halfspaces.csv', index_col=0)
-    results_rappp['Method'] = 'RAP++(HS)'
+    results_rappp['Method'] = 'RAP++_old(HS)'
 
     # results_rappp_pr = pd.read_csv('acsreal_results_RAP++_Prefix.csv', index_col=0)
-    # results_rappp_pr['Method'] = 'RAP++(Prefix)'
+    # results_rappp_pr['Method'] = 'RAP++_old(Prefix)'
 
     results_rap = pd.read_csv('acsreal_results_RAP_Ranges.csv', index_col=0)
     results_rap['Method'] = 'RAP(Ranges)'

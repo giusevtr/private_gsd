@@ -1,4 +1,8 @@
+import itertools
+
 import jax
+import pandas as pd
+
 from models import PrivGA
 from stats import Marginals, ChainedStatistics
 from dev.toy_datasets.sparsecat import get_sparsecat
@@ -27,8 +31,8 @@ def run(data, algo, marginal_module, eps=0.5, seed=0):
     stime = time.time()
 
     key = jax.random.PRNGKey(seed)
-    # sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=eps, delta=1/len(data.df)**2)
-    sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=1/len(data.df)**2, rounds=3, print_progress=True)
+    sync_data = algo.fit_dp(key, stat_module=stat_module, epsilon=eps, delta=1/len(data.df)**2)
+    # sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module, epsilon=eps, delta=1/len(data.df)**2, rounds=3, print_progress=True)
 
     errors = jnp.abs(true_stats - stat_fn(sync_data))
     print(f'{algo}: eps={eps:.2f}, seed={seed}'
@@ -44,7 +48,7 @@ def run(data, algo, marginal_module, eps=0.5, seed=0):
 
 if __name__ == "__main__":
 
-    data = get_sparsecat(DATA_SIZE=2000, CAT_SIZE=10)
+    data = get_sparsecat(DATA_SIZE=2000, CAT_SIZE=1000)
 
 
     # stats = MarginalsDiff.get_all_kway_combinations(data.domain, k=2)
@@ -53,15 +57,45 @@ if __name__ == "__main__":
 
 
 
-    marginal_module = Marginals.get_all_kway_combinations(data.domain, k=1)
-    priv_ga = PrivGA( num_generations=100000, print_progress=False,
-                        domain=data.domain, data_size=2000,
-                    muta_rate=1,
-                    mate_rate=1,
-                        # population_size=200
 
-                      )
+    # population_size_muta = 200
+    # population_size_cross = 0
 
-    run(data, priv_ga, marginal_module, eps=5, seed=1)
+    population_size_muta = 150
+    population_size_cross = 50
 
+    T = [
+        # (200, 0),
+        # (150, 50),
+        # (100, 100),
+        # (50, 150),
+        (190, 10),
+        (180, 20),
+        (170, 30),
+        (160, 40),
+    ]
+
+    df_all = []
+    for population_size_muta,  population_size_cross in T:
+        marginal_module = Marginals.get_all_kway_combinations(data.domain, k=1)
+        priv_ga = PrivGA(num_generations=100000, print_progress=True,
+                            domain=data.domain,
+                            data_size=2000,
+                            muta_rate=1,
+                            mate_rate=1,
+                            population_size_muta=population_size_muta,
+                            population_size_cross=population_size_cross,
+                          )
+
+        print(f'population_size_muta={population_size_muta}, population_size_cross={population_size_cross}')
+        run(data, priv_ga, marginal_module, eps=5, seed=1)
+
+        fitness_df = pd.DataFrame(priv_ga.fitness_record, columns=['G', 'Fitness', 'Time'])
+        fitness_df['Mutations'] = population_size_muta
+        fitness_df['Crossovers'] = population_size_cross
+
+        df_all.append(fitness_df)
+
+    df_all = pd.concat(df_all, ignore_index=True)
+    df_all.to_csv('fitness_progress_v2.csv')
 

@@ -26,7 +26,7 @@ synthetic_data_label = 'Synthetic Data'
 
 PRIVGA = pd.read_csv('../../sync_data/folktables_2018_acsreal_CA/GSD/Prefix/100/1.00/sync_data_0.csv')
 # pd.read_csv('../sync_data/')
-RAPpp = pd.read_csv('../../sync_data/folktables_2018_acsreal_CA/RAP++/Prefix/10/1.00/sync_data_0.csv')
+RAPpp = pd.read_csv('../../sync_data/folktables_2018_acsreal_CA/RAP++_old/Prefix/10/1.00/sync_data_0.csv')
 RAP = pd.read_csv('../../sync_data/folktables_2018_acsreal_CA/RAP/Ranges/80/1.00/sync_data_0.csv')
 df_list = []
 
@@ -42,7 +42,7 @@ for col in data.domain.get_numeric_cols():
     rappp_df = RAPpp[col].copy().to_frame()
     rappp_df = rappp_df.rename(columns={col: 'Values'})
     rappp_df[feat_label] = col
-    rappp_df[gen_label] = 'RAP++'
+    rappp_df[gen_label] = 'RAP++_old'
     rappp_df[type_label] = synthetic_data_label
 
     rap_df = RAP[col].copy().to_frame()
@@ -62,7 +62,7 @@ for col in data.domain.get_numeric_cols():
     df_real2 = data.df[col].copy().to_frame()
     df_real2 = df_real2.rename(columns={col: 'Values'})
     df_real2[feat_label] = col
-    df_real2[gen_label] = 'RAP++'
+    df_real2[gen_label] = 'RAP++_old'
     df_real2[type_label] = real_data_label
 
     df_real3 = data.df[col].copy().to_frame()
@@ -116,7 +116,7 @@ g = sns.FacetGrid(data=df,
                   sharey='row',
                   sharex=True,
                   aspect=2.0,
-                  col_order=['GSD', 'RAP++', 'RAP'],
+                  col_order=['GSD', 'RAP++_old', 'RAP'],
                   # col_order=['GSD', 'RAP'],
                   legend_out=False)
 g.map(custom_plot, 'Values')

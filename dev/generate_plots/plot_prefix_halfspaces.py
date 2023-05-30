@@ -40,11 +40,11 @@ for error_type in ['max error', 'l1 error']:
 
    rappp_hs_df = read_result('../ICML/prefix_halfspaces_results/results_mix_RAP++_Halfspaces.csv', error_type)
    rappp_hs_df['Statistics'] = 'Halfspaces'
-   rappp_hs_df['generator'] = 'RAP++'
+   rappp_hs_df['generator'] = 'RAP++_old'
 
    rappp_pr_df = read_result('../ICML/prefix_halfspaces_results/result_mix_RAP++_Prefix.csv', error_type)
    rappp_pr_df['Statistics'] = 'Prefixes'
-   rappp_pr_df['generator'] = 'RAP++'
+   rappp_pr_df['generator'] = 'RAP++_old'
 
    #####
 
