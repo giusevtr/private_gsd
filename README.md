@@ -5,7 +5,7 @@ Genetic Algorithms," presented at the 40th International Conference
 on Machine Learning in 2023.
 
 The Private-GSD mechanism is a specialized synthetic data generation tool,
-designed preserve different classes of statistical queries derived
+designed to preserve different classes of statistical queries derived
 from a given dataset while adhering to the principles of differential privacy.
 
 # Example 
