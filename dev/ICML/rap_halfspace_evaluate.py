@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData, RelaxedProjectionPP_v3 as RelaxedProjectionPP
+from models import GSD, SimpleGAforSyncData, RelaxedProjectionPP_v3 as RelaxedProjectionPP
 from stats import ChainedStatistics, Halfspace, HalfspaceDiff, Prefix, Marginals, PrefixDiff
 # from utils.utils_data import get_data
 from utils import timer

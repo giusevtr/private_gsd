@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData, PrivGAJit
+from models import GSD, SimpleGAforSyncData, PrivGAJit
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer

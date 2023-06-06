@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData
+from models import GSD, SimpleGAforSyncData
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -51,8 +51,8 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     print(f'Data cardinality is {domain.size()}.')
     print(f'Number of queries is {true_stats.shape[0]}.')
 
-    algo = PrivGA(num_generations=100000,
-                  strategy=SimpleGAforSyncData(domain, 2000), )
+    algo = GSD(num_generations=100000,
+               strategy=SimpleGAforSyncData(domain, 2000), )
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:

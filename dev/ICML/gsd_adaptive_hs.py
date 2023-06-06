@@ -5,7 +5,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA, PrivGAJit
+from models import GSD, PrivGAJit
 from stats import ChainedStatistics, Marginals, HalfspacesPrefix
 # from utils.utils_data import get_data
 from utils import timer
@@ -66,9 +66,9 @@ def run(dataset_name,
         for eps in eps_values:
 
             print(f'Number of queries is {stat_module.get_all_true_statistics().shape[0]}.')
-            algo = PrivGA(num_generations=200000,
-                          domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
-                          print_progress=False)
+            algo = GSD(num_generations=200000,
+                       domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
+                       print_progress=False)
 
             key = jax.random.PRNGKey(seed)
             t0 = timer()

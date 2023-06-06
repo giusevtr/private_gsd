@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA
+from models import GSD
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -47,13 +47,13 @@ def run(dataset_name, module_name):
         #               strategy=SimpleGAforSyncData(domain, 2000, population_size=pop_size, muta_rate=1, mate_rate=1),
         #               print_progress=False,
         #               stop_eary_threshold=0.014)
-        algo = PrivGA(num_generations=2000000, stop_early=True,
-                      domain=domain, data_size=2000, population_size=pop_size, muta_rate=1, mate_rate=1,
-                      print_progress=False,
-                      # stop_eary_threshold=0.1,
-                      # stop_eary_threshold = 0.014
-                      sparse_statistics=True
-                      )
+        algo = GSD(num_generations=2000000, stop_early=True,
+                   domain=domain, data_size=2000, population_size=pop_size, muta_rate=1, mate_rate=1,
+                   print_progress=False,
+                   # stop_eary_threshold=0.1,
+                   # stop_eary_threshold = 0.014
+                   sparse_statistics=True
+                   )
 
         key = jax.random.PRNGKey(0)
         t0 = timer()

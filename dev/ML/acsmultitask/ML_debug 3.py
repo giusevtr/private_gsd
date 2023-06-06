@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import sklearn as sk
 from sklearn.decomposition import PCA
-from models import PrivGA
+from models import GSD
 from stats import ChainedStatistics, Halfspace, Marginals
 # from utils.utils_data import get_data
 import jax.numpy as jnp

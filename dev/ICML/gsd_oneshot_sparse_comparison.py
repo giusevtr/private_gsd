@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA
+from models import GSD
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -43,10 +43,10 @@ def run(dataset_name, module_name, sparse):
 
     delta = 1.0 / len(data) ** 2
 
-    algo = PrivGA(num_generations=2000000, stop_early=True,
-                  domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
-                  print_progress=True, sparse_statistics=sparse
-                  )
+    algo = GSD(num_generations=2000000, stop_early=True,
+               domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
+               print_progress=True, sparse_statistics=sparse
+               )
 
     key = jax.random.PRNGKey(0)
     t0 = timer()

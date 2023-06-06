@@ -7,7 +7,7 @@ import pickle
 import jax.random
 import matplotlib.pyplot as plt
 
-from models import PrivGA, SimpleGAforSyncData
+from models import GSD, SimpleGAforSyncData
 from stats import ChainedStatistics, Halfspace, Marginals
 # from utils.utils_data import get_data
 import jax.numpy as jnp

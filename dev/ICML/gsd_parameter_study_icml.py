@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGA
+from models import GSD
 from stats import ChainedStatistics, Marginals
 # from utils.utils_data import get_data
 from utils import timer
@@ -57,8 +57,8 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
 
     for mut_cross in mutations_crossover:
 
-        algo = PrivGA(num_generations=300000,
-                      domain=domain, data_size=1000, population_size=80, muta_rate=mut_cross, mate_rate=mut_cross)
+        algo = GSD(num_generations=300000,
+                   domain=domain, data_size=1000, population_size=80, muta_rate=mut_cross, mate_rate=mut_cross)
         delta = 1.0 / len(data) ** 2
         for seed in seeds:
             for eps in eps_values:

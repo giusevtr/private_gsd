@@ -263,7 +263,7 @@ def get_mating_fn(domain: Domain, mate_rate: int, random_numbers):
 
 
 # @dataclass
-class PrivGA(Generator):
+class GSD(Generator):
 
     def __init__(self,
                  num_generations,
@@ -457,61 +457,3 @@ class PrivGA(Generator):
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         return sync_dataset
 
-
-######################################################################
-######################################################################
-######################################################################
-######################################################################
-######################################################################
-
-def test_jit_ask():
-    from stats import Marginals
-    rounds = 5
-    d = 10
-    k = 1
-    print(f'Test jit(ask) with {rounds} rounds. d={d}, k={k}')
-    domain = Domain([f'A {i}' for i in range(d)], [3 for _ in range(d)])
-    data = Dataset.synthetic(domain, N=10, seed=0)
-    domain = data.domain
-    marginals = Marginals.get_all_kway_combinations(domain, k=k, bins=[2])
-    marginal_stat_fn = marginals._get_workload_fn()
-
-    # get_stats_vmap = lambda x: marginals.get_stats_jax_vmap(x)
-
-    strategy = SimpleGAforSyncData(domain, population_size=20, elite_size=10, data_size=200,
-                                   muta_rate=1,
-                                   mate_rate=1, debugging=True)
-    t0 = timer()
-    key = jax.random.PRNGKey(0)
-
-    strategy.initialize(key)
-    t0 = timer(t0, f'Initialize(1) elapsed time')
-
-    state = strategy.initialize(key)
-    timer(t0, f'Initialize(2) elapsed time')
-
-    for r in range(rounds):
-        t0 = timer()
-        # x, a_idx, removed_rows, added_rows, state = strategy.ask(key, state)
-        population_states, state = strategy.ask(key, state)
-        timer(t0, f'{r:>3}) ask() elapsed time')
-        print()
-
-        # _, num_rows, d = removed_rows.shape
-        # rem_stats = get_stats_vmap(removed_rows) * num_rows
-        # add_stats = get_stats_vmap(added_rows) * num_rows
-        # # a = a_archive[a_idx]
-        # a = a_archive[a_idx] + add_stats - rem_stats
-        #
-        # stats = get_stats_vmap(x) * strategy.data_size
-        # error = jnp.abs(stats - a)
-        # assert error.max() < 1, f'stats error is {error.max():.1f}'
-
-
-if __name__ == "__main__":
-    # test_crossover()
-
-    # test_mutation_fn()
-    # test_mutation()
-    test_jit_ask()
-    # test_jit_mutate()

@@ -2,7 +2,7 @@ import itertools
 import jax.random
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData
+from models import GSD, SimpleGAforSyncData
 from stats import ChainedStatistics, Prefix
 import jax.numpy as jnp
 from utils import timer, Dataset, Domain
@@ -75,8 +75,8 @@ if __name__ == "__main__":
         print(f'train size: {df_train.shape}')
         print(f'test size:  {df_test.shape}')
 
-        algo = PrivGA(num_generations=100000,
-                      strategy=SimpleGAforSyncData(domain, 2000), )
+        algo = GSD(num_generations=100000,
+                   strategy=SimpleGAforSyncData(domain, 2000), )
         delta = 1.0 / len(data) ** 2
         for eps, seed, (samples, epochs) in itertools.product(EPSILON, SEEDS, PARAMS):
             key = jax.random.PRNGKey(seed)

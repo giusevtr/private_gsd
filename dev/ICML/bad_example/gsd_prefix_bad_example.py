@@ -2,7 +2,7 @@ import itertools
 import jax.random
 import pandas as pd
 import os
-from models import PrivGA, SimpleGAforSyncData
+from models import GSD, SimpleGAforSyncData
 from stats import ChainedStatistics
 import jax.numpy as jnp
 from utils import timer, Dataset, Domain
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     stat_test = stat_fn(data)
     print(stat_test)
 
-    algo = PrivGA(num_generations=100000, domain=domain, data_size=1000, population_size=100)
+    algo = GSD(num_generations=100000, domain=domain, data_size=1000, population_size=100)
 
     sync_data = algo.fit_dp(key=jax.random.PRNGKey(0), stat_module=stat_module, epsilon=1, delta=1e-6)
 
