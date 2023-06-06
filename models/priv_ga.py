@@ -76,7 +76,8 @@ class SimpleGAforSyncData:
         self.strategy_name = "SimpleGA"
         self.num_devices = jax.device_count()
         self.domain = domain
-        # assert self.muta_rate == 1, "Only supports mutations=1"
+
+        # It's recommended to always set  muta_rate=muta_rate=1
         assert muta_rate > 0, "Mutation rate must be greater than zero."
         assert mate_rate > 0, "Mate rate must be greater than zero."
         assert muta_rate == mate_rate, "Mutations and crossover must be the same."
@@ -228,7 +229,6 @@ def get_mating_fn(domain: Domain, mate_rate: int, random_numbers):
         temp = jax.random.randint(rng1, minval=0, maxval=random_numbers.shape[0] - mate_rate, shape=(1,))
         temp_id = jnp.arange(mate_rate) + temp
         temp_id = jax.random.permutation(rng2, random_numbers[temp_id], independent=True)
-        # temp_id = jax.random.choice(rng2, n, replace=False, shape=(mate_rate, ))
         remove_rows_idx = temp_id[:mate_rate]
 
         removed_rows_mate = X0[remove_rows_idx, :].reshape((mate_rate, d))
@@ -274,7 +274,6 @@ class PrivGA(Generator):
                  population_size=None,
                  muta_rate=1,
                  mate_rate=1,
-                 # strategy: SimpleGAforSyncData,
                  print_progress=False,
                  stop_early=True,
                  stop_early_gen=None,
@@ -310,12 +309,11 @@ class PrivGA(Generator):
 
         if self.sparse_statistics:
             selected_statistics, selected_noised_statistics, statistics_fn = adaptive_statistic.get_selected_trimmed_statistics_fn()
-            # if self.print_progress:
-            print(f'Number of sparse statistics is {selected_statistics.shape[0]}. Time = {timer() - init_time:.2f}')
+            if self.print_progress:
+                print(f'Number of sparse statistics is {selected_statistics.shape[0]}. Time = {timer() - init_time:.2f}')
         else:
             selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
             selected_statistics = adaptive_statistic.get_selected_statistics_without_noise()
-            # statistics_fn = jax.jit(adaptive_statistic.get_selected_statistics_fn())
             statistics_fn = adaptive_statistic.get_selected_statistics_fn()
 
         # For debugging
@@ -328,9 +326,6 @@ class PrivGA(Generator):
         def private_loss(X_arg):
             error = jnp.abs(selected_noised_statistics - statistics_fn(X_arg))
             return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
-
-        # Create statistic function.
-        # fitness_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
 
         def fitness_fn(stats: chex.Array, pop_state: PopulationState):
             # Process one member of the population
@@ -385,7 +380,6 @@ class PrivGA(Generator):
 
         elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
 
-        # update_elite_stat_statistics_fn = adaptive_statistic.get_selected_statistics_fn()
         def update_elite_stat(elite_stat_arg,
                               population_state: PopulationState,
                               replace_best,
@@ -436,11 +430,6 @@ class PrivGA(Generator):
             if (t % self.stop_early_min_generation) == 0 and t > self.stop_early_min_generation and self.stop_early:
                 loss_change = jnp.abs(LAST_LAG_FITNESS - state.best_fitness) / LAST_LAG_FITNESS
 
-                # if self.print_progress:
-                #     print(f'\t\t{t:<4}: Best.Fitness={state.best_fitness:<4.5f}, '
-                #           f'Last.Fitness={LAST_LAG_FITNESS:4.5f}, '
-                #           f'Loss change={loss_change:.5f}')
-
                 if loss_change < 0.0001:
                     if self.print_progress: print(f'\t\t ### Stop early at {t} ###')
                     break
@@ -462,8 +451,8 @@ class PrivGA(Generator):
                     print()
                     last_fitness = best_fitness_total
 
+        # Save progress for debugging.
         self.true_results_df = pd.DataFrame(true_results, columns=['G', 'Max', 'Avg', 'L2'])
-        # true_results_df.to_csv('gsd_progress.csv')
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         return sync_dataset
