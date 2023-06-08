@@ -337,6 +337,29 @@ class ChainedStatistics:
 
         return jnp.concatenate(selected_true_chained_stats), jnp.concatenate(selected_noised_chained_stats), chained_workload
 
+    def select_all_statistics(self, stat_ids: list = None):
+        self.selected_workloads = []
+        for stat_id in range(len(self.stat_modules)):
+            self.selected_workloads.append([])
+
+        # Choose the statistic modules to measure with zCDP
+        measure_stats_ids = range(len(self.stat_modules)) if stat_ids is None else stat_ids
+        if stat_ids is None:
+            m = self.get_num_workloads()
+        else:
+            m = 0
+            for stat_id in measure_stats_ids:
+                stat_mod = self.stat_modules[stat_id]
+                m += stat_mod.get_num_workloads()
+        for stat_id in measure_stats_ids:
+            stat_mod = self.stat_modules[stat_id]
+            true_stats = self.modules_all_statistics[stat_id]
+
+            for workload_id in range(stat_mod.get_num_workloads()):
+                wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
+                stats = true_stats[wrk_a:wrk_b]
+                self.__add_stats(stat_id, workload_id, stats, stats)
+
     def reselect_stats(self):
         self.selected_workloads = []
         for stat_id in range(len(self.stat_modules)):
