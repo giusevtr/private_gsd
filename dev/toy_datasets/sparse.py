@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.datasets import  make_blobs
 from utils import Dataset, Domain
-from utils.plot_low_dim_data import plot_2d_data
+# from utils.plot_low_dim_data import plot_2d_data
 
 
 def get_sparse_1d_dataset(DATA_SIZE = 100,  seed=0):
@@ -37,6 +37,4 @@ def get_sparse_dataset(DATA_SIZE = 100,  seed=0):
 
 if __name__ == "__main__":
     data =get_sparse_dataset(DATA_SIZE=1000)
-
-    plot_2d_data(data.to_onehot())
 

@@ -3,7 +3,7 @@ __pycache__
 .DS_Store 
 *.ipynb_checkpoints
 .idea/*
-
+PrivGA.egg-info
 
 save
 dev/results
@@ -20,8 +20,9 @@ dev/results/*
 digits
 *.rar
 *.numbers
-*.png
 dp-data
 dev/grad_attack
 dp-data-dev
-PrivGA.egg-info
+dev/ICML/icml_results
+*.npy
+*.txt

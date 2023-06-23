@@ -21,7 +21,7 @@ class Halfspace(AdaptiveStatisticState):
         """
         :param domain:
         :param kway_combinations:
-        :param num_random_halfspaces: number of random halfspaces for each marginal that contains a real-valued feature
+        :param num_random_halfspaces: number of random halfspaces temp for each marginal that contains a real-valued feature
         """
         self.domain = domain
         self.num_hs_samples = num_random_halfspaces
@@ -95,9 +95,12 @@ class Halfspace(AdaptiveStatisticState):
 
         self.queries = jnp.array(queries)
 
+    def _get_dataset_statistics_fn(self, workload_ids=None, jitted: bool = False):
+        if jitted:
+            workload_fn = jax.jit(self._get_workload_fn(workload_ids))
+        else:
+            workload_fn = self._get_workload_fn(workload_ids)
 
-    def _get_dataset_statistics_fn(self, workload_ids=None):
-        workload_fn = self._get_workload_fn(workload_ids)
         def data_fn(data: Dataset):
             X = data.to_numpy()
             return workload_fn(X)
@@ -143,11 +146,11 @@ class Halfspace(AdaptiveStatisticState):
             these_queries = self.queries
         else:
             these_queries = []
-            query_positions = []
+            # query_positions = []
             for stat_id in workload_ids:
                 a, b = self.workload_positions[stat_id]
-                q_pos = jnp.arange(a, b)
-                query_positions.append(q_pos)
+                # q_pos = jnp.arange(a, b)
+                # query_positions.append(q_pos)
                 these_queries.append(self.queries[a:b, :])
             these_queries = jnp.concatenate(these_queries, axis=0)
 
@@ -168,11 +171,3 @@ class Halfspace(AdaptiveStatisticState):
 
 
 
-
-
-
-
-
-
-
-    ##############################

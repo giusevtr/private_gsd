@@ -2,7 +2,7 @@ import itertools
 import jax
 import jax.numpy as jnp
 import chex
-from utils import Dataset
+from utils import Dataset, Domain
 from stats import AdaptiveStatisticState
 from tqdm import tqdm
 import numpy as np
@@ -37,12 +37,10 @@ class Marginals(AdaptiveStatisticState):
     def set_up_stats(self):
 
         queries = []
-        diff_queries = []
         self.workload_positions = []
         for marginal in tqdm(self.kway_combinations, desc='Setting up Marginals.'):
             assert len(marginal) == self.k
             indices = self.domain.get_attribute_indices(marginal)
-            indices_onehot = [self.domain.get_attribute_onehot_indices(att) for att in marginal]
             bins = self.bins if self.is_workload_numeric(marginal) else [-1]
             start_pos = len(queries)
             for bin in bins:
@@ -70,27 +68,40 @@ class Marginals(AdaptiveStatisticState):
                     queries.append(q)  # (i1, i2), ((a1, a2), (b1, b2))
             end_pos = len(queries)
             self.workload_positions.append((start_pos, end_pos))
-            self.workload_sensitivity.append(jnp.sqrt(2))
+            self.workload_sensitivity.append(jnp.sqrt(2 * len(bins)))
 
         self.queries = jnp.array(queries)
 
     def _get_workload_sensitivity(self, workload_id: int = None, N: int = None) -> float:
         return self.workload_sensitivity[workload_id] / N
 
-    def _get_dataset_statistics_fn(self, workload_ids=None):
-        workload_fn = self._get_workload_fn(workload_ids)
+    def _get_dataset_statistics_fn(self, workload_ids=None, jitted: bool = False):
+        if jitted:
+            workload_fn = jax.jit(self._get_workload_fn(workload_ids))
+        else:
+            workload_fn = self._get_workload_fn(workload_ids)
+
         def data_fn(data: Dataset):
             X = data.to_numpy()
             return workload_fn(X)
         return data_fn
 
     def _get_workload_fn(self, workload_ids=None):
-        """
-        Returns marginals function and sensitivity
-        :return:
-        """
-        dim = len(self.domain.attrs)
+        # query_ids = []
+        if workload_ids is None:
+        #     these_queries = self.queries
+            query_ids = jnp.arange(self.queries.shape[0])
+        else:
+            query_positions = []
+            for stat_id in workload_ids:
+                a, b = self.workload_positions[stat_id]
+                q_pos = jnp.arange(a, b)
+                query_positions.append(q_pos)
+            query_ids = jnp.concatenate(query_positions)
 
+        return self._get_stat_fn(query_ids)
+
+    def _get_stat_fn(self, query_ids):
         def answer_fn(x_row: chex.Array, query_single: chex.Array):
             I = query_single[:self.k].astype(int)
             U = query_single[self.k:2 * self.k]
@@ -101,17 +112,7 @@ class Marginals(AdaptiveStatisticState):
             answers = jnp.prod(t3)
             return answers
 
-        if workload_ids is None:
-            these_queries = self.queries
-        else:
-            these_queries = []
-            query_positions = []
-            for stat_id in workload_ids:
-                a, b = self.workload_positions[stat_id]
-                q_pos = jnp.arange(a, b)
-                query_positions.append(q_pos)
-                these_queries.append(self.queries[a:b, :])
-            these_queries = jnp.concatenate(these_queries, axis=0)
+        these_queries = self.queries[query_ids]
         temp_stat_fn = jax.vmap(answer_fn, in_axes=(None, 0))
 
         def scan_fun(carry, x):
@@ -120,12 +121,31 @@ class Marginals(AdaptiveStatisticState):
             out = jax.eval_shape(temp_stat_fn, X[0], these_queries)
             stats = jax.lax.scan(scan_fun, jnp.zeros(out.shape, out.dtype), X)[0]
             return stats / X.shape[0]
-
         return stat_fn
 
     @staticmethod
-    def get_all_kway_combinations(domain, k, bins=(32,)):
-        kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
+    def get_kway_categorical(domain: Domain, k):
+        kway_combinations = [list(idx) for idx in itertools.combinations(domain.get_categorical_cols(), k)]
+        return Marginals(domain, kway_combinations, k, bins=[2])
+
+    @staticmethod
+    def get_all_kway_combinations(domain, k, bins=(32,), max_size=None):
+        if max_size is  None:
+            kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
+        else:
+            kway_combinations = []
+            for idx in itertools.combinations(domain.attrs, k):
+                total_size = 1
+                for col in idx:
+                    sz = domain.size(col)
+                    if sz == 1:
+                        sz = sum(bins)
+                    total_size = total_size * sz
+                if total_size <= max_size:
+                    # print(f'Adding ', idx, ' size=', total_size)
+                    kway_combinations.append(list(idx))
+            # kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)
+            #                      if domain.size(idx) <= max_size]
         return Marginals(domain, kway_combinations, k, bins=bins)
 
     @staticmethod

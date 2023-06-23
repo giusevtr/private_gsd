@@ -145,7 +145,7 @@ class Dataset:
 
     @staticmethod
     def from_numpy_to_dataset(domain, X):
-        df = pd.DataFrame(X, columns=domain.attrs)
+        df = pd.DataFrame(np.array(X), columns=domain.attrs)
         return Dataset(df, domain=domain)
 
     def to_numpy(self):
@@ -223,8 +223,9 @@ class Dataset:
                 X_col = jax.nn.softmax(x=logits, axis=1)
                 X_softmax.append(X_col)
             else:
-                logits_clipped = jnp.clip(logits, a_min=0, a_max=1)
-                X_softmax.append(logits_clipped)
+                # logits_clipped = jnp.clip(logits, a_min=0, a_max=1)
+                # X_softmax.append(logits_clipped)
+                X_softmax.append(logits)
 
 
         X_softmax = jnp.concatenate(X_softmax, axis=1)
@@ -380,6 +381,12 @@ class Dataset:
         df = pd.DataFrame(np.column_stack(cols), columns=data.domain.attrs)
         return Dataset(df, numeric_domain)
 
+    def split(self, p, seed=0):
+        np.random.seed(seed)
+        msk = np.random.rand(len(self.df)) < p
+        train = self.df[msk]
+        test = self.df[~msk]
+        return Dataset(train, self.domain), Dataset(test, self.domain)
 ##################################################
 # Test
 ##################################################
