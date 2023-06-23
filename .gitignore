@@ -22,3 +22,6 @@ digits
 *.numbers
 *.png
 dp-data
+dev/grad_attack
+dp-data-dev
+PrivGA.egg-info
