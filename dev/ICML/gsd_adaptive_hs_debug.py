@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import PrivGASparse as PrivGA, SimpleGAforSyncData, PrivGAJit
+from models import PrivGASparse as PrivGA, PrivGAJit
 from stats import ChainedStatistics, Marginals, Halfspace
 # from utils.utils_data import get_data
 from utils import timer

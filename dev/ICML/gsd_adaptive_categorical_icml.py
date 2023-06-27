@@ -1,25 +1,14 @@
 import itertools
 
 import jax.random
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
-from models import GSD, PrivGAJit
+from models import GSD
 from stats import ChainedStatistics, Marginals
-# from utils.utils_data import get_data
-from utils import timer
 import jax.numpy as jnp
-# from dp_data.data import get_data
 from utils import timer, Dataset, Domain , get_Xy, filter_outliers
-import seaborn as sns
-from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
-from sklearn.linear_model import LogisticRegression
-
 from dp_data import load_domain_config, load_df
-
-from dev.dataloading.data_functions.acs import get_acs_all
-
 
 
 def get_cat_marginals(data: Dataset, k):
@@ -51,8 +40,9 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
     # Create statistics and evaluate
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
 
-    module = Marginals.get_kway_categorical(domain, k=3)
-    stat_module = ChainedStatistics([module])
+    module2 = Marginals.get_kway_categorical(domain, k=1)
+    module3 = Marginals.get_kway_categorical(domain, k=3)
+    stat_module = ChainedStatistics([module2, module3])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
     stat_fn = stat_module.get_dataset_statistics_fn()
@@ -62,8 +52,8 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
     print(f'Data cardinality is {domain.size()}.')
     print(f'Number of queries is {true_stats.shape[0]}.')
 
-    algo = GSD(num_generations=150000,
-               domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
+    algo = GSD(num_generations=1500000,
+               domain=domain, data_size=32000, population_size=100, muta_rate=1, mate_rate=1,
                print_progress=False)
 
     delta = 1.0 / len(data) ** 2
@@ -81,8 +71,7 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
                     sync_df = pd.read_csv(sync_path)
                     sync_data = Dataset(sync_df, domain)
                 else:
-                    sync_data = algo.fit_dp_adaptive(key, stat_module=stat_module,
-
+                    sync_data = algo.fit_dp_hybrid(key, stat_module=stat_module,
                                                epsilon=eps, delta=delta,
                                                  rounds=rounds, num_sample=1,
                                                  print_progress=True
@@ -106,21 +95,20 @@ def run(dataset_name,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.74, 1.0)
 if __name__ == "__main__":
 
     DATA = [
-
         'folktables_2018_travel_CA',
-        'folktables_2018_income_CA',
+        # 'folktables_2018_income_CA',
         # 'folktables_2018_coverage_CA',
         # 'folktables_2018_mobility_CA',
         # 'folktables_2018_employment_CA',
     ]
 
-    T = [25, 50, 75, 100]
+    T = [25]
     os.makedirs('icml_results/', exist_ok=True)
 
     results = None
     for data in DATA:
         file_name = f'icml_results/gsd_adaptive_3way_categorical_{data}.csv'
-        results_temp = run(data, eps_values=[1, 0.74, 0.52, 0.23, 0.07], seeds=[0, 1, 2])
+        results_temp = run(data, eps_values=[10000], seeds=[0, 1, 2])
         results = pd.concat([results, results_temp], ignore_index=True) if results is not None else results_temp
         print(f'Saving: {file_name}')
         results.to_csv(file_name, index=False)

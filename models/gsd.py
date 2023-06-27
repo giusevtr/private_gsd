@@ -296,7 +296,7 @@ class GSD(Generator):
         self.stop_generation = None
 
     def __str__(self):
-        return f'PrivGA'
+        return f'GSD'
 
     def fit(self, key, adaptive_statistic: ChainedStatistics,
             sync_dataset: Dataset = None, tolerance: float = 0.0, adaptive_epoch=1):

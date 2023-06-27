@@ -4,7 +4,7 @@ import jax.random
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from models import GSD, SimpleGAforSyncData, PrivGAJit
+from models import GSD, PrivGAJit
 from stats import ChainedStatistics, Marginals
 import jax.numpy as jnp
 from utils import timer, Dataset, Domain
