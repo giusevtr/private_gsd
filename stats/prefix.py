@@ -98,7 +98,7 @@ class Prefix(AdaptiveStatisticState):
         :return:
         """
         dim = len(self.domain.attrs)
-        numeric_cols = self.domain.get_numeric_cols()
+        numeric_cols = self.domain.get_numerical_cols()
         num_idx = self.domain.get_attribute_indices(numeric_cols).astype(int)
         numeric_dim = num_idx.shape[0]
 

@@ -171,7 +171,7 @@ def get_proj(domain: Domain):
     return proj_fn
 
 
-from dp_data import load_domain_config, load_df, ml_eval
+from dp_data import load_domain_config, load_df
 import seaborn as sns
 def test_proj():
     dataset_name = 'folktables_2018_coverage_CA'

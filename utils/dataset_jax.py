@@ -8,32 +8,9 @@ from utils import Domain
 from sklearn.preprocessing import OneHotEncoder
 
 
-def get_data_onehot(data):
-    df_data = data.df_real
-    dim = sum(data.domain.shape)
-    i = 0
-    oh_encoded = []
-    for attr, num_classes in zip(data.domain.attrs, data.domain.shape):
-        col = df_data[attr].values
-        if num_classes > 1:
-            # Categorical features
-            col_oh = jax.nn.one_hot(col.astype(int), num_classes)
-            oh_encoded.append(col_oh)
-        elif num_classes == 1:
-            # Numerical features
-            oh_encoded.append(col.astype(float).reshape((-1, 1)))
-    data_onehot = jnp.concatenate(oh_encoded, axis=1)
-
-    return data_onehot.astype(float)
-
-
 class Dataset:
-    def __init__(self, df, domain):
-        """ create a Dataset object
-
-        :param df: a pandas dataframe
-        :param domain: a domain object
-        """
+    def __init__(self, df, domain: Domain):
+        """ create a Dataset object """
         assert set(domain.attrs) <= set(df.columns), 'data must contain domain attributes'
         self.domain = domain
         self.df = df.loc[:, domain.attrs]
@@ -41,37 +18,63 @@ class Dataset:
     def __len__(self):
         return len(self.df)
 
-
     @staticmethod
-    def synthetic_jax_rng(domain, N, rng):
+    def synthetic_jax_rng(domain: Domain, N, rng, null_values: float=0.0):
         """
         Generate synthetic data conforming to the given domain
         :param domain: The domain object
         :param N: the number of individuals
         """
-        d = len(domain.shape)
-        rng_split = jax.random.split(rng, d)
-        arr = [jax.random.randint(rng_temp, shape=(N, ), minval=0, maxval=n) if n > 1 else
-               jax.random.uniform(rng_temp, shape=(N, )) for (rng_temp, n) in zip(rng_split, domain.shape)]
+        d = len(domain.attrs)
+        rng0, rng1 = jax.random.split(rng, 2)
+        rng_split = jax.random.split(rng0, d)
+        num_nulls = int(N * null_values)
+        arr = []
+        for (rng_temp, att) in zip(rng_split, domain.attrs):
+            rng_temp0, rng_temp1 = jax.random.split(rng_temp, 2)
+            c = None
+            if domain.type(att) == 'categorical' or domain.type(att) == 'ordinal':
+                c = jax.random.randint(rng_temp0, shape=(N,), minval=0, maxval=domain.size(att))
+            elif domain.type(att) == 'numerical':
+                has_bin_edges, bin_edges = domain.get_bin_edges(att)
+                if has_bin_edges:
+                    rng_bin_0, rng_bin_1 = jax.random.split(rng_temp0, 2)
+                    num_bins = bin_edges.shape[0]
+                    bin_pos = jax.random.randint(rng_bin_0, shape=(N,), minval=1, maxval=num_bins)
+                    right_edge = bin_edges[bin_pos]
+                    left_edge = bin_edges[bin_pos-1]
+                    u = jax.random.uniform(rng_bin_1, shape=(N, ))
+                    c = (right_edge - left_edge) * u + left_edge
+
+                else:
+                    c = jax.random.uniform(rng_temp0, shape=(N, ))
+
+            if domain.has_nulls(att):
+                null_idx = jax.random.randint(rng_temp1, minval=0, maxval=N, shape=(num_nulls,))
+                c = c.astype(float).at[null_idx].set(jnp.nan)
+            arr.append(c)
+
+
         values = jnp.array(arr).T
         return values
 
     @staticmethod
-    def synthetic_rng(domain, N, rng):
-        """ Generate synthetic data conforming to the given domain
+    def synthetic_rng(domain: Domain, N, rng, null_values: float=0.0):
+        """ Generate synthetic data conforming to the given domain """
+        arr = [rng.uniform(size=N) if domain.type(att) == 'numerical'
+                else rng.integers(low=0, high=domain.size(att), size=N).astype(float) for att in domain.attrs]
 
-        :param domain: The domain object
-        :param N: the number of individuals
-        """
-        arr = [rng.integers(low=0, high=n, size=N) if n>1 else rng.uniform(size=N) for n in domain.shape]
         values = np.array(arr).T
+        temp = rng.uniform(low=0, high=1, size=values.shape) < null_values
+        values[temp] = np.nan
+
         df = pd.DataFrame(values, columns=domain.attrs)
         return Dataset(df, domain)
 
     @staticmethod
-    def synthetic(domain, N, seed: int):
+    def synthetic(domain, N, seed: int, null_values: float=0.0):
         rng = np.random.default_rng(seed)
-        return Dataset.synthetic_rng(domain, N, rng)
+        return Dataset.synthetic_rng(domain, N, rng, null_values)
 
     @staticmethod
     def load(path, domain):
@@ -82,7 +85,7 @@ class Dataset:
         """
         df = pd.read_csv(path)
         config = json.load(open(domain))
-        domain = Domain(config.keys(), config.values())
+        domain = Domain(config)
         return Dataset(df, domain)
     
     def project(self, cols):
@@ -97,19 +100,19 @@ class Dataset:
         proj = [c for c in self.domain if c not in cols]
         return self.project(proj)
 
-    def datavector(self, flatten=True, weights=None, density=False):
-        """ return the database in vector-of-counts form """
-        bins = [range(n+1) for n in self.domain.shape]
-        ans = np.histogramdd(self.df.values, bins, weights=weights, density=density)[0]
-        return ans.flatten() if flatten else ans
+    # def datavector(self, flatten=True, weights=None, density=False):
+    #     """ return the database in vector-of-counts form """
+    #     bins = [range(n+1) for n in self.domain.shape]
+    #     ans = np.histogramdd(self.df.values, bins, weights=weights, density=density)[0]
+    #     return ans.flatten() if flatten else ans
 
-    def datavector_jax(self, flatten=True, weights=None, density=False):
-        """ return the database in vector-of-counts form """
-        # bins = jnp.array([range(n+1) for n in self.domain.shape])
-        bins = [jnp.array(list(range(n+1))) for n in self.domain.shape]
-        # bins = jnp.array([(n+1) for n in self.domain.shape])
-        ans = jnp.histogramdd(self.df.values, bins, weights=weights, density=density)[0]
-        return ans.flatten() if flatten else ans
+    # def datavector_jax(self, flatten=True, weights=None, density=False):
+    #     """ return the database in vector-of-counts form """
+    #     # bins = jnp.array([range(n+1) for n in self.domain.shape])
+    #     bins = [jnp.array(list(range(n+1))) for n in self.domain.shape]
+    #     # bins = jnp.array([(n+1) for n in self.domain.shape])
+    #     ans = jnp.histogramdd(self.df.values, bins, weights=weights, density=density)[0]
+    #     return ans.flatten() if flatten else ans
 
     def sample(self, p=None, n=None, replace=False, seed=None):
         subsample = None
@@ -149,64 +152,156 @@ class Dataset:
         return Dataset(df, domain=domain)
 
     def to_numpy(self):
-        cols = [self.df.values[:, i].astype(int) if n > 1 else self.df.values[:, i].astype(float) for i, n in enumerate(self.domain.shape)]
-        df_numpy = jnp.vstack(cols).T
-        return df_numpy
+        array = jnp.array(self.df.values)
+        return array
 
-    def to_onehot(self) -> jnp.ndarray:
-        df_data = self.df
-        oh_encoded = []
-        for attr, num_classes in zip(self.domain.attrs, self.domain.shape):
-            col = df_data[attr].values
-            if num_classes > 1:
-                # Categorical features
-                col_oh = jax.nn.one_hot(col.astype(int), num_classes)
-                oh_encoded.append(col_oh)
-            elif num_classes == 1:
-                # Numerical features
-                oh_encoded.append(col.astype(float).reshape((-1, 1)))
-        data_onehot = jnp.concatenate(oh_encoded, axis=1)
+    def to_numpy_np(self):
+        array = np.array(self.df.values)
+        return array
+    # def to_onehot(self) -> jnp.ndarray:
+    #     df_data = self.df
+    #     oh_encoded = []
+    #     for attr, num_classes in zip(self.domain.attrs, self.domain.shape):
+    #         col = df_data[attr].values
+    #         if num_classes > 1:
+    #             # Categorical features
+    #             col_oh = jax.nn.one_hot(col.astype(int), num_classes)
+    #             oh_encoded.append(col_oh)
+    #         elif num_classes == 1:
+    #             # Numerical features
+    #             oh_encoded.append(col.astype(float).reshape((-1, 1)))
+    #     data_onehot = jnp.concatenate(oh_encoded, axis=1)
+    #
+    #     return data_onehot.astype(float)
 
-        return data_onehot.astype(float)
+    # @staticmethod
+    # def from_onehot_to_dataset(domain: Domain, X_oh):
+    #
+    #     dtypes = []
+    #     start = 0
+    #     output = []
+    #     column_names = domain.attrs
+    #     cat_cols = domain.get_categorical_cols()
+    #     for col in domain.attrs:
+    #         dimensions = domain.size(col)
+    #         column_onehot_encoding = X_oh[:, start:start + dimensions]
+    #
+    #
+    #         if col in cat_cols:
+    #             encoder = OneHotEncoder()
+    #             # encoder.categories_ = [list(range(domain.size(col)))]
+    #             dummy = [[v] for v in range(domain.size(col))]
+    #             encoder.fit(dummy)
+    #             col_values = encoder.inverse_transform(column_onehot_encoding)
+    #             dtypes.append('int64')
+    #         else:
+    #             col_values = column_onehot_encoding.squeeze()
+    #             dtypes.append('float')
+    #
+    #         output.append(col_values)
+    #         start += dimensions
+    #
+    #     data_np = np.column_stack(output)
+    #
+    #     data_df = pd.DataFrame(data_np, columns=column_names)
+    #
+    #     dtypes = pd.Series(dtypes, data_df.columns)
+    #
+    #     data_df = data_df.astype(dtypes)
+    #
+    #     data = Dataset(data_df, domain=domain)
+    #
+    #     return data
 
-    @staticmethod
-    def from_onehot_to_dataset(domain: Domain, X_oh):
 
-        dtypes = []
-        start = 0
-        output = []
-        column_names = domain.attrs
-        cat_cols = domain.get_categorical_cols()
-        for col in domain.attrs:
-            dimensions = domain.size(col)
-            column_onehot_encoding = X_oh[:, start:start + dimensions]
+    # @staticmethod
+    # def apply_softmax(domain: Domain, X_relaxed: jnp.ndarray) -> jnp.ndarray:
+    #     # Takes as input relaxed dataset
+    #     # Then outputs a dataset consistent with data schema self.domain
+    #     X_softmax = []
+    #     i = 0
+    #     for attr, num_classes in zip(domain.attrs, domain.shape):
+    #         logits = X_relaxed[:, i:i+num_classes]
+    #         i += num_classes
+    #
+    #         if num_classes > 1:
+    #             X_col = jax.nn.softmax(x=logits, axis=1)
+    #             X_softmax.append(X_col)
+    #         else:
+    #             logits_clipped = jnp.clip(logits, a_min=0, a_max=1)
+    #             X_softmax.append(logits_clipped)
+    #
+    #
+    #     X_softmax = jnp.concatenate(X_softmax, axis=1)
+    #     return X_softmax
 
+    # @staticmethod
+    # def normalize_categorical(domain: Domain, X_relaxed: jnp.ndarray) -> jnp.ndarray:
+    #     # Takes as input relaxed dataset
+    #     # Then outputs a dataset consistent with data schema self.domain
+    #     X_softmax = []
+    #     i = 0
+    #     for attr, num_classes in zip(domain.attrs, domain.shape):
+    #         logits = X_relaxed[:, i:i+num_classes]
+    #         i += num_classes
+    #
+    #         if num_classes > 1:
+    #             # logits = logits < 0.0001
+    #             # min_r = jnp.min(jnp.array([0, jnp.min(logits)]))
+    #             # min_r = jnp.min(logits)
+    #             # logits = logits - min_r
+    #
+    #             sum_r = jnp.sum(logits, axis=1)
+    #             temp = jnp.array([sum_r, 0.00001 * jnp.ones_like(sum_r)])
+    #             sum_r = jnp.max(temp, axis=0)
+    #             X_col = logits / sum_r.reshape(-1, 1)
+    #             X_softmax.append(X_col)
+    #         else:
+    #             # maxval = logits.max()
+    #             # minval = logits.min()
+    #             # range_vals = maxval - minval
+    #             # logits_norm = (logits + minval) / range_vals
+    #
+    #             X_softmax.append(logits)
+    #
+    #
+    #     X_softmax = jnp.concatenate(X_softmax, axis=1)
+    #     return X_softmax
 
-            if col in cat_cols:
-                encoder = OneHotEncoder()
-                # encoder.categories_ = [list(range(domain.size(col)))]
-                dummy = [[v] for v in range(domain.size(col))]
-                encoder.fit(dummy)
-                col_values = encoder.inverse_transform(column_onehot_encoding)
-                dtypes.append('int64')
-            else:
-                col_values = column_onehot_encoding.squeeze()
-                dtypes.append('float')
-
-            output.append(col_values)
-            start += dimensions
-
-        data_np = np.column_stack(output)
-
-        data_df = pd.DataFrame(data_np, columns=column_names)
-
-        dtypes = pd.Series(dtypes, data_df.columns)
-
-        data_df = data_df.astype(dtypes)
-
-        data = Dataset(data_df, domain=domain)
-
-        return data
+    # @staticmethod
+    # def get_sample_onehot(key, domain, X_relaxed: jnp.ndarray, num_samples=1) -> jnp.ndarray:
+    #
+    #     keys = jax.random.split(key, len(domain.attrs))
+    #     X_onehot = []
+    #     i = 0
+    #     for attr, num_classes, subkey in zip(domain.attrs, domain.shape, keys):
+    #         logits = X_relaxed[:, i:i+num_classes]
+    #         i += num_classes
+    #         if num_classes > 1:
+    #             row_one_hot = []
+    #             for _ in range(num_samples):
+    #
+    #                 sum_r = jnp.sum(logits, axis=1)
+    #                 temp = jnp.array([sum_r, 0.00001 * jnp.ones_like(sum_r)])
+    #                 sum_r = jnp.max(temp, axis=0)
+    #                 logits = logits / sum_r.reshape(-1, 1)
+    #
+    #                 subkey, subsubkey = jax.random.split(subkey, 2)
+    #                 categories = jax.random.categorical(subsubkey, jnp.log(logits), axis=1)
+    #                 onehot_col = jax.nn.one_hot(categories.astype(int), num_classes)
+    #                 row_one_hot.append(onehot_col)
+    #             X_onehot.append(jnp.concatenate(row_one_hot, axis=0))
+    #         else:
+    #             row_one_hot = []
+    #             # Add numerical column
+    #             for _ in range(num_samples):
+    #                 row_one_hot.append(logits)
+    #
+    #             X_onehot.append(jnp.concatenate(row_one_hot, axis=0))
+    #
+    #
+    #     X_onehot = jnp.concatenate(X_onehot, axis=1)
+    #     return X_onehot
 
 
     @staticmethod
@@ -391,59 +486,20 @@ class Dataset:
 # Test
 ##################################################
 
-def test_discrete():
-    cols = ['A', 'B', 'C']
-    dom = Domain(cols, [3, 1, 1])
-
-    raw_data_array = pd.DataFrame([
-                        [0, 0.0, 0.95],
-                        [1, 0.1, 0.90],
-                        [2, 0.25, 0.01]], columns=cols)
-    # data = Dataset.synthetic_rng(dom, data_size, rng)
-    data = Dataset(raw_data_array, dom)
-    numeric_features = data.domain.get_numeric_cols()
-
-    data_disc = data.discretize(num_bins=5)
-
-    print(f'dicretized')
-    print(data_disc.domain)
-    print(data_disc.df)
-
-    data_num = Dataset.to_numeric(data=data_disc, numeric_features=numeric_features)
-
-    print('numeric')
-    print(data_num.domain)
-    print(data_num.df)
-
-
-def test_onehot_encoding():
-    # data_size = 10
-    # import numpy as np
-    # rng = np.random.default_rng(9)
-    cols = ['A', 'B', 'C']
-    dom = Domain(cols, [3, 1, 4])
-
-    raw_data_array = pd.DataFrame([
-                        [0, 0.0, 1],
-                        [0, 0.1, 3],
-                        [1, 0.2, 1]], columns=cols)
-    # data = Dataset.synthetic_rng(dom, data_size, rng)
-    data = Dataset(raw_data_array, dom)
-    print(f'Initial data in original format')
-    print(data.df)
-
-    data_oh = data.to_onehot()
-    assert data_oh.shape == (3, 8)
-    print(f'Onehot dataset')
-    print(data_oh)
-
-    data_2 = Dataset.from_onehot_to_dataset(dom, data_oh)
-
-    print(f'Final data in original format')
-    print(data_2.df)
-
-    # assert raw_data_array
 
 if __name__ == "__main__":
     # test_onehot_encoding()
-    test_discrete()
+    # test_discrete()
+
+    df = pd.read_csv('../tests/data.csv')
+    config = json.load(open('../tests/domain.json'))
+
+    print(df)
+    print(config)
+    domain = Domain(config)
+
+    data = Dataset(df, domain)
+
+
+    print(data.to_numpy())
+    print(data.df)

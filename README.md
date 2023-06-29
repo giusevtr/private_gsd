@@ -20,7 +20,6 @@ Visit this [Colab link](https://colab.research.google.com/drive/1t49XFG51pmcIsRq
 Set up conda environment
 ````
 conda create -n gsd python=3.9
-
 conda activate gsd 
 pip install --upgrade pip
 ````

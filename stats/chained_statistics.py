@@ -20,10 +20,11 @@ class ChainedStatistics:
     def __init__(self, stat_modules: list):
         self.stat_modules = stat_modules
 
-    def fit(self, data: Dataset):
+    def fit(self, data: Dataset, max_queries_per_workload=-1):
         # X = data.to_numpy()
         self.data = data
         self.N = len(self.data.df)
+        self.max_queries_per_workload = self.N if max_queries_per_workload == -1 else max_queries_per_workload
         self.domain = data.domain
         self.all_workloads = []
         self.modules_workload_fn_jit = []
@@ -39,7 +40,7 @@ class ChainedStatistics:
             # self.modules_workload_fn_jit.append(jax.jit(stat_mod._get_workload_fn()))
             self.modules_workload_fn_jit.append(stat_mod._get_dataset_statistics_fn(jitted=False))
             self.modules_all_statistics.append(all_stats)
-            print(f'\nnumber of queries is {all_stats.shape[0]}\n')
+            print(f'statistics {stat_id}: number of queries is {all_stats.shape[0]}')
 
             self.selected_workloads.append([])
 
@@ -76,7 +77,6 @@ class ChainedStatistics:
             if len(temp) > 0:
                 temp = jnp.concatenate(temp)
                 selected_chained_stats.append(temp)
-
         return jnp.concatenate(selected_chained_stats)
 
     def get_selected_statistics_without_noise(self, stat_modules_ids=None):
@@ -314,28 +314,61 @@ class ChainedStatistics:
         for stat_id in stat_modules_ids:
             stat_mod: AdaptiveStatisticState
             stat_mod = self.stat_modules[stat_id]
+# <<<<<<< HEAD
+#             query_ids_list = []
+#             for workload_id, workload_fn, noised_workload_stats, true_workload_stats in self.selected_workloads[stat_id]:
+#                 S = stat_mod._get_workload_sensitivity(workload_id, 1)**2 / 2
+#                 wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
+#                 query_ids = jnp.arange(wrk_a, wrk_b)
+#                 sorted_ids = jnp.argsort(-noised_workload_stats)
+#                 sorted_values = noised_workload_stats[sorted_ids]
+#                 cumsum_sorted_values = jnp.cumsum(sorted_values)
+#                 q_id = jnp.searchsorted(cumsum_sorted_values, S)
+#                 # workload_top_k = min(noised_workload_stats.shape[0], self.max_queries_per_workload)
+#                 topk_ids = sorted_ids[:q_id]
+#                 selected_true_chained_stats.append(true_workload_stats[topk_ids])
+#                 selected_noised_chained_stats.append(noised_workload_stats[topk_ids])
+#                 query_ids_list.append(query_ids[topk_ids])
+#             query_ids_concat = jnp.concatenate(query_ids_list)
+#             tmp_fn = stat_mod._get_stat_fn(query_ids_concat)
+#             workload_fn_list.append(tmp_fn)
+#
+# =======
+
             query_ids_list = []
             for workload_id, workload_fn, noised_workload_stats, true_workload_stats in self.selected_workloads[stat_id]:
-                S = stat_mod._get_workload_sensitivity(workload_id, 1)**2 / 2
                 wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
-                query_ids = jnp.arange(wrk_a, wrk_b)
+                query_ids = np.arange(wrk_a, wrk_b)
                 sorted_ids = jnp.argsort(-noised_workload_stats)
-                sorted_values = noised_workload_stats[sorted_ids]
-                cumsum_sorted_values = jnp.cumsum(sorted_values)
-                q_id = jnp.searchsorted(cumsum_sorted_values, S)
-                # workload_top_k = min(noised_workload_stats.shape[0], self.max_queries_per_workload)
-                topk_ids = sorted_ids[:q_id]
+                workload_top_k = min(noised_workload_stats.shape[0], self.max_queries_per_workload)
+                topk_ids = sorted_ids[:workload_top_k]
                 selected_true_chained_stats.append(true_workload_stats[topk_ids])
                 selected_noised_chained_stats.append(noised_workload_stats[topk_ids])
-                query_ids_list.append(query_ids[topk_ids])
+                query_ids_list.append(query_ids[np.array(topk_ids)])
             query_ids_concat = jnp.concatenate(query_ids_list)
             tmp_fn = stat_mod._get_stat_fn(query_ids_concat)
+            tmp_ans = tmp_fn(self.data.to_numpy())
+            assert tmp_ans.shape[0] == query_ids_concat.shape[0]
             workload_fn_list.append(tmp_fn)
 
+            # if len(noised_stats) > 0:
+            #     true_stats = jnp.concatenate(true_stats)
+            #     priv_stats = jnp.concatenate(noised_stats)
+            #     sorted_ids = jnp.argsort(-priv_stats)
+            #     workload_top_k = min(priv_stats.shape[0], self.max_queries_per_workload)
+            #     sparse_ids = sorted_ids[workload_top_k]
+            #     selected_true_chained_stats.append(true_stats[sparse_ids])
+            #     selected_noised_chained_stats.append(priv_stats[sparse_ids])
+            #     sparse_query_ids = query_ids[sparse_ids]
+            #     # workload_fn_list.append(stat_mod._get_workload_fn(sparse_workloads_ids))
+            #     workload_fn_list.append(stat_mod._get_stat_fn(sparse_query_ids))
+
+# >>>>>>> nist
         def chained_workload(X, **kwargs):
             return jnp.concatenate([fn(X, **kwargs) for fn in workload_fn_list], axis=0)
 
         return jnp.concatenate(selected_true_chained_stats), jnp.concatenate(selected_noised_chained_stats), chained_workload
+
 
     def reselect_stats(self):
         self.selected_workloads = []
@@ -343,27 +376,8 @@ class ChainedStatistics:
             self.selected_workloads.append([])
 
 
-
-
-
 def exponential_mechanism(key: jnp.ndarray, scores: jnp.ndarray, eps0: float, sensitivity: float):
     dist = jax.nn.softmax(2 * eps0 * scores / (2 * sensitivity))
     cumulative_dist = jnp.cumsum(dist)
     max_query_idx = jnp.searchsorted(cumulative_dist, jax.random.uniform(key, shape=(1,)))
     return max_query_idx[0]
-
-
-if __name__ == "__main__":
-    from stats import Marginals
-    from dev.toy_datasets.classification import get_classification
-
-    data = get_classification()
-
-    # marginal_module1 = Marginals.get_all_kway_combinations(data.domain, k=1, bins=[2, 4])
-    marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
-    chained_module = ChainedStatistics([marginal_module2])
-    chained_module.fit(data)
-    chained_module.private_measure_all_statistics(key=jax.random.PRNGKey(0), rho=10)
-
-    chained_module.get_selected_trimmed_statistics_fn()
-

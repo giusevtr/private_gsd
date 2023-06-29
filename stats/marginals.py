@@ -10,13 +10,19 @@ import numpy as np
 
 class Marginals(AdaptiveStatisticState):
 
-    def __init__(self, domain, kway_combinations, k, bins=(32,)):
+    def __init__(self, domain, kway_combinations, k, bins=None, levels=3):
         self.domain = domain
         self.kway_combinations = kway_combinations
         self.k = k
-        self.bins = list(bins)
+        self.levels = levels
         self.workload_positions = []
         self.workload_sensitivity = []
+
+        self.bins = bins if bins is not None else {}
+        for num_col in domain.get_numerical_cols():
+            if num_col not in self.bins:
+                self.bins[num_col] = np.linspace(0, 1, 2 ** levels)
+
         self.set_up_stats()
 
     def __str__(self):
@@ -30,7 +36,7 @@ class Marginals(AdaptiveStatisticState):
 
     def is_workload_numeric(self, cols):
         for c in cols:
-            if c in self.domain.get_numeric_cols():
+            if c in self.domain.get_numerical_cols() or c in self.domain.get_ordinal_cols():
                 return True
         return False
 
@@ -41,25 +47,37 @@ class Marginals(AdaptiveStatisticState):
         for marginal in tqdm(self.kway_combinations, desc='Setting up Marginals.'):
             assert len(marginal) == self.k
             indices = self.domain.get_attribute_indices(marginal)
-            bins = self.bins if self.is_workload_numeric(marginal) else [-1]
+
+            levels = self.levels if self.is_workload_numeric(marginal) else 1
             start_pos = len(queries)
-            for bin in bins:
+            for level in range(levels):
                 intervals = []
                 for att in marginal:
                     size = self.domain.size(att)
-                    if size > 1:
+                    if self.domain.type(att) == 'categorical':
                         upper = np.linspace(0, size, num=size+1)[1:]
                         lower = np.linspace(0, size, num=size+1)[:-1]
-                        # lower = lower.at[0].set(-0.01)
                         interval = list(np.vstack((upper, lower)).T - 0.1)
                         intervals.append(interval)
+                    elif self.domain.type(att) == 'ordinal':
+                        ord_bins = (size + 1) // (2**level)
+                        ord_bins = max(ord_bins, 3)  # There must be at least 3 bins
+                        upper = np.linspace(0, size, num=ord_bins)[1:]
+                        lower = np.linspace(0, size, num=ord_bins)[:-1]
+                        interval = list(np.vstack((upper, lower)).T - 0.0001)
+                        intervals.append(interval)
                     else:
-                        upper = np.linspace(0, 1, num=bin+1)[1:]
-                        lower = np.linspace(0, 1, num=bin+1)[:-1]
-                        upper[-1] = 1.01
-                        # upper = upper.at[-1].set(1.01)
+                        bins_att = self.bins[att]
+                        num_bins = bins_att.shape[0]
+
+                        part = 2**level
+                        if num_bins // part < 3:
+                            part = num_bins // 2
+                        upper = bins_att[part::part]
+                        lower = bins_att[:-part:part]
                         interval = list(np.vstack((upper, lower)).T)
                         intervals.append(interval)
+
                 for v in itertools.product(*intervals):
                     v_arr = np.array(v)
                     upper = v_arr.flatten()[::2]
@@ -68,7 +86,7 @@ class Marginals(AdaptiveStatisticState):
                     queries.append(q)  # (i1, i2), ((a1, a2), (b1, b2))
             end_pos = len(queries)
             self.workload_positions.append((start_pos, end_pos))
-            self.workload_sensitivity.append(jnp.sqrt(2 * len(bins)))
+            self.workload_sensitivity.append(jnp.sqrt(2 * levels))
 
         self.queries = jnp.array(queries)
 
@@ -123,30 +141,38 @@ class Marginals(AdaptiveStatisticState):
             return stats / X.shape[0]
         return stat_fn
 
+    def _get_numpy_workload_fn(self, workload_ids):
+        pass
     @staticmethod
     def get_kway_categorical(domain: Domain, k):
         kway_combinations = [list(idx) for idx in itertools.combinations(domain.get_categorical_cols(), k)]
-        return Marginals(domain, kway_combinations, k, bins=[2])
+        return Marginals(domain, kway_combinations, k, bins=None)
 
     @staticmethod
-    def get_all_kway_combinations(domain, k, bins=(32,), max_size=None):
-        if max_size is  None:
-            kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
-        else:
-            kway_combinations = []
-            for idx in itertools.combinations(domain.attrs, k):
-                total_size = 1
-                for col in idx:
-                    sz = domain.size(col)
-                    if sz == 1:
-                        sz = sum(bins)
-                    total_size = total_size * sz
-                if total_size <= max_size:
-                    # print(f'Adding ', idx, ' size=', total_size)
-                    kway_combinations.append(list(idx))
-            # kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)
-            #                      if domain.size(idx) <= max_size]
-        return Marginals(domain, kway_combinations, k, bins=bins)
+    def get_all_kway_combinations(domain, k, bin_edges=None, levels=3, max_workload_size=None,
+                                  include_feature=None):
+        kway_combinations = [list(idx) for idx in itertools.combinations(domain.attrs, k)]
+
+        new_kway_comb = []
+        for comb in kway_combinations:
+            workload_size = 1
+            for att in comb:
+                sz = domain.size(att)
+                if sz > 1:
+                    workload_size = workload_size * sz
+                else:
+                    if bin_edges is not None and att in bin_edges:
+                        workload_size = workload_size * len(bin_edges[att])
+                    else:
+                        workload_size = workload_size * 64
+
+
+            if (max_workload_size is None) or workload_size < max_workload_size:
+                if include_feature is None or include_feature in comb:
+                    new_kway_comb.append(comb)
+        kway_combinations = new_kway_comb
+
+        return Marginals(domain, kway_combinations, k, bins=bin_edges, levels=levels)
 
     @staticmethod
     def get_all_kway_mixed_combinations_v1(domain, k, bins=(32,)):
@@ -165,8 +191,3 @@ class Marginals(AdaptiveStatisticState):
                 kway_combinations.append(list(cols))
 
         return Marginals(domain, kway_combinations, k, bins=bins)
-
-
-######################################################################
-## TEST
-######################################################################

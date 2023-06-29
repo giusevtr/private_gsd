@@ -1,7 +1,6 @@
 from setuptools import setup
 
 setup(
-
     name='Private-GSD',
     version='1.00',
     description='Implementation of Private-GSD mechanism.',

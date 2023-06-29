@@ -93,7 +93,7 @@ class Generator:
 
         key, key_init = jax.random.split(key, 2)
         init_seed = int(jax.random.randint(key_init, minval=0, maxval=2 ** 20, shape=(1,))[0])
-        sync_dataset = Dataset.synthetic(stat_module.get_domain(), N=self.data_size, seed=init_seed)
+        sync_dataset = Dataset.synthetic(stat_module.get_domain(), N=self.data_size, seed=init_seed, null_values=0.02)
 
         for i in range(1, rounds + 1):
             if i < rounds:
@@ -196,7 +196,7 @@ class Generator:
 
         key, key_init = jax.random.split(key, 2)
         init_seed = int(jax.random.randint(key_init, minval=0, maxval=2 ** 20, shape=(1,))[0])
-        sync_dataset = Dataset.synthetic(stat_module.get_domain(), N=self.data_size, seed=init_seed)
+        sync_dataset = Dataset.synthetic(stat_module.get_domain(), N=self.data_size, seed=init_seed, null_values=0.02)
 
         key, key_oneshot_fit = jax.random.split(key, 2)
         sync_dataset = self.fit(key_oneshot_fit, stat_module, sync_dataset, tolerance=tolerance)
