@@ -435,7 +435,7 @@ class GSD(Generator):
                     break
                 LAST_LAG_FITNESS = state.best_fitness
 
-            if (t % 50 == 0) and self.print_progress:
+            if (t % 500 == 0) and self.print_progress:
                 # DEBUG
                 best_fitness_total = min(best_fitness_total, best_fitness)
                 if last_fitness is None or best_fitness_total < last_fitness * 0.99 or t > self.num_generations - 2:
