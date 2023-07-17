@@ -31,10 +31,11 @@ def get_Xy(domain: Domain, target, df_train: pd.DataFrame, df_test: pd.DataFrame
     if len(cols_cat) > 0:
         X_cat_train = df_train[cols_cat].values
         X_cat_test = df_test[cols_cat].values
+        X = np.concatenate((X_cat_train, X_cat_test))
         # categories = [np.arange(domain[c]['size']) for c in cols_cat]
         categories = [np.unique(np.concatenate((df_train[c].values, df_test[c].values))) for c in cols_cat]
         enc = OneHotEncoder(categories=categories)
-        enc.fit(X_cat_train)
+        enc.fit(X)
         X_cat_train = enc.transform(X_cat_train).toarray()
         X_cat_test = enc.transform(X_cat_test).toarray()
         X_train = X_cat_train

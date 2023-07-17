@@ -20,7 +20,8 @@ from catboost import CatBoostClassifier, Pool
 cat_only = True
 eps = 100000
 # data_size_str = '32000'
-data_size_str = '32000'
+# data_size_str = '32000'
+data_size_str = '2000'
 k = 3
 QUANTILES = 30
 DATA = [
@@ -50,7 +51,6 @@ for dataset_name, target in DATA:
 
     if cat_only:
         cat_cols = domain.get_categorical_cols() + domain.get_ordinal_cols()
-        # cat_cols = domain.get_categorical_cols()
         domain = domain.project(cat_cols)
 
     features = list(domain.attrs)

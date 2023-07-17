@@ -16,7 +16,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 from sklearn.metrics import make_scorer, f1_score, roc_auc_score, average_precision_score, accuracy_score
-cat_only = False
+
+from catboost import CatBoostClassifier, Pool
+
+
 eps = 100000
 # data_size_str = '32000'
 COLUMNS = [
@@ -73,22 +76,44 @@ for (dataset_name, target), seed, cat_only in itertools.product(DATA, SEEDS, [Tr
         sync_dir = f'sync_data/{dataset_name}/{k}/{eps:.2f}/{data_size_str}/oneshot'
         sync_path = f'{sync_dir}/sync_data_{seed}.csv'
         print(sync_path)
+        # Read sync data
         df_sync = pd.read_csv(sync_path)
-        features = df_sync.columns
 
-        metric_name = 'accuracy'
-        print('SYNC:')
-        sync_results_df = eval_ml(df_sync, df_test, seed, group=None)
-        print(sync_results_df)
+        if cat_only:
+            cat_cols = domain.get_categorical_cols() + domain.get_ordinal_cols()
+            domain = domain.project(cat_cols)
+        features = list(domain.attrs)
+        features.remove(target)
 
-        sync_results_df['Data'] = dataset_name
-        sync_results_df['Type'] = 'Sync'
-        sync_results_df['N'] = data_size_str
-        sync_results_df['Categorical Only'] = cat_only
-        sync_results_df['Seed'] = seed
-        Results.append(sync_results_df)
+        df_test_X = df_test[features].astype(int)
+        df_test_y = df_test[[target]].astype(int)
+
+        df_sync_X = df_sync[features].astype(int)
+        df_sync_y = df_sync[[target]].astype(int)
+
+        cat_feats = domain.get_categorical_cols()
+        if target in cat_feats:
+            cat_feats.remove(target)
+
+        model = CatBoostClassifier(task_type="GPU", random_seed=0, verbose=False)
+        model.fit(df_sync_X, df_sync_y, cat_features=cat_feats)
+        pred = model.predict(df_test_X)
+        f1_test = f1_score(df_test_y.values, pred, average='macro')
+        acc_test = accuracy_score(df_test_y.values, pred)
+
+        f1_train = f1_score(df_sync_y.values, model.predict(df_sync_X), average='macro')
+        acc_train = accuracy_score(df_sync_y.values, model.predict(df_sync_X))
+
+        # 'Model', 'target', 'Eval Data', 'Metric', 'Score', 'Sub Score', 'Data', 'Type', 'N', 'Categorical Only', 'Seed'
+        res1 = ['Catboost', target, 'Test', 'f1_macro', f1_test, None, dataset_name, 'Sync', data_size_str, cat_only, seed]
+        res2 = ['Catboost', target, 'Train', 'f1_macro', f1_train, None, dataset_name, 'Sync', data_size_str, cat_only, seed]
+        res3 = ['Catboost', target, 'Test', 'accuracy', acc_test, None, dataset_name, 'Sync', data_size_str, cat_only, seed]
+        res4 = ['Catboost', target, 'Train', 'accuracy', acc_train, None, dataset_name, 'Sync', data_size_str, cat_only, seed]
+        result_df = pd.DataFrame([res1, res2, res3, res4], columns=COLUMNS)
+
+        Results.append(result_df)
 
 
 results_df = pd.concat(Results)
-results_df.to_csv('acs_sync_ml_results.csv', index=False)
+results_df.to_csv('results/acs_sync_catboost_results.csv', index=False)
 

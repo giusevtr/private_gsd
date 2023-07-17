@@ -53,42 +53,17 @@ for (dataset_name, target), seed, cat_only in itertools.product(DATA, SEEDS, [Tr
         grid_search=False
     )
 
-    print(f'DATA={dataset_name}')
-    y_test = df_test[target].values
-    cons_pred_acc = max(accuracy_score(y_true=y_test, y_pred=np.zeros_like(y_test)),
-                        accuracy_score(y_true=y_test, y_pred=np.ones_like(y_test)))
-    temp_acc = ['Constant', target, 'Test', 'accuracy', cons_pred_acc, None, dataset_name, 'Original', 'N', cat_only, seed]
+    sync_results_df = eval_ml(df_train, df_test, seed, group=None)
 
-    cons_pred_f1 = max(f1_score(y_true=y_test, y_pred=np.zeros_like(y_test), average='macro'),
-                       f1_score(y_true=y_test, y_pred=np.ones_like(y_test), average='macro'))
-    temp_f1 = ['Constant', target, 'Test', 'f1_macro', cons_pred_f1, None, dataset_name, 'Original', 'N', cat_only, seed]
+    sync_results_df['Data'] = dataset_name
+    sync_results_df['Type'] = 'Original'
+    sync_results_df['N'] = 'N'
+    sync_results_df['Categorical Only'] = cat_only
+    sync_results_df['Seed'] = seed
+    Results.append(sync_results_df)
 
-    Results.append(pd.DataFrame([temp_f1, temp_acc], columns=COLUMNS))
-
-    print(f'Constant predictor = {cons_pred_acc}')
-    for data_size_str in data_size_str_list:
-        print(f'Data size = ', data_size_str)
-        print('Cat only ? ', cat_only)
-        data_size = int(data_size_str)
-        sync_dir = f'sync_data/{dataset_name}/{k}/{eps:.2f}/{data_size_str}/oneshot'
-        sync_path = f'{sync_dir}/sync_data_{seed}.csv'
-        print(sync_path)
-        df_sync = pd.read_csv(sync_path)
-        features = df_sync.columns
-
-        metric_name = 'accuracy'
-        print('SYNC:')
-        sync_results_df = eval_ml(df_sync, df_test, seed, group=None)
-        print(sync_results_df)
-
-        sync_results_df['Data'] = dataset_name
-        sync_results_df['Type'] = 'Sync'
-        sync_results_df['N'] = data_size_str
-        sync_results_df['Categorical Only'] = cat_only
-        sync_results_df['Seed'] = seed
-        Results.append(sync_results_df)
 
 
 results_df = pd.concat(Results)
-results_df.to_csv('acs_sync_ml_results.csv', index=False)
+results_df.to_csv('results/acs_sync_ml_results_original.csv', index=False)
 
