@@ -21,6 +21,9 @@ class Domain:
     def has_nulls(self, col):
         return self._is_col_null[col]
 
+    def set_bin_edges(self, bin_edges):
+        self._bin_edges = bin_edges
+
     def _set_null_cols(self, null_cols):
         is_col_null = {}
         for col in self.attrs:

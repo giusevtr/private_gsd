@@ -45,30 +45,7 @@ for (dataset_name, target), seed, cat_only in itertools.product(DATA, SEEDS, [Tr
     df_train = load_df(dataset_name, root_path=root_path, idxs_path=f'seed{seed}/train')
     df_test = load_df(dataset_name, root_path=root_path, idxs_path=f'seed{seed}/test')
 
-    if cat_only:
-        cat_cols = domain.get_categorical_cols() + domain.get_ordinal_cols()
-        domain = domain.project(cat_cols)
-
-    eval_ml = get_evaluate_ml(
-        domain=domain,
-        targets=[target],
-        models=['LogisticRegression', 'RandomForest', 'XGBoost', 'LightGBM',],
-        grid_search=False
-    )
-
     print(f'DATA={dataset_name}')
-    y_test = df_test[target].values
-    cons_pred_acc = max(accuracy_score(y_true=y_test, y_pred=np.zeros_like(y_test)),
-                        accuracy_score(y_true=y_test, y_pred=np.ones_like(y_test)))
-    temp_acc = ['Constant', target, 'Test', 'accuracy', cons_pred_acc, None, dataset_name, 'Original', 'N', cat_only, seed]
-
-    cons_pred_f1 = max(f1_score(y_true=y_test, y_pred=np.zeros_like(y_test), average='macro'),
-                       f1_score(y_true=y_test, y_pred=np.ones_like(y_test), average='macro'))
-    temp_f1 = ['Constant', target, 'Test', 'f1_macro', cons_pred_f1, None, dataset_name, 'Original', 'N', cat_only, seed]
-
-    Results.append(pd.DataFrame([temp_f1, temp_acc], columns=COLUMNS))
-
-    print(f'Constant predictor = {cons_pred_acc}')
     for data_size_str in data_size_str_list:
         print(f'Data size = ', data_size_str)
         print('Cat only ? ', cat_only)
@@ -79,24 +56,25 @@ for (dataset_name, target), seed, cat_only in itertools.product(DATA, SEEDS, [Tr
         # Read sync data
         df_sync = pd.read_csv(sync_path)
 
+        cat_cols = domain.get_categorical_cols() + domain.get_ordinal_cols()
         if cat_only:
-            cat_cols = domain.get_categorical_cols() + domain.get_ordinal_cols()
             domain = domain.project(cat_cols)
+        if target in cat_cols:
+            cat_cols.remove(target)
         features = list(domain.attrs)
         features.remove(target)
 
-        df_test_X = df_test[features].astype(int)
+        df_test_X = df_test[features]
+        df_test_X[cat_cols] = df_test[cat_cols].astype(int)
         df_test_y = df_test[[target]].astype(int)
 
-        df_sync_X = df_sync[features].astype(int)
+        df_sync_X = df_sync[features]
+        df_sync_X[cat_cols] = df_sync[cat_cols].astype(int)
         df_sync_y = df_sync[[target]].astype(int)
 
-        cat_feats = domain.get_categorical_cols()
-        if target in cat_feats:
-            cat_feats.remove(target)
 
         model = CatBoostClassifier(task_type="GPU", random_seed=0, verbose=False)
-        model.fit(df_sync_X, df_sync_y, cat_features=cat_feats)
+        model.fit(df_sync_X, df_sync_y, cat_features=cat_cols)
         pred = model.predict(df_test_X)
         f1_test = f1_score(df_test_y.values, pred, average='macro')
         acc_test = accuracy_score(df_test_y.values, pred)

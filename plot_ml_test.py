@@ -10,12 +10,13 @@ sns.set(font_scale=1.2)
 
 df_sklearn = pd.read_csv('acs_sync_ml_results.csv')
 df_catboost = pd.read_csv('results/acs_sync_catboost_results.csv')
+df_catboost_orig = pd.read_csv('results/acs_original_catboost_results.csv')
 df_original = pd.read_csv('results/acs_sync_ml_results_original.csv')
-df = pd.concat((df_sklearn, df_catboost, df_original), ignore_index=True)
+df = pd.concat((df_sklearn, df_catboost, df_original, df_catboost_orig), ignore_index=True)
 # df['State'] = df['Public Dataset'].apply(lambda s : s[-2: ])
 df['Data'] = df['Data'].apply(lambda s: s[16:-3])
 df = df[df['Metric'] == 'accuracy']
-df = df[df['Categorical Only'] == False]
+df = df[df['Categorical Only'] == True]
 
 df_sync = df[df['Type'] == 'Sync']
 df_sync['N'] = df_sync['N'].astype(int)
@@ -30,7 +31,7 @@ g = sns.relplot(data=df_sync, x='N', y='Score',
             linewidth=5,
             facet_kws={'sharey': 'row'})
 axes = g.axes.flatten()
-
+g.set(xscale="log")
 for ax in axes:
     t = ax.get_title().split(' ')
     data = t[2]
