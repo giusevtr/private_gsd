@@ -23,6 +23,10 @@ class Marginals(AdaptiveStatisticState):
             if num_col not in self.bins:
                 self.bins[num_col] = np.linspace(0, 1, 2 ** levels)
 
+        for num_col in domain.get_ordinal_cols():
+            size = domain.size(num_col)
+            if num_col not in self.bins:
+                self.bins[num_col] = np.linspace(0, size, num=size+1)
         self.set_up_stats()
 
     def __str__(self):
@@ -59,13 +63,13 @@ class Marginals(AdaptiveStatisticState):
                         lower = np.linspace(0, size, num=size+1)[:-1]
                         interval = list(np.vstack((upper, lower)).T - 0.1)
                         intervals.append(interval)
-                    elif self.domain.type(att) == 'ordinal':
-                        ord_bins = (size + 1) // (2**level)
-                        ord_bins = max(ord_bins, 3)  # There must be at least 3 bins
-                        upper = np.linspace(0, size, num=ord_bins)[1:]
-                        lower = np.linspace(0, size, num=ord_bins)[:-1]
-                        interval = list(np.vstack((upper, lower)).T - 0.0001)
-                        intervals.append(interval)
+                    # elif self.domain.type(att) == 'ordinal':
+                    #     ord_bins = (size + 1) // (2**level)
+                    #     ord_bins = max(ord_bins, 3)  # There must be at least 3 bins
+                    #     upper = np.linspace(0, size, num=ord_bins)[1:]
+                    #     lower = np.linspace(0, size, num=ord_bins)[:-1]
+                    #     interval = list(np.vstack((upper, lower)).T - 0.0001)
+                    #     intervals.append(interval)
                     else:
                         bins_att = self.bins[att]
                         num_bins = bins_att.shape[0]
