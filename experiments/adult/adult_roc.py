@@ -17,20 +17,20 @@ from stats import ChainedStatistics,  Marginals, NullCounts
 from dp_data import cleanup, DataPreprocessor, get_config_from_json
 QUANTILES = 50
 
-for seed in [0]:
+data_name = 'churn2'
+for seed in [0, 1, 2, 3]:
 
-    path = 'dp-data-dev/data2/data/adult/X_num_train.npy'
-    X_num_train = np.load(f'../../dp-data-dev/data2/data/adult/X_num_train.npy').astype(int)
-    X_num_val = np.load(f'../../dp-data-dev/data2/data/adult/X_num_val.npy').astype(int)
-    X_num_test = np.load(f'../../dp-data-dev/data2/data/adult/X_num_test.npy').astype(int)
+    X_num_train = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_num_train.npy').astype(int)
+    X_num_val = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_num_val.npy').astype(int)
+    X_num_test = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_num_test.npy').astype(int)
 
-    X_cat_train = np.load(f'../../dp-data-dev/data2/data/adult/X_cat_train.npy')
-    X_cat_val = np.load(f'../../dp-data-dev/data2/data/adult/X_cat_val.npy')
-    X_cat_test = np.load(f'../../dp-data-dev/data2/data/adult/X_cat_test.npy')
+    X_cat_train = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_cat_train.npy')
+    X_cat_val = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_cat_val.npy')
+    X_cat_test = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_cat_test.npy')
 
-    y_train = np.load(f'../../dp-data-dev/data2/data/adult/y_train.npy')
-    y_val = np.load(f'../../dp-data-dev/data2/data/adult/y_val.npy')
-    y_test = np.load(f'../../dp-data-dev/data2/data/adult/y_test.npy')
+    y_train = np.load(f'../../dp-data-dev/data2/data/{data_name}/y_train.npy')
+    y_val = np.load(f'../../dp-data-dev/data2/data/{data_name}/y_val.npy')
+    y_test = np.load(f'../../dp-data-dev/data2/data/{data_name}/y_test.npy')
 
     cat_cols = [f'cat_{i}' for i in range(X_cat_train.shape[1])]
     num_cols = [f'num_{i}' for i in range(X_num_train.shape[1])]
@@ -59,11 +59,50 @@ for seed in [0]:
 
         bin_edges[col_name] = get_thresholds_ordinal(pre_train_df[col_name], min_bin_size, sz,
                                                      levels=20)
-        # plt.title(col_name)
-        # plt.hist(values, bins=edges3)
-        # plt.show()
         print()
 
-
     domain = Domain(confi_dict, bin_edges=bin_edges)
-    print()
+
+    data = Dataset(pre_train_df, domain)
+
+    modules = []
+    modules.append(Marginals.get_all_kway_combinations(data.domain, k=3, levels=1, bin_edges=bin_edges,
+                                                       include_feature='Label'))
+    stat_module = ChainedStatistics(modules)
+    stat_module.fit(data, max_queries_per_workload=2000)
+
+    true_stats = stat_module.get_all_true_statistics()
+    stat_fn0 = stat_module._get_workload_fn()
+
+    key = jax.random.PRNGKey(seed)
+    N = len(data.df)
+    algo = GSD(num_generations=600000,
+               print_progress=True,
+               stop_early=True,
+               domain=data.domain,
+               population_size=50,
+               data_size=N,
+               stop_early_gen=N,
+               sparse_statistics=True
+               )
+    # delta = 1.0 / len(data) ** 2
+    sync_data = algo.fit_zcdp(key, stat_module=stat_module, rho=1000000000)
+
+    sync_data_df = sync_data.df.copy()
+    sync_data_df_post = preprocessor.inverse_transform(sync_data_df)
+
+    k = 3
+    eps = 100000
+    data_size_str = 'N'
+    sync_dir = f'sync_data/{data_name}/{k}/{eps:.2f}/{data_size_str}/oneshot'
+    os.makedirs(sync_dir, exist_ok=True)
+    print(f'Saving {sync_dir}/sync_data_{seed}.csv')
+    sync_data_df_post.to_csv(f'{sync_dir}/sync_data_{seed}.csv', index=False)
+
+    errors = jnp.abs(true_stats - stat_fn0(sync_data.to_numpy()))
+
+    print(f'Input data {data_name}, k={k}, epsilon={eps:.2f}, seed={seed}')
+    print(f'GSD(oneshot):'
+          f'\t max error = {errors.max():.5f}'
+          f'\t avg error = {errors.mean():.6f}')
+

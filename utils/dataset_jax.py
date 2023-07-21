@@ -33,8 +33,22 @@ class Dataset:
         for (rng_temp, att) in zip(rng_split, domain.attrs):
             rng_temp0, rng_temp1 = jax.random.split(rng_temp, 2)
             c = None
-            if domain.type(att) == 'categorical' or domain.type(att) == 'ordinal':
+            if domain.type(att) == 'categorical':
                 c = jax.random.randint(rng_temp0, shape=(N,), minval=0, maxval=domain.size(att))
+            elif domain.type(att) == 'ordinal':
+                has_bin_edges, bin_edges = domain.get_bin_edges(att)
+                if has_bin_edges:
+                    # 1) Sample a bin
+                    rng_bin_0, rng_bin_1 = jax.random.split(rng_temp0, 2)
+                    num_bins = bin_edges.shape[0]
+                    bin_pos = jax.random.randint(rng_bin_0, shape=(N,), minval=1, maxval=num_bins)
+                    right_edge = jnp.ceil(bin_edges[bin_pos]).astype(int)
+                    left_edge = jnp.ceil(bin_edges[bin_pos - 1]).astype(int)
+                    c = jax.random.randint(rng_bin_1, minval=left_edge, maxval=right_edge, shape=(N,))
+                    # u = jax.random.uniform(rng_bin_1, shape=(N,))
+                    # c = (right_edge - left_edge) * u + left_edge
+                else:
+                    c = jax.random.randint(rng_temp0, shape=(N,), minval=0, maxval=domain.size(att))
             elif domain.type(att) == 'numerical':
                 has_bin_edges, bin_edges = domain.get_bin_edges(att)
                 if has_bin_edges:
@@ -152,11 +166,11 @@ class Dataset:
         return Dataset(df, domain=domain)
 
     def to_numpy(self):
-        array = jnp.array(self.df.values)
+        array = jnp.array(self.df.values.astype(float))
         return array
 
     def to_numpy_np(self):
-        array = np.array(self.df.values)
+        array = np.array(self.df.values.astype(float))
         return array
     # def to_onehot(self) -> jnp.ndarray:
     #     df_data = self.df

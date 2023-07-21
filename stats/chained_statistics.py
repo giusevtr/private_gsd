@@ -314,26 +314,6 @@ class ChainedStatistics:
         for stat_id in stat_modules_ids:
             stat_mod: AdaptiveStatisticState
             stat_mod = self.stat_modules[stat_id]
-# <<<<<<< HEAD
-#             query_ids_list = []
-#             for workload_id, workload_fn, noised_workload_stats, true_workload_stats in self.selected_workloads[stat_id]:
-#                 S = stat_mod._get_workload_sensitivity(workload_id, 1)**2 / 2
-#                 wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
-#                 query_ids = jnp.arange(wrk_a, wrk_b)
-#                 sorted_ids = jnp.argsort(-noised_workload_stats)
-#                 sorted_values = noised_workload_stats[sorted_ids]
-#                 cumsum_sorted_values = jnp.cumsum(sorted_values)
-#                 q_id = jnp.searchsorted(cumsum_sorted_values, S)
-#                 # workload_top_k = min(noised_workload_stats.shape[0], self.max_queries_per_workload)
-#                 topk_ids = sorted_ids[:q_id]
-#                 selected_true_chained_stats.append(true_workload_stats[topk_ids])
-#                 selected_noised_chained_stats.append(noised_workload_stats[topk_ids])
-#                 query_ids_list.append(query_ids[topk_ids])
-#             query_ids_concat = jnp.concatenate(query_ids_list)
-#             tmp_fn = stat_mod._get_stat_fn(query_ids_concat)
-#             workload_fn_list.append(tmp_fn)
-#
-# =======
 
             query_ids_list = []
             for workload_id, workload_fn, noised_workload_stats, true_workload_stats in self.selected_workloads[stat_id]:

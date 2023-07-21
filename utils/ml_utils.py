@@ -45,6 +45,50 @@ def separate_cat_and_num_cols(domain, features):
     train_cols_num = [c for c in features if domain[c] == 1]
     train_cols_cat = [c for c in features if c not in train_cols_num]
     return train_cols_num, train_cols_cat
+
+class MLEncoder:
+    def __init__(self, cat_features: list, num_features, target, rescale=False):
+        self.target = target
+        self.rescale = rescale
+        self.cols_cat, self.cols_num = cat_features, num_features
+
+    def fit(self, data_df):
+
+        if len(self.cols_cat) > 0:
+            X_cat = data_df[self.cols_cat].values.astype(str)
+            self.enc_cat = OneHotEncoder()
+            self.enc_cat.fit(X_cat)
+        if len(self.cols_num) > 0:
+            X_num = data_df[self.cols_num].values
+            if self.rescale:
+                self.scaler = StandardScaler()
+                self.scaler.fit(X_num)
+
+    def encode(self, data_df):
+        X_cat_enc = None
+        X_num = None
+        if len(self.cols_cat) > 0:
+            X_cat = data_df[self.cols_cat].values.astype(str)
+            X_cat_enc = self.enc_cat.transform(X_cat).toarray()
+
+        if len(self.cols_num) > 0:
+            X_num = data_df[self.cols_num].values
+            if self.rescale:
+                X_num = self.scaler.transform(X_num)
+
+        y = data_df[self.target].values.astype(int)
+        if X_num is None: return X_cat_enc, y
+        elif X_cat_enc is None: return X_num, y
+        return np.column_stack((X_cat_enc, X_num)), y
+
+            # if X_train is not None:
+            #     X_train = np.concatenate((X_train, X_num_train), axis=1)
+            #     X_test = np.concatenate((X_test, X_num_test), axis=1)
+            # else:
+            #     X_train = X_num_train
+            #     X_test = X_num_test
+
+
 def get_Xy(domain: Domain, features: list, target, df_train: pd.DataFrame, df_test: pd.DataFrame,
            rescale=True):
     cols_num, cols_cat = separate_cat_and_num_cols(domain, features)
