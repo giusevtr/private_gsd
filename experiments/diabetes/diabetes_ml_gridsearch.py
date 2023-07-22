@@ -36,10 +36,10 @@ def objective(trial):
     reg_lambda = trial.suggest_float("reg_lambda", 1, 10.0, log=True)
     for seed in range(5):
         # Load kfold data
-        X_train = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_train.npy')
-        X_val = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_val.npy')
-        y_train = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_train.npy')
-        y_val = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_val.npy')
+        X_train = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_train.npy')
+        X_val = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_val.npy')
+        y_train = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_train.npy')
+        y_val = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_val.npy')
 
         # Train model and save validation score
         model = XGBClassifier(learning_rate=learning_rate, max_depth=max_depth,

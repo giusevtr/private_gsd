@@ -17,8 +17,8 @@ from stats import ChainedStatistics,  Marginals, NullCounts
 from dp_data import cleanup, DataPreprocessor, get_config_from_json
 QUANTILES = 50
 
-data_name = 'churn2'
-for seed in [0, 1, 2, 3]:
+data_name = 'adult'
+for seed in [4]:
 
     X_num_train = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_num_train.npy').astype(int)
     X_num_val = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_num_val.npy').astype(int)
@@ -77,7 +77,7 @@ for seed in [0, 1, 2, 3]:
     key = jax.random.PRNGKey(seed)
     N = len(data.df)
     algo = GSD(num_generations=600000,
-               print_progress=True,
+               print_progress=False,
                stop_early=True,
                domain=data.domain,
                population_size=50,

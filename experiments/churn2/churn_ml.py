@@ -1,67 +1,42 @@
 import pandas as pd
-import os
-from models import GSD
-from utils import Dataset, Domain
 import numpy as np
-
-import jax.random
-from models import GeneticSDConsistent as GeneticSD
-from models import GSD
-from stats import ChainedStatistics,  Marginals, NullCounts
 from utils import MLEncoder
-import jax.numpy as jnp
-import matplotlib.pyplot as plt
-
-from stats.thresholds import get_thresholds_ordinal
-
-from stats import ChainedStatistics,  Marginals, NullCounts
-from dp_data import cleanup, DataPreprocessor, get_config_from_json
 from sklearn.metrics import f1_score, make_scorer
 from xgboost import XGBClassifier
-
-
+from experiments.utils import read_original_data, read_tabddpm_data
+import argparse
 QUANTILES = 50
+parser = argparse.ArgumentParser()
+parser.add_argument('--sync_generator', default='gsd')
+parser.add_argument('--ml_parameters', default='default')
+args = parser.parse_args()
 
+sync_gen = args.sync_generator
+ml_parameters = args.sync_generator
+
+print(f'Generator = {sync_gen}')
 score_fn = make_scorer(f1_score, average='macro')
-learning_rate = 0.1185499403580282
-max_depth = 5
-min_child_weight = 1
-gamma = 0.1
-subsample = 0.8407621684817781
-reg_lambda = 8
+learning_rate = 0.1925742887404927
+max_depth = 3
+min_child_weight = 2
+gamma = 0.17674635782779186
+subsample = 0.638296403842424
+reg_lambda = 0.410446516722773
+
+get_ml_function = lambda rs: XGBClassifier(random_state=rs) if ml_parameters == 'default' else\
+    XGBClassifier(learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight, gamma=gamma,
+                  subsample=subsample, reg_lambda=reg_lambda, random_state=rs)
+
 
 dataset_name = 'churn2'
 k = 3
 eps = 100000
 data_size_str = 'N'
 
-X_num_train = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/X_num_train.npy').astype(float)
-X_num_val = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/X_num_val.npy').astype(float)
-X_num_test = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/X_num_test.npy').astype(float)
-
-X_cat_train = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/X_cat_train.npy')
-X_cat_val = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/X_cat_val.npy')
-X_cat_test = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/X_cat_test.npy')
-
-y_train = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/y_train.npy')
-y_val = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/y_val.npy')
-y_test = np.load(f'../../dp-data-dev/data2/data/{dataset_name}/y_test.npy')
-
-
-cat_cols = [f'cat_{i}' for i in range(X_cat_train.shape[1])]
-num_cols = [f'num_{i}' for i in range(X_num_train.shape[1])]
-all_cols = cat_cols + num_cols + ['Label']
-
 real_cols = [f'num_3', 'num_5', 'num_6']
 ord_cols = ['num_0', 'num_1', 'num_2', 'num_4']
 
-# X_train = np.column_stack((X_cat_train, X_num_train))
-# X_val = np.column_stack((X_cat_val, X_num_val))
-# X_test = np.column_stack((X_cat_test, X_num_test))
-
-train_df = pd.DataFrame(np.column_stack((X_cat_train, X_num_train, y_train)), columns=all_cols)
-val_df = pd.DataFrame(np.column_stack((X_cat_val, X_num_val, y_val)), columns=all_cols)
-test_df = pd.DataFrame(np.column_stack((X_cat_test, X_num_test, y_test)), columns=all_cols)
+train_df, val_df, test_df, all_cols, cat_cols, num_cols = read_original_data(dataset_name)
 all_df = pd.concat([train_df, val_df, test_df])
 
 encoder = MLEncoder(cat_features=cat_cols, num_features=num_cols, target='Label', rescale=False)
@@ -72,14 +47,10 @@ X_val_oh, y_val = encoder.encode(val_df)
 X_test_oh, y_test = encoder.encode(test_df)
 
 # Train a model on the original data and save test score
-
 orig_scores_test = []
 orig_scores_val = []
-for rs in range(10):
-    model = XGBClassifier(
-        # learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
-        #                   gamma=gamma, subsample=subsample, reg_lambda=reg_lambda,
-        random_state=rs)
+for rs in range(1):
+    model = get_ml_function(rs)
 
     model.fit(X_train_oh, y_train)
     original_train = score_fn(model, X_train_oh, y_train)
@@ -95,14 +66,19 @@ print(f'Original Test:\tAverage={np.mean(orig_scores_test):.5f}\tstd={np.std(ori
 scores_test = []
 scores_val = []
 for seed in [0, 1, 2, 3]:
-    for rs in range(10):
+    for rs in range(1):
         # Synthetic
-        sync_df = pd.read_csv(f'sync_data/{dataset_name}/3/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
+        sync_df = None
+        if sync_gen == 'gsd':
+            sync_df = pd.read_csv(f'sync_data/{dataset_name}/3/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
+        elif sync_gen == 'tabddpm':
+            sync_df = read_tabddpm_data(dataset_name, seed=seed)
+
         X_sync_oh, y_sync = encoder.encode(sync_df)
 
         # Train a model on the synthetic data and save test score
-        model_sync = XGBClassifier(learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
-                                   gamma=gamma, subsample=subsample, reg_lambda=reg_lambda, random_state=rs)
+        model_sync = get_ml_function(rs)
+
         model_sync.fit(X_sync_oh, y_sync)
         synthetic_train = score_fn(model_sync, X_sync_oh, y_sync)
         synthetic_val = score_fn(model_sync, X_val_oh, y_val)
