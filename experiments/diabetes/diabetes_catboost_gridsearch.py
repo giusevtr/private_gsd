@@ -44,12 +44,14 @@ def objective(trial):
     thread_count = 4
 
 
+    # root_path = 'C:/Users/jncho/Documents/REUSE23/private_gsd/experiments/diabetes/data/diabetes/kfolds'
+    root_path = '../../dp-data-dev/data2/data/diabetes/kfolds'
     for seed in range(5):
         # Load kfold data
-        X_train = np.load(f'C:/Users/jncho/Documents/REUSE23/private_gsd/experiments/diabetes/data/diabetes/kfolds/{seed}/X_num_train.npy')
-        X_val = np.load(f'C:/Users/jncho/Documents/REUSE23/private_gsd/experiments/diabetes/data/diabetes/kfolds/{seed}/X_num_val.npy')
-        y_train = np.load(f'C:/Users/jncho/Documents/REUSE23/private_gsd/experiments/diabetes/data/diabetes/kfolds/{seed}/y_train.npy')
-        y_val = np.load(f'C:/Users/jncho/Documents/REUSE23/private_gsd/experiments/diabetes/data/diabetes/kfolds/{seed}/y_val.npy')
+        X_train = np.load(f'{root_path}/{seed}/X_num_train.npy')
+        X_val = np.load(f'{root_path}/{seed}/X_num_val.npy')
+        y_train = np.load(f'{root_path}/{seed}/y_train.npy')
+        y_val = np.load(f'{root_path}/{seed}/y_val.npy')
 
         # Train model and save validation score
         model = CatBoostClassifier(learning_rate=learning_rate, depth=depth,
@@ -59,6 +61,7 @@ def objective(trial):
                               verbose = False)
         model.fit(X_train, y_train)
         validation_score = score_fn(model, X_val, y_val)
+        print(validation_score)
         scores.append(validation_score)
 
     ave_score = np.mean(scores)

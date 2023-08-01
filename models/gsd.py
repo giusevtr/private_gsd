@@ -304,8 +304,6 @@ class GSD(Generator):
         Minimize error between real_stats and sync_stats
         """
 
-        self.stop_generation = None
-        init_time = timer()
 
         if self.sparse_statistics:
             selected_statistics, selected_noised_statistics, statistics_fn = adaptive_statistic.get_selected_trimmed_statistics_fn()
@@ -316,11 +314,17 @@ class GSD(Generator):
             selected_statistics = adaptive_statistic.get_selected_statistics_without_noise()
             statistics_fn = adaptive_statistic.get_selected_statistics_fn()
 
+        return self.fit_help(key, selected_noised_statistics, statistics_fn, sync_dataset)
+
+    def fit_help(self, key, selected_noised_statistics, statistics_fn, sync_dataset = None):
         # For debugging
-        @jax.jit
-        def true_loss(X_arg):
-            error = jnp.abs(selected_statistics - statistics_fn(X_arg))
-            return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
+        # @jax.jit
+        # def true_loss(X_arg):
+        #     error = jnp.abs(selected_statistics - statistics_fn(X_arg))
+        #     return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
+        self.stop_generation = None
+        init_time = timer()
+
 
         @jax.jit
         def private_loss(X_arg):
@@ -442,9 +446,9 @@ class GSD(Generator):
                     elapsed_time = timer() - init_time
                     X_sync = state.best_member
                     print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
-                    t_inf, t_avg, p_l2 = true_loss(X_sync)
-                    true_results.append([t, float(t_inf), float(t_avg), float(p_l2)])
-                    print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
+                    # t_inf, t_avg, p_l2 = true_loss(X_sync)
+                    # true_results.append([t, float(t_inf), float(t_avg), float(p_l2)])
+                    # print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
                     print(f'\t|time={elapsed_time:.4f}(s):', end='')
                     print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
                     print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')

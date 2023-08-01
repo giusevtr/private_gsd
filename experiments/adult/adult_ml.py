@@ -62,10 +62,10 @@ X_train_oh, y_train = encoder.encode(train_df)
 X_val_oh, y_val = encoder.encode(val_df)
 X_test_oh, y_test = encoder.encode(test_df)
 
-
+race_feat = 'cat_5'
 orig_scores_test = []
 orig_scores_val = []
-for rs in range(10):
+for rs in range(1):
     # Train a model on the original data and save test score
     model = XGBClassifier(learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
                           gamma=gamma, subsample=subsample, reg_lambda=reg_lambda, random_state=rs)
@@ -75,6 +75,12 @@ for rs in range(10):
     original_val = score_fn(model, X_val_oh, y_val)
     original_test = score_fn(model, X_test_oh, y_test)
     print(f'\tOriginal:\t{original_train:.5f}\t{original_val:.5f}\t{original_test:.5f}')
+    groups = test_df[race_feat].unique()
+    for g in groups:
+        group_df = test_df[test_df[race_feat] == g]
+        X_sub_oh, y_sub = encoder.encode(group_df)
+        subgroup_test = score_fn(model, X_sub_oh, y_sub)
+        print(f'\t\tgroup={g:<20}\t\t{subgroup_test:.5f}')
 
     orig_scores_test.append(original_test)
     orig_scores_val.append(original_val)
@@ -85,28 +91,43 @@ print(f'Original Test:\tAverage={np.mean(orig_scores_test):.5f}\tstd={np.std(ori
 
 scores_test = []
 scores_val = []
-for seed in [0, 1, 2, 3]:
+
+groups = test_df[race_feat].unique()
+group_val = dict([(g, []) for g in groups])
+
+for seed in [0, 1, 2, 3, 4]:
     # Synthetic
+    # sync_df = pd.read_csv(f'sync_data_race/adult/4/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
     sync_df = pd.read_csv(f'sync_data/adult/3/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
     X_sync_oh, y_sync = encoder.encode(sync_df)
 
-    for rs in range(10):
+    for rs in range(5):
 
         # Train a model on the synthetic data and save test score
         model_sync = XGBClassifier(
-            # learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
-            #                       gamma=gamma, subsample=subsample,
+            learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
+                                  gamma=gamma, subsample=subsample,
             reg_lambda=reg_lambda)
         model_sync.fit(X_sync_oh, y_sync)
         synthetic_train = score_fn(model_sync, X_sync_oh, y_sync)
         synthetic_val = score_fn(model_sync, X_val_oh, y_val)
         synthetic_test = score_fn(model_sync, X_test_oh, y_test)
         print(f'Synthetic:\t{synthetic_train:.5f}\t{synthetic_val:.5f}\t{synthetic_test:.5f}')
+
+        for g in groups:
+            group_df = test_df[test_df[race_feat] == g]
+            X_sub_oh, y_sub = encoder.encode(group_df)
+            subgroup_test = score_fn(model_sync, X_sub_oh, y_sub)
+            group_val[g].append(subgroup_test)
+            print(f'\t\tgroup={g:<20}\t\t{subgroup_test:.5f}')
+
         scores_val.append(synthetic_val)
         scores_test.append(synthetic_test)
 
 print(f'Synthetic Val:\tAverage={np.mean(scores_val):.5f}\tstd={np.std(scores_val):.5f}')
 print(f'Synthetic Test:\tAverage={np.mean(scores_test):.5f}\tstd={np.std(scores_test):.5f}')
+for g in groups:
+    print(f'\t\tgroup={g:<20}\t\tAverage={np.mean(group_val[g]):.5f}')
 
 
 

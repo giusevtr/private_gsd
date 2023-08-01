@@ -18,7 +18,10 @@ from dp_data import cleanup, DataPreprocessor, get_config_from_json
 QUANTILES = 50
 
 data_name = 'adult'
-for seed in [4]:
+for seed in range(10):
+    k = 4
+    eps = 100000
+    data_size_str = 'N'
 
     X_num_train = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_num_train.npy').astype(int)
     X_num_val = np.load(f'../../dp-data-dev/data2/data/{data_name}/X_num_val.npy').astype(int)
@@ -66,10 +69,12 @@ for seed in [4]:
     data = Dataset(pre_train_df, domain)
 
     modules = []
-    modules.append(Marginals.get_all_kway_combinations(data.domain, k=3, levels=1, bin_edges=bin_edges,
-                                                       include_feature='Label'))
+    race_feat = 'cat_5'
+    modules.append(Marginals(domain, kway_combinations=((race_feat,), ('Label',)), k=1))
+    modules.append(Marginals.get_all_kway_combinations(data.domain, k=k, levels=1, bin_edges=bin_edges,
+                                                       include_features=['Label', race_feat]))
     stat_module = ChainedStatistics(modules)
-    stat_module.fit(data, max_queries_per_workload=2000)
+    stat_module.fit(data, max_queries_per_workload=5000)
 
     true_stats = stat_module.get_all_true_statistics()
     stat_fn0 = stat_module._get_workload_fn()
@@ -86,14 +91,12 @@ for seed in [4]:
                sparse_statistics=True
                )
     # delta = 1.0 / len(data) ** 2
-    sync_data = algo.fit_zcdp(key, stat_module=stat_module, rho=1000000000)
+    sync_data = algo.fit_help(key, true_stats, stat_fn0)
 
     sync_data_df = sync_data.df.copy()
     sync_data_df_post = preprocessor.inverse_transform(sync_data_df)
 
-    k = 3
-    eps = 100000
-    data_size_str = 'N'
+
     sync_dir = f'sync_data/{data_name}/{k}/{eps:.2f}/{data_size_str}/oneshot'
     os.makedirs(sync_dir, exist_ok=True)
     print(f'Saving {sync_dir}/sync_data_{seed}.csv')
