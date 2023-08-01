@@ -218,65 +218,65 @@ def get_proj(domain: Domain):
     return proj_fn
 
 
-from dp_data import load_domain_config, load_df
-import seaborn as sns
-def test_proj():
-    dataset_name = 'folktables_2018_coverage_CA'
-    root_path = '../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
-    config = load_domain_config(dataset_name, root_path=root_path)
-    df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
-    df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
-
-
-
-    print(f'train size: {df_train.shape}')
-    print(f'test size:  {df_test.shape}')
-    domain = Domain.fromdict(config)
-    data = Dataset(df_train.sample(2000), domain)
-
-    X = data.to_numpy()
-
-    sync_cov = pd.read_csv('/Users/vietr002/Code/evolutionary_private_synthetic_data/dev/ICML/sync_data/folktables_2018_coverage_CA/GSD/Ranges/50/10/1.00/sync_data_0.csv')
-    sync_data = Dataset(sync_cov, domain)
-    # sync_data = Dataset.synthetic(domain, N=2000, seed=0)
-    X_sync = sync_data.to_numpy()
-
-    proj_fn_0 = get_proj(domain)
-    proj_fn = jax.jit(jax.vmap(proj_fn_0, in_axes=(None, 0)))
-
-    key = jax.random.PRNGKey(2)
-
-
-    df_list = []
-    for i in range(10):
-        print(f'proj {i}')
-        key, key0 = jax.random.split(key)
-        key1, key2 = jax.random.split(key0)
-        proj_data_1 = proj_fn(key1, X)
-        proj_data_2 = proj_fn(key2, X)
-
-        df_real = pd.DataFrame(np.column_stack((proj_data_1, proj_data_2)), columns=['A', 'B'])
-        df_real['Type'] = 'Real'
-        df_real['Proj'] = i
-
-        proj_data_sync_1 = proj_fn(key1, X_sync)
-        proj_data_sync_2 = proj_fn(key2, X_sync)
-
-
-        df_sync = pd.DataFrame(np.column_stack((proj_data_sync_1, proj_data_sync_2)), columns=['A', 'B'])
-        df_sync['Type'] = 'Sync'
-        df_sync['Proj'] = i
-
-
-        df_list.append(df_real)
-        df_list.append(df_sync)
-
-    df = pd.concat(df_list)
-
-    sns.relplot(data=df, x='A', y='B', row='Proj', col='Type', alpha=0.1)
-    plt.show()
-
-
-if __name__ == "__main__":
-    test_proj()
-
+# from dp_data import load_domain_config, load_df
+# import seaborn as sns
+# def test_proj():
+#     dataset_name = 'folktables_2018_coverage_CA'
+#     root_path = '../dp-data-dev/datasets/preprocessed/folktables/1-Year/'
+#     config = load_domain_config(dataset_name, root_path=root_path)
+#     df_train = load_df(dataset_name, root_path=root_path, idxs_path='seed0/train')
+#     df_test = load_df(dataset_name, root_path=root_path, idxs_path='seed0/test')
+#
+#
+#
+#     print(f'train size: {df_train.shape}')
+#     print(f'test size:  {df_test.shape}')
+#     domain = Domain.fromdict(config)
+#     data = Dataset(df_train.sample(2000), domain)
+#
+#     X = data.to_numpy()
+#
+#     sync_cov = pd.read_csv('/Users/vietr002/Code/evolutionary_private_synthetic_data/dev/ICML/sync_data/folktables_2018_coverage_CA/GSD/Ranges/50/10/1.00/sync_data_0.csv')
+#     sync_data = Dataset(sync_cov, domain)
+#     # sync_data = Dataset.synthetic(domain, N=2000, seed=0)
+#     X_sync = sync_data.to_numpy()
+#
+#     proj_fn_0 = get_proj(domain)
+#     proj_fn = jax.jit(jax.vmap(proj_fn_0, in_axes=(None, 0)))
+#
+#     key = jax.random.PRNGKey(2)
+#
+#
+#     df_list = []
+#     for i in range(10):
+#         print(f'proj {i}')
+#         key, key0 = jax.random.split(key)
+#         key1, key2 = jax.random.split(key0)
+#         proj_data_1 = proj_fn(key1, X)
+#         proj_data_2 = proj_fn(key2, X)
+#
+#         df_real = pd.DataFrame(np.column_stack((proj_data_1, proj_data_2)), columns=['A', 'B'])
+#         df_real['Type'] = 'Real'
+#         df_real['Proj'] = i
+#
+#         proj_data_sync_1 = proj_fn(key1, X_sync)
+#         proj_data_sync_2 = proj_fn(key2, X_sync)
+#
+#
+#         df_sync = pd.DataFrame(np.column_stack((proj_data_sync_1, proj_data_sync_2)), columns=['A', 'B'])
+#         df_sync['Type'] = 'Sync'
+#         df_sync['Proj'] = i
+#
+#
+#         df_list.append(df_real)
+#         df_list.append(df_sync)
+#
+#     df = pd.concat(df_list)
+#
+#     sns.relplot(data=df, x='A', y='B', row='Proj', col='Type', alpha=0.1)
+#     plt.show()
+#
+#
+# if __name__ == "__main__":
+#     test_proj()
+#
