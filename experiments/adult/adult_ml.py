@@ -19,7 +19,7 @@ from dp_data import cleanup, DataPreprocessor, get_config_from_json
 from sklearn.metrics import f1_score, make_scorer
 from xgboost import XGBClassifier
 
-
+import seaborn as sns
 QUANTILES = 50
 
 score_fn = make_scorer(f1_score, average='macro')
@@ -30,17 +30,19 @@ gamma = 0.16393189784441567
 subsample = 0.8407621684817781
 reg_lambda = 2
 
-X_num_train = np.load(f'../../dp-data-dev/data2/data/adult/X_num_train.npy').astype(int)
-X_num_val = np.load(f'../../dp-data-dev/data2/data/adult/X_num_val.npy').astype(int)
-X_num_test = np.load(f'../../dp-data-dev/data2/data/adult/X_num_test.npy').astype(int)
-
-X_cat_train = np.load(f'../../dp-data-dev/data2/data/adult/X_cat_train.npy')
-X_cat_val = np.load(f'../../dp-data-dev/data2/data/adult/X_cat_val.npy')
-X_cat_test = np.load(f'../../dp-data-dev/data2/data/adult/X_cat_test.npy')
-
-y_train = np.load(f'../../dp-data-dev/data2/data/adult/y_train.npy').astype(int)
-y_val = np.load(f'../../dp-data-dev/data2/data/adult/y_val.npy').astype(int)
-y_test = np.load(f'../../dp-data-dev/data2/data/adult/y_test.npy').astype(int)
+data_name = 'adult'
+k = 2
+data_size_str = '1000'
+data_path = '../data2/data'
+X_num_train = np.load(f'{data_path}/{data_name}/X_num_train.npy').astype(int)
+X_num_val = np.load(  f'{data_path}/{data_name}/X_num_val.npy').astype(int)
+X_num_test = np.load( f'{data_path}/{data_name}/X_num_test.npy').astype(int)
+X_cat_train = np.load(f'{data_path}/{data_name}/X_cat_train.npy')
+X_cat_val = np.load(  f'{data_path}/{data_name}/X_cat_val.npy')
+X_cat_test = np.load( f'{data_path}/{data_name}/X_cat_test.npy')
+y_train = np.load(    f'{data_path}/{data_name}/y_train.npy')
+y_val = np.load(      f'{data_path}/{data_name}/y_val.npy')
+y_test = np.load(     f'{data_path}/{data_name}/y_test.npy')
 
 cat_cols = [f'cat_{i}' for i in range(X_cat_train.shape[1])]
 num_cols = [f'num_{i}' for i in range(X_num_train.shape[1])]
@@ -62,7 +64,7 @@ X_train_oh, y_train = encoder.encode(train_df)
 X_val_oh, y_val = encoder.encode(val_df)
 X_test_oh, y_test = encoder.encode(test_df)
 
-race_feat = 'cat_5'
+protected_feat = 'cat_5'
 orig_scores_test = []
 orig_scores_val = []
 for rs in range(1):
@@ -75,9 +77,9 @@ for rs in range(1):
     original_val = score_fn(model, X_val_oh, y_val)
     original_test = score_fn(model, X_test_oh, y_test)
     print(f'\tOriginal:\t{original_train:.5f}\t{original_val:.5f}\t{original_test:.5f}')
-    groups = test_df[race_feat].unique()
+    groups = test_df[protected_feat].unique()
     for g in groups:
-        group_df = test_df[test_df[race_feat] == g]
+        group_df = test_df[test_df[protected_feat] == g]
         X_sub_oh, y_sub = encoder.encode(group_df)
         subgroup_test = score_fn(model, X_sub_oh, y_sub)
         print(f'\t\tgroup={g:<20}\t\t{subgroup_test:.5f}')
@@ -85,20 +87,24 @@ for rs in range(1):
     orig_scores_test.append(original_test)
     orig_scores_val.append(original_val)
 
-
-print(f'Original Val:\tAverage={np.mean(orig_scores_val):.5f}\tstd={np.std(orig_scores_val):.5f}')
-print(f'Original Test:\tAverage={np.mean(orig_scores_test):.5f}\tstd={np.std(orig_scores_test):.5f}')
+g = sns.FacetGrid(train_df[[protected_feat, 'Label']], col=protected_feat)
+g.map(sns.histplot, 'Label', stat='density')
+plt.show()
+# print(f'Original Val:\tAverage={np.mean(orig_scores_val):.5f}\tstd={np.std(orig_scores_val):.5f}')
+# print(f'Original Test:\tAverage={np.mean(orig_scores_test):.5f}\tstd={np.std(orig_scores_test):.5f}')
+print()
+print()
 
 scores_test = []
 scores_val = []
 
-groups = test_df[race_feat].unique()
+groups = test_df[protected_feat].unique()
 group_val = dict([(g, []) for g in groups])
 
-for seed in [0, 1, 2, 3, 4]:
+for seed in [0]:
     # Synthetic
     # sync_df = pd.read_csv(f'sync_data_race/adult/4/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
-    sync_df = pd.read_csv(f'sync_data/adult/3/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
+    sync_df = pd.read_csv(f'sync_data/adult/{k}/inf/{data_size_str}/oneshot/sync_data_{seed}_old.csv').dropna()
     X_sync_oh, y_sync = encoder.encode(sync_df)
 
     for rs in range(5):
@@ -115,7 +121,7 @@ for seed in [0, 1, 2, 3, 4]:
         print(f'Synthetic:\t{synthetic_train:.5f}\t{synthetic_val:.5f}\t{synthetic_test:.5f}')
 
         for g in groups:
-            group_df = test_df[test_df[race_feat] == g]
+            group_df = test_df[test_df[protected_feat] == g]
             X_sub_oh, y_sub = encoder.encode(group_df)
             subgroup_test = score_fn(model_sync, X_sub_oh, y_sub)
             group_val[g].append(subgroup_test)

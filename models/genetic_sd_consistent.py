@@ -466,10 +466,7 @@ class GeneticSDConsistent(Generator):
                     if (elite_violations.sum() < 10 and self.stop_early) or W.max() > 1e6:
                         if self.print_progress: print(f'\t\t### Stop early at {t} ###')
                         break
-                    # W = W * (jnp.exp(elite_violations))
-                    # W = W * jnp.min(jnp.vstack((2 * jnp.ones_like(W), jnp.exp(elite_violations))), axis=0)
                     W = W + elite_violations
-                    # W = W * jnp.max(jnp.vstack((2 * jnp.zeros_like(W), W)), axis=0)
 
                     if self.print_progress:
                         print(f'\t\tUpdating consistency weight: t={t:>5}, W.max()={W.max():.4f}, W.mean()={W.mean():.4f}')

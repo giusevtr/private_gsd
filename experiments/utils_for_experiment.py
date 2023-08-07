@@ -20,6 +20,13 @@ def read_tabddpm_data(dataset_name, seed, root_dir ='../tabddpm_sync_data'):
     return data_df
 
 
+def is_ordinal(col_df):
+    vals = col_df.astype(float).values
+    vals_int = col_df.astype(float).astype(int).values
+    error = np.abs(vals-vals_int).max()
+    return error <= 1e-9
+
+
 def read_original_data(dataset_name, root_dir ='../../dp-data-dev/data2/data'):
 
     train_data_list = []
@@ -28,7 +35,9 @@ def read_original_data(dataset_name, root_dir ='../../dp-data-dev/data2/data'):
 
     cat_cols = []
     num_cols = []
-    if os.path.exists(f'{root_dir}/{dataset_name}/X_num_cat.npy'):
+    real_cols = []
+    ordi_cols = []
+    if os.path.exists(f'{root_dir}/{dataset_name}/X_cat_train.npy'):
         X_cat_train = np.load(f'{root_dir}/{dataset_name}/X_cat_train.npy')
         X_cat_val = np.load(f'{root_dir}/{dataset_name}/X_cat_val.npy')
         X_cat_test = np.load(f'{root_dir}/{dataset_name}/X_cat_test.npy')
@@ -60,6 +69,18 @@ def read_original_data(dataset_name, root_dir ='../../dp-data-dev/data2/data'):
 
     train_df = pd.DataFrame(np.column_stack(train_data_list), columns=all_cols)
     val_df = pd.DataFrame(np.column_stack(val_data_list), columns=all_cols)
+
+    train_final_df = pd.concat((train_df, val_df))
+
     test_df = pd.DataFrame(np.column_stack(test_data_list), columns=all_cols)
-    return train_df, val_df, test_df, all_cols, cat_cols, num_cols
+
+    all_df = pd.concat((train_final_df, test_df))
+
+    for ncol in num_cols:
+        if is_ordinal(all_df[ncol]):
+            ordi_cols.append(ncol)
+        else:
+            real_cols.append(ncol)
+
+    return train_final_df, test_df, all_df, cat_cols, ordi_cols, real_cols
 

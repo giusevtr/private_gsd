@@ -38,15 +38,17 @@ original_test_scores = []
 synthetic_test_scores = []
 
 for seed in range(5):
-    X_train = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_train.npy')
-    X_test = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_test.npy')
-    X_val = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_val.npy')
-    y_train = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_train.npy')
-    y_test = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_test.npy')
-    y_val = np.load(f'../../dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_val.npy')
+    data_path = '../data2/data'
+    X_train = np.load(f'{data_path}/diabetes/kfolds/{seed}/X_num_train.npy')
+    X_test = np.load( f'{data_path}/diabetes/kfolds/{seed}/X_num_test.npy')
+    X_val = np.load(  f'{data_path}/diabetes/kfolds/{seed}/X_num_val.npy')
+    y_train = np.load(f'{data_path}/diabetes/kfolds/{seed}/y_train.npy')
+    y_test = np.load( f'{data_path}/diabetes/kfolds/{seed}/y_test.npy')
+    y_val = np.load(  f'{data_path}/diabetes/kfolds/{seed}/y_val.npy')
+
 
     # Load synthetic data and extract features
-    sync_df = pd.read_csv(f'sync_data/diabetes/3/100000.00/N/oneshot/sync_data_{seed}.csv')
+    sync_df = pd.read_csv(f'sync_data/diabetes/2/inf/N/oneshot/sync_data_{seed}.csv')
 
     X_sync = sync_df[features]
     y_sync = sync_df[target]
@@ -54,8 +56,8 @@ for seed in range(5):
     for rs in range(10):
         # Train a model on the original data and save test score
         model = XGBClassifier(
-            learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
-                              gamma=gamma, subsample=subsample, reg_lambda=reg_lambda,
+            # learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
+            #                   gamma=gamma, subsample=subsample, reg_lambda=reg_lambda,
             random_state=rs
                               )
 
@@ -65,19 +67,21 @@ for seed in range(5):
         original_test = score_fn(model, X_test, y_test)
         original_test_scores.append(original_test)
 
-        print(f'Original:\t{original_train:.5f}\t{original_val}\t{original_test:.5f}')
 
         # Train a model on the synthetic data and save test score
         model_sync = XGBClassifier(
-            learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
-                              gamma=gamma, subsample=subsample, reg_lambda=reg_lambda,
+            # learning_rate=learning_rate, max_depth=max_depth, min_child_weight=min_child_weight,
+            #                   gamma=gamma, subsample=subsample, reg_lambda=reg_lambda,
                         random_state=rs)
         model_sync.fit(X_sync, y_sync)
         synthetic_train = score_fn(model_sync, X_sync, y_sync)
         synthetic_val = score_fn(model_sync, X_val, y_val)
         synthetic_test = score_fn(model_sync, X_test, y_test)
         synthetic_test_scores.append(synthetic_test)
+
+        print(f'Original: \t{original_train:.5f}\t{original_val:.5f}\t{original_test:.5f}')
         print(f'Synthetic:\t{synthetic_train:.5f}\t{synthetic_val:.5f}\t{synthetic_test:.5f}')
+        print()
 
 print()
 print(f'Original average test score:  {np.mean(original_test_scores):.5f}, std={np.std(original_test_scores):.5f}')

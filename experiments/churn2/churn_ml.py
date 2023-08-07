@@ -3,7 +3,7 @@ import numpy as np
 from utils import MLEncoder
 from sklearn.metrics import f1_score, make_scorer
 from xgboost import XGBClassifier
-from experiments.utils import read_original_data, read_tabddpm_data
+from experiments.utils_for_experiment import read_original_data, read_tabddpm_data
 import argparse
 QUANTILES = 50
 parser = argparse.ArgumentParser()

@@ -9,7 +9,6 @@ from stats.thresholds import get_thresholds_ordinal, get_thresholds_realvalued
 from experiments.utils_for_experiment import read_original_data, read_tabddpm_data
 from stats import ChainedStatistics,  Marginals, NullCounts
 from dp_data import cleanup, DataPreprocessor, get_config_from_json
-QUANTILES = 50
 
 
 dataset_name = 'churn2'
@@ -17,17 +16,15 @@ k = 3
 eps = 100000
 data_size_str = 'N'
 
-real_cols = [f'num_3', 'num_5', 'num_6']
-ord_cols = ['num_0', 'num_1', 'num_2', 'num_4']
-train_df, val_df, test_df, all_cols, cat_cols, num_cols = read_original_data(dataset_name)
-all_df = pd.concat([train_df, val_df, test_df])
+# real_cols = [f'num_3', 'num_5', 'num_6']
+# ord_cols = ['num_0', 'num_1', 'num_2', 'num_4']
+train_df, test_df, all_df, cat_cols, ord_cols, real_cols = read_original_data(dataset_name, root_dir='../data2/data')
 
 
 config = get_config_from_json({'categorical': cat_cols + ['Label'], 'ordinal': ord_cols, 'numerical': real_cols})
 preprocessor = DataPreprocessor(config=config)
 preprocessor.fit(all_df)
 pre_train_df = preprocessor.transform(train_df)
-pre_val_df = preprocessor.transform(val_df)
 pre_test_df = preprocessor.transform(test_df)
 
 
@@ -71,8 +68,6 @@ for seed in [0, 1, 2, 3, 4]:
     sync_data = algo.fit_zcdp(key, stat_module=stat_module, rho=1000000000)
     sync_data_df = sync_data.df.copy()
     sync_data_df_post = preprocessor.inverse_transform(sync_data_df)
-
-
 
     sync_dir = f'sync_data/{dataset_name}/{k}/{eps:.2f}/{data_size_str}/oneshot'
     os.makedirs(sync_dir, exist_ok=True)

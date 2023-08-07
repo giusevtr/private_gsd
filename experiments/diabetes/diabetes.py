@@ -10,16 +10,18 @@ from models import GSD
 from stats import ChainedStatistics,  Marginals, NullCounts
 import jax.numpy as jnp
 
+from stats.get_marginals_fn import get_marginal_query
 QUANTILES = 50
 
 for seed in [0, 1, 2, 3, 4]:
 
-    X_train = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_train.npy')
-    X_test = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_test.npy')
-    X_val = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/X_num_val.npy')
-    y_train = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_train.npy')
-    y_test = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_test.npy')
-    y_val = np.load(f'dp-data-dev/data2/data/diabetes/kfolds/{seed}/y_val.npy')
+    data_path = '../data2/data'
+    X_train = np.load(f'{data_path}/diabetes/kfolds/{seed}/X_num_train.npy')
+    X_test = np.load( f'{data_path}/diabetes/kfolds/{seed}/X_num_test.npy')
+    X_val = np.load(  f'{data_path}/diabetes/kfolds/{seed}/X_num_val.npy')
+    y_train = np.load(f'{data_path}/diabetes/kfolds/{seed}/y_train.npy')
+    y_test = np.load( f'{data_path}/diabetes/kfolds/{seed}/y_test.npy')
+    y_val = np.load(  f'{data_path}/diabetes/kfolds/{seed}/y_val.npy')
 
     X = np.concatenate((X_train, X_test, X_val))
     y = np.concatenate((y_train, y_test, y_val))
@@ -56,7 +58,12 @@ for seed in [0, 1, 2, 3, 4]:
             config[col] = {"type": "numerical", "size": 1}
             col_pre = (df[col].values - minv) / ran
             X_pre.append(pd.Series(col_pre, name=col))
-
+    # config = get_config_from_json({'categorical': cat_cols + ['Label'], 'ordinal': num_cols, 'numerical': []})
+    # preprocessor = DataPreprocessor(config=config)
+    # preprocessor.fit(all_df)
+    # pre_train_df = preprocessor.transform(train_df)
+    # pre_val_df = preprocessor.transform(val_df)
+    # pre_test_df = preprocessor.transform(test_df)
     df = pd.concat(X_pre, axis=1)
 
     bins_edges = {}
@@ -75,7 +82,7 @@ for seed in [0, 1, 2, 3, 4]:
 
     modules = []
     modules.append(Marginals.get_all_kway_combinations(data.domain, k=3, levels=1, bin_edges=bins_edges,
-                                                       include_feature='Label'))
+                                                       include_features=['Label']))
     stat_module = ChainedStatistics(modules)
     stat_module.fit(data, max_queries_per_workload=30000)
 
