@@ -95,13 +95,13 @@ scores_val = []
 groups = test_df[race_feat].unique()
 group_val = dict([(g, []) for g in groups])
 
-for seed in [0, 1, 2, 3, 4]:
+for seed in [0, 1, 2, 3]:
     # Synthetic
-    # sync_df = pd.read_csv(f'sync_data_race/adult/4/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
-    sync_df = pd.read_csv(f'sync_data/adult/3/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
+    sync_df = pd.read_csv(f'sync_data/adult/4/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
+    # sync_df = pd.read_csv(f'sync_data/adult/3/100000.00/N/oneshot/sync_data_{seed}.csv').dropna()
     X_sync_oh, y_sync = encoder.encode(sync_df)
 
-    for rs in range(5):
+    for rs in range(1):
 
         # Train a model on the synthetic data and save test score
         model_sync = XGBClassifier(

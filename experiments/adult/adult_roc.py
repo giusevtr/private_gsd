@@ -19,7 +19,7 @@ QUANTILES = 50
 
 data_name = 'adult'
 for seed in range(10):
-    k = 4
+    k = 3
     eps = 100000
     data_size_str = 'N'
 
@@ -70,9 +70,14 @@ for seed in range(10):
 
     modules = []
     race_feat = 'cat_5'
-    modules.append(Marginals(domain, kway_combinations=((race_feat,), ('Label',)), k=1))
-    modules.append(Marginals.get_all_kway_combinations(data.domain, k=k, levels=1, bin_edges=bin_edges,
-                                                       include_features=['Label', race_feat]))
+    if k == 3:
+        # modules.append(Marginals(domain, kway_combinations=(('Label',)), k=1))
+        modules.append(Marginals.get_all_kway_combinations(data.domain, k=k, levels=1, bin_edges=bin_edges,
+                                                           include_features=['Label']))
+    elif k == 4:
+        modules.append(Marginals(domain, kway_combinations=((race_feat,), ('Label',)), k=1))
+        modules.append(Marginals.get_all_kway_combinations(data.domain, k=k, levels=1, bin_edges=bin_edges,
+                                                           include_features=['Label', race_feat]))
     stat_module = ChainedStatistics(modules)
     stat_module.fit(data, max_queries_per_workload=5000)
 
