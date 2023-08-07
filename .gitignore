@@ -26,3 +26,4 @@ dp-data-dev
 dev/ICML/icml_results
 *.npy
 *.txt
+*.tar

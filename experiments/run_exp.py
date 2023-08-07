@@ -53,17 +53,22 @@ def run_experiment(data_name, data_size_str = 'N', k=2, protected_feature=None, 
         key = jax.random.PRNGKey(seed)
 
         t0 = timer()
+        include_features = ['Label']
+        if protected_feature is not None and protected_feature in domain.attrs:
+            include_features.append(protected_feature)
         true_stats, stat_fn, total_error_fn = get_marginal_query(seed, data, domain, k=k,
                                                                  min_bin_density=0.005,
                                                                  minimum_density=0.999,
                                                                  max_marginal_size=N_prime,
-                                                                 include_features=['Label'], verbose=True)
+                                                                 include_features=include_features, verbose=True)
 
         sync_data = algo.fit_help(key, true_stats, stat_fn)
         sync_data_df = sync_data.df.copy()
         sync_data_df_post = preprocessor.inverse_transform(sync_data_df)
 
-        stats_name = f'{k}' + protected_feature
+        stats_name = f'{k}'
+        if protected_feature is not None:
+            stats_name = stats_name + protected_feature
         sync_dir = f'sync_data/{data_name}/{stats_name}/{data_size_str}/inf/{seed}'
         os.makedirs(sync_dir, exist_ok=True)
         print(f'Saving {sync_dir}/sync_data.csv')
