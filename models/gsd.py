@@ -307,8 +307,6 @@ class GSD(Generator):
 
         if self.sparse_statistics:
             selected_statistics, selected_noised_statistics, statistics_fn = adaptive_statistic.get_selected_trimmed_statistics_fn()
-            if self.print_progress:
-                print(f'Number of sparse statistics is {selected_statistics.shape[0]}. Time = {timer() - init_time:.2f}')
         else:
             selected_noised_statistics = adaptive_statistic.get_selected_noised_statistics()
             selected_statistics = adaptive_statistic.get_selected_statistics_without_noise()
@@ -316,23 +314,32 @@ class GSD(Generator):
 
         return self.fit_help(key, selected_noised_statistics, statistics_fn, sync_dataset)
 
-    def fit_help(self, key, selected_noised_statistics, statistics_fn, sync_dataset = None):
-        # For debugging
-        # @jax.jit
-        # def true_loss(X_arg):
-        #     error = jnp.abs(selected_statistics - statistics_fn(X_arg))
-        #     return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
+    def fit_help(self, key, selected_noised_statistics, statistics_fn, sync_dataset=None,
+                 constraint_fn=None):
         self.stop_generation = None
         init_time = timer()
 
+        const_weight = 0.0
+        weight_updates = 0
+        if constraint_fn is not None:
+            constraint_fn_jit = jax.jit(constraint_fn)
+            weight_updates = 20
+        else:
+            constraint_fn = lambda x: 0
+            constraint_fn_jit = jax.jit(constraint_fn)
 
         @jax.jit
         def private_loss(X_arg):
             error = jnp.abs(selected_noised_statistics - statistics_fn(X_arg))
             return jnp.abs(error).max(), jnp.abs(error).mean(), jnp.linalg.norm(error, ord=2)
 
-        def fitness_fn(stats: chex.Array, pop_state: PopulationState):
-            # Process one member of the population
+        def fitness_fn(X, w):
+            fitness = jnp.linalg.norm(selected_noised_statistics - statistics_fn(X), ord=2) ** 2
+            constraint_score = constraint_fn(X)
+            return fitness + w * constraint_score
+        fitness_fn_vmap = jax.vmap(fitness_fn, in_axes=(0, None))
+
+        def update_fitness_fn(stats: chex.Array, pop_state: PopulationState, w):
             # 1) Update the statistics of this synthetic dataset
             rem_row = pop_state.remove_row
             add_row = pop_state.add_row
@@ -340,12 +347,15 @@ class GSD(Generator):
             add_stats = (num_rows * statistics_fn(add_row))
             rem_stats = (num_rows * statistics_fn(rem_row))
             upt_sync_stat = stats.reshape(-1) + add_stats - rem_stats
+
+            X_temp = pop_state.X
+            constraint_score = w * constraint_fn(X_temp)
             # 2) Compute its fitness based on the statistics
             fitness = jnp.linalg.norm(selected_noised_statistics - upt_sync_stat / self.data_size, ord=2) ** 2
-            return fitness
+            return fitness + constraint_score
 
-        fitness_fn_vmap = jax.vmap(fitness_fn, in_axes=(None, 0))
-        fitness_fn_jit = jax.jit(fitness_fn_vmap)
+        update_fitness_fn_vmap = jax.vmap(update_fitness_fn, in_axes=(None, 0, None))
+        update_fitness_fn_jit= jax.jit(update_fitness_fn_vmap)
 
 
         # INITIALIZE STATE
@@ -359,9 +369,9 @@ class GSD(Generator):
             new_archive = jnp.concatenate([temp, state.archive[1:, :, :]])
             state = state.replace(archive=new_archive)
 
-        elite_population_fn = jax.vmap(statistics_fn, in_axes=(0,))
-        elite_fitness = jnp.linalg.norm(selected_noised_statistics - elite_population_fn(state.archive), axis=1,
-                                        ord=2) ** 2
+
+        elite_fitness = fitness_fn_vmap(state.archive, const_weight)
+
         best_member_id = elite_fitness.argmin()
         state = state.replace(
             fitness=elite_fitness,
@@ -403,6 +413,7 @@ class GSD(Generator):
         update_elite_stat_jit = jax.jit(update_elite_stat)
         LAST_LAG_FITNESS = state.best_fitness
         true_results = []
+
         for t in range(self.num_generations):
             self.stop_generation = t  # Update the stop generation
             # ASK
@@ -414,7 +425,7 @@ class GSD(Generator):
 
             # FIT
             t0 = timer()
-            fitness = fitness_fn_jit(elite_stat, population_state).block_until_ready()
+            fitness = update_fitness_fn_jit(elite_stat, population_state, const_weight).block_until_ready()
             fit_time += timer() - t0
 
             # TELL
@@ -435,8 +446,18 @@ class GSD(Generator):
                 loss_change = jnp.abs(LAST_LAG_FITNESS - state.best_fitness) / LAST_LAG_FITNESS
 
                 if loss_change < 0.0001:
-                    if self.print_progress: print(f'\t\t ### Stop early at {t} ###')
-                    break
+                    constraint_loss = constraint_fn_jit(state.best_member)
+                    if weight_updates > 0 and constraint_loss > 0:
+                        const_weight = 2 * const_weight + 0.1  # Increase weight assigned to constraints
+                        state = state.replace(best_fitness=1e9)  # For the algorithm to update the next generation
+                        weight_updates = weight_updates - 1
+                        if self.print_progress:
+                            print(f'\tGen {t:<3}: Increasing weight({weight_updates:<3}): w={const_weight:.5f}.'
+                                  f' Constraint loss={constraint_loss:.5f}')
+                    else:
+                        if self.print_progress:
+                            print(f'\t\t ### Stop early at {t} ###')
+                        break
                 LAST_LAG_FITNESS = state.best_fitness
 
             if (t % 500 == 0) and self.print_progress:
@@ -445,7 +466,9 @@ class GSD(Generator):
                 if last_fitness is None or best_fitness_total < last_fitness * 0.99 or t > self.num_generations - 2:
                     elapsed_time = timer() - init_time
                     X_sync = state.best_member
+                    constraint_score = constraint_fn_jit(X_sync)
                     print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
+                    print(f'\tconstraint_score={constraint_score:.5f}', end=' ')
                     # t_inf, t_avg, p_l2 = true_loss(X_sync)
                     # true_results.append([t, float(t_inf), float(t_avg), float(p_l2)])
                     # print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')

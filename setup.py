@@ -10,5 +10,5 @@ setup(
     packages=['dev', 'models', 'stats', 'utils'],
     zip_safe=False,
     install_requires=['numpy', 'pandas', 'scipy', 'scikit-learn',
-                      'tqdm', 'matplotlib', 'seaborn', 'chex', 'diffprivlib'],
+                      'tqdm', 'matplotlib', 'seaborn', 'chex', 'diffprivlib', 'flax'],
 )
