@@ -19,7 +19,7 @@ class Dataset:
         return len(self.df)
 
     @staticmethod
-    def synthetic_jax_rng(domain: Domain, N, rng, null_values: float=0.0):
+    def synthetic_jax_rng(domain: Domain, N, rng, null_values: float = 0.0):
         """
         Generate synthetic data conforming to the given domain
         :param domain: The domain object
@@ -28,49 +28,68 @@ class Dataset:
         d = len(domain.attrs)
         rng0, rng1 = jax.random.split(rng, 2)
         rng_split = jax.random.split(rng0, d)
-        num_nulls = int(N * null_values)
         arr = []
         for (rng_temp, att) in zip(rng_split, domain.attrs):
-            rng_temp0, rng_temp1 = jax.random.split(rng_temp, 2)
-            c = None
-            if domain.type(att) == 'categorical':
-                c = jax.random.randint(rng_temp0, shape=(N,), minval=0, maxval=domain.size(att))
-            elif domain.type(att) == 'ordinal':
-                has_bin_edges, bin_edges = domain.get_bin_edges(att)
-                if has_bin_edges:
-                    # 1) Sample a bin
-                    rng_bin_0, rng_bin_1 = jax.random.split(rng_temp0, 2)
-                    num_bins = bin_edges.shape[0]
-                    bin_pos = jax.random.randint(rng_bin_0, shape=(N,), minval=1, maxval=num_bins)
-                    right_edge = jnp.ceil(bin_edges[bin_pos]).astype(int)
-                    left_edge = jnp.ceil(bin_edges[bin_pos - 1]).astype(int)
-                    c = jax.random.randint(rng_bin_1, minval=left_edge, maxval=right_edge, shape=(N,))
-                    # u = jax.random.uniform(rng_bin_1, shape=(N,))
-                    # c = (right_edge - left_edge) * u + left_edge
-                else:
-                    c = jax.random.randint(rng_temp0, shape=(N,), minval=0, maxval=domain.size(att))
-            elif domain.type(att) == 'numerical':
-                has_bin_edges, bin_edges = domain.get_bin_edges(att)
-                if has_bin_edges:
-                    rng_bin_0, rng_bin_1 = jax.random.split(rng_temp0, 2)
-                    num_bins = bin_edges.shape[0]
-                    bin_pos = jax.random.randint(rng_bin_0, shape=(N,), minval=1, maxval=num_bins)
-                    right_edge = bin_edges[bin_pos]
-                    left_edge = bin_edges[bin_pos-1]
-                    u = jax.random.uniform(rng_bin_1, shape=(N, ))
-                    c = (right_edge - left_edge) * u + left_edge
-
-                else:
-                    c = jax.random.uniform(rng_temp0, shape=(N, ))
-
-            if domain.has_nulls(att):
-                null_idx = jax.random.randint(rng_temp1, minval=0, maxval=N, shape=(num_nulls,))
-                c = c.astype(float).at[null_idx].set(jnp.nan)
+            sampler_fn = domain.get_sampler(att, N)
+            c = sampler_fn(rng_temp)
             arr.append(c)
-
 
         values = jnp.array(arr).T
         return values
+
+    # @staticmethod
+    # def synthetic_jax_rng(domain: Domain, N, rng, null_values: float=0.0):
+    #     """
+    #     Generate synthetic data conforming to the given domain
+    #     :param domain: The domain object
+    #     :param N: the number of individuals
+    #     """
+    #     d = len(domain.attrs)
+    #     rng0, rng1 = jax.random.split(rng, 2)
+    #     rng_split = jax.random.split(rng0, d)
+    #     num_nulls = int(N * null_values)
+    #     arr = []
+    #     for (rng_temp, att) in zip(rng_split, domain.attrs):
+    #         rng_temp0, rng_temp1 = jax.random.split(rng_temp, 2)
+    #         c = None
+    #         if domain.type(att) == 'categorical':
+    #             c = jax.random.randint(rng_temp0, shape=(N,), minval=0, maxval=domain.size(att))
+    #         elif domain.type(att) == 'ordinal':
+    #             has_bin_edges, bin_edges = domain.get_bin_edges(att)
+    #             if has_bin_edges:
+    #                 # 1) Sample a bin
+    #                 rng_bin_0, rng_bin_1 = jax.random.split(rng_temp0, 2)
+    #                 num_bins = bin_edges.shape[0]
+    #                 bin_pos = jax.random.randint(rng_bin_0, shape=(N,), minval=1, maxval=num_bins)
+    #                 right_edge = jnp.ceil(bin_edges[bin_pos]).astype(int)
+    #                 left_edge = jnp.ceil(bin_edges[bin_pos - 1]).astype(int)
+    #                 c = jax.random.randint(rng_bin_1, minval=left_edge, maxval=right_edge, shape=(N,))
+    #                 # u = jax.random.uniform(rng_bin_1, shape=(N,))
+    #                 # c = (right_edge - left_edge) * u + left_edge
+    #             else:
+    #                 c = jax.random.randint(rng_temp0, shape=(N,), minval=0, maxval=domain.size(att))
+    #         elif domain.type(att) == 'numerical':
+    #             has_bin_edges, bin_edges = domain.get_bin_edges(att)
+    #             if has_bin_edges:
+    #                 rng_bin_0, rng_bin_1 = jax.random.split(rng_temp0, 2)
+    #                 num_bins = bin_edges.shape[0]
+    #                 bin_pos = jax.random.randint(rng_bin_0, shape=(N,), minval=1, maxval=num_bins)
+    #                 right_edge = bin_edges[bin_pos]
+    #                 left_edge = bin_edges[bin_pos-1]
+    #                 u = jax.random.uniform(rng_bin_1, shape=(N, ))
+    #                 c = (right_edge - left_edge) * u + left_edge
+    #
+    #             else:
+    #                 c = jax.random.uniform(rng_temp0, shape=(N, ))
+    #
+    #         if domain.has_nulls(att):
+    #             null_idx = jax.random.randint(rng_temp1, minval=0, maxval=N, shape=(num_nulls,))
+    #             c = c.astype(float).at[null_idx].set(jnp.nan)
+    #         arr.append(c)
+    #
+    #
+    #     values = jnp.array(arr).T
+    #     return values
 
     @staticmethod
     def synthetic_rng(domain: Domain, N, rng, null_values: float=0.0):

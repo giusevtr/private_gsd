@@ -1,5 +1,4 @@
 import jax.numpy as jnp
-import numpy as np
 import pandas as pd
 from models import Generator
 import time
@@ -12,7 +11,6 @@ from functools import partial
 from typing import Tuple
 import random
 
-
 @struct.dataclass
 class EvoState:
     archive: chex.Array
@@ -23,10 +21,14 @@ class EvoState:
 
 @struct.dataclass
 class PopulationState:
-    # X: chex.Array
-    row_id: chex.Array
+    X: chex.Array
     remove_row: chex.Array
     add_row: chex.Array
+
+
+"""
+Implement crossover that is specific to synthetic data
+"""
 
 
 def get_best_fitness_member(
@@ -45,7 +47,6 @@ def get_best_fitness_member(
         replace_best, best_in_gen_member, state.best_member
     )
     return best_member, best_fitness, replace_best, best_in_gen
-
 
 class SDStrategy:
     def __init__(self, domain: Domain,
@@ -94,18 +95,16 @@ class SDStrategy:
             best_member=init_x[0].astype(jnp.float64),
             best_fitness=jnp.finfo(jnp.float64).max
         )
-        self.update_candidate_vmap = jax.vmap(update_candidate, in_axes=(None, 0, 0))
 
         rng1, rng2 = jax.random.split(rng, 2)
         random_numbers = jax.random.permutation(rng1, self.data_size, independent=True)
-        muta_fn = get_mutate_fn()
-        mate_fn = get_mating_fn(self.domain)
+        muta2_fn = get_mutate_fn2(muta_rate=self.muta_rate, random_numbers=random_numbers)
+        mate_fn = get_mating_fn(self.domain, mate_rate=self.mate_rate, random_numbers=random_numbers)
 
-        self.muta_vmap = jax.jit(jax.vmap(muta_fn, in_axes=(None, 0, 0, 0)))
-        self.mate_vmap = jax.jit(jax.vmap(mate_fn, in_axes=(None, 0)))
+        self.muta2_vmap = jax.jit(jax.vmap(muta2_fn, in_axes=(None, 0, 0)))
+        self.mate_vmap = jax.jit(jax.vmap(mate_fn, in_axes=(None, 0, 0)))
         self.samplers = [jax.jit(self.domain.get_sampler(col, self.population_size_muta)) for col in self.domain.attrs]
-        self.column_ids = self.domain.sample_columns_based_on_logsize() # Mutate columns based on their cardinality
-        self.sample_id = 0
+        self.col_id = 0
 
         self.sampler_time = 0
         self.ask_time = 0
@@ -121,65 +120,72 @@ class SDStrategy:
 
     @partial(jax.jit, static_argnums=(0,))
     def initialize_random_population(self, rng: chex.PRNGKey):
-        pop = Dataset.synthetic_jax_rng(self.domain, self.population_size, rng)
+        pop = Dataset.synthetic_jax_rng(self.domain, self.population_size_muta, rng)
         return pop
 
     def ask(self, rng: chex.PRNGKey, state: EvoState):
 
         t0 = time.time()
-        # rng_ask, rng_samples = jax.random.split(rng, 2)
-        self.sample_id = (self.sample_id + 1) % len(self.column_ids)
-        column = self.column_ids[self.sample_id]
-        column_values = self.samplers[column](rng)
-        column_values.block_until_ready()
+        random_data = self.initialize_random_population(rng)
+        random_data.block_until_ready()
         self.sampler_time += time.time() - t0
 
         t0 = time.time()
-        pop = self.ask_strategy(rng, state, column, column_values)
+        pop = self.ask_strategy2(rng, random_data, state)
         pop.remove_row.block_until_ready()
         self.ask_time += time.time() - t0
+
         return pop
+
+    @partial(jax.jit, static_argnums=(0,))
+    def ask_strategy2(self, rng: chex.PRNGKey, random_data, state: EvoState):
+        rng, rng2, rng_i, rng_j, rng_k, rng_muta, rng_mate, rng_mutate = jax.random.split(rng, 8)
+
+        rng_muta_split = jax.random.split(rng_muta, self.population_size_muta)
+        pop_muta = self.muta2_vmap(state.best_member, rng_muta_split, random_data)
+
+        rng_mate_split = jax.random.split(rng_mate, self.population_size_cross)
+        j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(self.population_size_cross,))
+        x_j = state.archive[j]
+        pop_mate = self.mate_vmap(state.best_member, rng_mate_split, x_j)
+
+        remove_row = jnp.concatenate((pop_muta.remove_row, pop_mate.remove_row), axis=0)
+        add_row = jnp.concatenate((pop_muta.add_row, pop_mate.add_row), axis=0)
+        population = PopulationState(
+            X=jnp.concatenate((pop_muta.X, pop_mate.X)),
+            remove_row=remove_row,
+            add_row=add_row)
+        return population
 
 
     @partial(jax.jit, static_argnums=(0,))
-    def ask_strategy(self, rng_muta: chex.PRNGKey, state: EvoState, i: int, column_values: chex.Array):
-        rng_muta, rng_mate = jax.random.split(rng_muta, 2)
+    def ask_strategy(self, rng: chex.PRNGKey, state: EvoState, i: int, column_values: chex.Array):
+        rng, rng2, rng_i, rng_j, rng_k, rng_muta, rng_mate, rng_mutate = jax.random.split(rng, 8)
 
-        # Mutation
+        # i = int(jax.random.randint(rng_col, minval=0, maxval=len(self.samplers), shape=(1,))[0])
         column_id = (jnp.ones(shape=(self.population_size_muta)) * i).astype(int)
+
         rng_muta_split = jax.random.split(rng_muta, self.population_size_muta)
         pop_muta = self.muta_vmap(state.best_member, rng_muta_split, column_id, column_values)
 
-        # Crossover
-        rng_mate_1, rng_mate_2 = jax.random.split(rng_mate, 2)
-        rng_mate_split = jax.random.split(rng_mate_1, self.population_size_cross)
-        pop_mate = self.mate_vmap(state.best_member, rng_mate_split)
+        rng_mate_split = jax.random.split(rng_mate, self.population_size_cross)
+        j = jax.random.randint(rng_j, minval=0, maxval=self.elite_size, shape=(self.population_size_cross,))
+        x_j = state.archive[j]
+        pop_mate = self.mate_vmap(state.best_member, rng_mate_split, x_j)
 
+        remove_row = jnp.concatenate((pop_muta.remove_row, pop_mate.remove_row), axis=0)
+        add_row = jnp.concatenate((pop_muta.add_row, pop_mate.add_row), axis=0)
         population = PopulationState(
-            row_id=jnp.concatenate((pop_muta.row_id, pop_mate.row_id)),
-            remove_row=jnp.concatenate((pop_muta.remove_row, pop_mate.remove_row), axis=0),
-            add_row=jnp.concatenate((pop_muta.add_row, pop_mate.add_row), axis=0))
+            X=jnp.concatenate((pop_muta.X, pop_mate.X)),
+            remove_row=remove_row,
+            add_row=add_row)
         return population
 
-    @partial(jax.jit, static_argnums=(0,))
-    def update_elite_candidates(self,
-            state: EvoState, # best candidate before updates
-            population_delta: PopulationState,  # candidate deltas
-            fitness: chex.Array):
-        X = state.best_member
-        idx = jnp.argsort(fitness)[0]
-        fitness_elite = fitness[idx].reshape((1,))
-
-        row_idx = population_delta.row_id[idx]
-        remove_row = population_delta.remove_row[idx]
-        add_row = population_delta.add_row[idx]
-        X_elite_upt = update_candidate(X, row_idx, add_row).reshape((1, self.data_size, -1))
-        return X_elite_upt, fitness_elite, remove_row, add_row
 
     @partial(jax.jit, static_argnums=(0,))
     def tell(
             self,
-            x: chex.Array, # Candidates before updates
+            x: chex.Array,
             fitness: chex.Array,
             state: EvoState,
     ) -> Tuple[EvoState, chex.Array, chex.Array]:
@@ -198,9 +204,8 @@ class SDStrategy:
             state: EvoState,
     ) -> EvoState:
         fitness_concat = jnp.concatenate([state.fitness, fitness])
-        idx = jnp.argsort(fitness_concat)[0: self.elite_size]
-
         solution_concat = jnp.concatenate([state.archive, x])
+        idx = jnp.argsort(fitness_concat)[0: self.elite_size]
 
         new_fitness = fitness_concat[idx]
         new_archive = solution_concat[idx]
@@ -212,28 +217,37 @@ class SDStrategy:
         return new_state
 
 
-def update_candidate(X, row_id, add_row):
-    X_new = X.at[row_id, :].set(add_row[0])
-    return X_new
 
-
-def get_mutate_fn():
+def get_mutate_fn2(muta_rate: int, random_numbers):
     def muta(
             X0,
-            rng: chex.PRNGKey,
-            mut_col: chex.Array,
-            new_col_value: chex.Array
+            rng: chex.PRNGKey,  initialization
     ) -> PopulationState:
+        X0 = X0.astype(jnp.float64)
+
         n, d = X0.shape
-        rem_row_idx = jax.random.randint(rng, minval=0, maxval=n, shape=(1,))
-        removed_rows_muta = X0[rem_row_idx, :]
-        added_rows_muta = removed_rows_muta.at[0, mut_col].set(new_col_value)
-        pop_state = PopulationState(row_id=rem_row_idx[0], remove_row=removed_rows_muta, add_row=added_rows_muta)
+        rng, rng1, rng2, rng3, rng4, rng5, rng6, rng_temp, rng_normal = jax.random.split(rng, 9)
+
+        temp = jax.random.randint(rng1, minval=0, maxval=random_numbers.shape[0] - muta_rate, shape=(1,))
+        temp_id = jnp.arange(muta_rate) + temp
+        temp_id = jax.random.permutation(rng2, random_numbers[temp_id], independent=True)
+        mut_rows = temp_id
+
+        ###################
+        ## Mutate
+        mut_col = jax.random.randint(rng5, minval=0, maxval=d, shape=(muta_rate,))
+        values = initialization[mut_col]
+
+        removed_rows_muta = X0[mut_rows, :].reshape((muta_rate, d))
+        X_mut = X0.at[mut_rows, mut_col].set(values)
+        added_rows_muta = X_mut[mut_rows, :].reshape((muta_rate, d))
+
+        pop_state = PopulationState(X=X_mut, remove_row=removed_rows_muta, add_row=added_rows_muta)
         return pop_state
 
     return muta
 
-def get_mating_fn(domain: Domain):
+def get_mating_fn(domain: Domain, mate_rate: int, random_numbers):
     d = len(domain.attrs)
     numeric_idx = domain.get_attribute_indices(domain.get_numerical_cols()).astype(int)
     mask = jnp.zeros(d)
@@ -241,21 +255,41 @@ def get_mating_fn(domain: Domain):
     mask = mask.reshape((1, d))
 
     def mate(
-            X0, rng: chex.PRNGKey,
+            X0, rng: chex.PRNGKey, elite_rows: chex.Array
     ) -> PopulationState:
-        n, d = X0.shape
-        rng, rng1, rng2, rng3, rng_normal = jax.random.split(rng, 5)
+        X0 = X0.astype(jnp.float64)
+        elite_rows = elite_rows.astype(jnp.float64)
 
-        rem_row_idx = jax.random.randint(rng1, minval=0, maxval=n, shape=(1,))
-        removed_rows_mate = X0[rem_row_idx, :]
+        n, d = X0.shape
+        rng, rng1, rng2, rng3, rng4, rng5, rng6, rng_temp, rng_normal = jax.random.split(rng, 9)
+
+        # Choose row indices to cross
+        temp = jax.random.randint(rng1, minval=0, maxval=random_numbers.shape[0] - mate_rate, shape=(1,))
+        temp_id = jnp.arange(mate_rate) + temp
+        temp_id = jax.random.permutation(rng2, random_numbers[temp_id], independent=True)
+        remove_rows_idx = temp_id[:mate_rate]
+
+        removed_rows_mate = X0[remove_rows_idx, :].reshape((mate_rate, d))
+        add_rows_idx = jax.random.randint(rng3, minval=0, maxval=elite_rows.shape[0], shape=(mate_rate,))
 
         # Copy this row onto the dataset
-        add_rows_idx = jax.random.randint(rng2, minval=0, maxval=n, shape=(1,))
-        new_rows = X0[add_rows_idx, :]
-        upt_col_idx = jax.random.randint(rng3, minval=0, maxval=d, shape=(1,))
-        added_rows_mate = removed_rows_mate.at[0, upt_col_idx].set(new_rows[0, upt_col_idx])
+        new_rows = elite_rows[add_rows_idx]
+        noise = mask * jax.random.normal(rng_normal, shape=(new_rows.shape[0], d))
+        new_rows = new_rows + noise
+        new_rows = new_rows.at[:, numeric_idx].set(jnp.clip(new_rows[:, numeric_idx], 0, 1))
 
-        pop_state = PopulationState(row_id=rem_row_idx[0], remove_row=removed_rows_mate, add_row=added_rows_mate)
+        # Only crossover a subset of the values in the rows
+        rng_mate1, rng_mate2 = jax.random.split(rng_temp, 2)
+        temp = jnp.repeat(jnp.array([1, 0]), jnp.array([1, d - 1]), total_repeat_length=d)
+        temp = jnp.repeat(temp.reshape(1, -1), new_rows.shape[0])
+        temp = jax.random.permutation(rng_mate2, temp).reshape((mate_rate, -1))
+
+        added_rows_mate = temp * new_rows + (1 - temp) * removed_rows_mate
+
+        # Copy new rows
+        X = X0.at[remove_rows_idx].set(added_rows_mate)
+
+        pop_state = PopulationState(X=X, remove_row=removed_rows_mate, add_row=added_rows_mate)
         return pop_state
 
     return mate
@@ -352,11 +386,15 @@ class GSD(Generator):
             rem_stats = (num_rows * statistics_fn(rem_row))
             upt_sync_stat = stats.reshape(-1) + add_stats - rem_stats
 
+            X_temp = pop_state.X
+            constraint_score = w * constraint_fn(X_temp)
+            # 2) Compute its fitness based on the statistics
             fitness = jnp.linalg.norm(selected_noised_statistics - upt_sync_stat / self.data_size, ord=2) ** 2
-            return fitness
+            return fitness + constraint_score
 
         update_fitness_fn_vmap = jax.vmap(update_fitness_fn, in_axes=(None, 0, None))
-        update_fitness_fn_jit = jax.jit(update_fitness_fn_vmap)
+        update_fitness_fn_jit= jax.jit(update_fitness_fn_vmap)
+
 
         # INITIALIZE STATE
         key, subkey = jax.random.split(key, 2)
@@ -385,29 +423,34 @@ class GSD(Generator):
         ask_time = 0
         elite_stat_time = 0
         fit_time = 0
-        update_x_time = 0
         tell_time = 0
+        last_fitness = None
+        self.fitness_record = []
+
+
 
         elite_stat = self.data_size * statistics_fn(state.best_member)  # Statistics of best SD
 
         def update_elite_stat(elite_stat_arg,
+                              population_state: PopulationState,
                               replace_best,
-                              remove_row,
-                              add_row,
+                              best_id_arg
                               ):
-            num_rows = remove_row.shape[0]
+            num_rows = population_state.remove_row[0].shape[0]
 
             new_elite_stat = jax.lax.select(
                     replace_best,
                     elite_stat_arg
-                        - (num_rows * statistics_fn(remove_row))
-                        + (num_rows * statistics_fn(add_row)),
+                        - (num_rows * statistics_fn(population_state.remove_row[best_id_arg]))
+                        + (num_rows * statistics_fn(population_state.add_row[best_id_arg])),
                     elite_stat_arg
                 )
             return new_elite_stat
 
         update_elite_stat_jit = jax.jit(update_elite_stat)
-        LAST_LAG_FITNESS = 1e9
+        LAST_LAG_FITNESS = state.best_fitness
+        true_results = []
+
         keys = jax.random.split(key, self.num_generations)
         set_up_time = timer() - init_time
         if self.print_progress:
@@ -428,102 +471,91 @@ class GSD(Generator):
             fitness.block_until_ready()
             fit_time += timer() - t0
 
-            # Update best new candiates
-            t0 = time.time()
-            best_new_candidates, best_candidate_fitness, remove_row, add_row = self.strategy.update_elite_candidates(state, population_state, fitness)
-            remove_row.block_until_ready()
-            update_x_time += time.time() - t0
-
             # TELL
             t0 = timer()
-            state, rep_best, best_id = self.strategy.tell(best_new_candidates, best_candidate_fitness, state)
+            state, rep_best, best_id = self.strategy.tell(population_state.X, fitness, state)
             state.archive.block_until_ready()
             tell_time += timer() - t0
 
             # UPDATE elite_states
             t0 = timer()
-            elite_stat = update_elite_stat_jit(elite_stat,
-                                               rep_best,
-                                               remove_row,
-                                               add_row).block_until_ready()
+            elite_stat = update_elite_stat_jit(elite_stat, population_state, rep_best, best_id).block_until_ready()
             elite_stat_time += timer() - t0
 
             if (t % 10000) == 0:
-                self.print_time(t, init_time, set_up_time, ask_time, fit_time, update_x_time, tell_time, elite_stat_time)
+                self.print_time(t, init_time, set_up_time, ask_time, fit_time, tell_time, elite_stat_time)
                 if debug_fn is not None:
                     debug_fn(t, state.best_fitness, Dataset.from_numpy_to_dataset(self.domain, state.best_member))
-            if (t % self.stop_early_min_generation) == 0:
-                if self.check_early_stop(t, state.best_fitness, LAST_LAG_FITNESS):
-                    break
-                LAST_LAG_FITNESS = state.best_fitness
+
+            # if best_fitness < self.stop_eary_threshold: break
+            # if (t % self.stop_early_min_generation) == 0 and t > self.stop_early_min_generation and self.stop_early:
+            #
+            #     t_inf, t_avg, p_l2 = private_loss(state.best_member)
+            #     t_inf.block_until_ready()
+            #     if t_inf < 0.001:
+            #         if self.print_progress:
+            #             print(f'\t\t ### Stop early at {t} ###')
+            #         break
+            #     loss_change = jnp.abs(LAST_LAG_FITNESS - state.best_fitness) / LAST_LAG_FITNESS
+            #
+            #     if loss_change < 0.0001:
+            #         constraint_loss = constraint_fn_jit(state.best_member)
+            #         constraint_loss.block_unitl_ready()
+            #         if weight_updates > 0 and constraint_loss > 0:
+            #             const_weight = 2 * const_weight + 0.1  # Increase weight assigned to constraints
+            #             state = state.replace(best_fitness=1e9)  # For the algorithm to update the next generation
+            #             weight_updates = weight_updates - 1
+            #             if self.print_progress:
+            #                 print(f'\tGen {t:<3}: Increasing weight({weight_updates:<3}): w={const_weight:.5f}.'
+            #                       f' Constraint loss={constraint_loss:.5f}')
+            #         else:
+            #             if self.print_progress:
+            #                 print(f'\t\t ### Stop early at {t} ###')
+            #             break
+            #     LAST_LAG_FITNESS = state.best_fitness
+            #
+            # X_sync = state.best_member
+            # # if (t % 20000 == 0):
+            #
+            # if (t % 500 == 0) and self.print_progress:
+            #     # DEBUG
+            #     best_fitness_total = min(best_fitness_total, best_fitness)
+            #     if last_fitness is None or best_fitness_total < last_fitness * 0.99 or t > self.num_generations - 2:
+            #         elapsed_time = timer() - init_time
+            #         constraint_score = constraint_fn_jit(X_sync)
+            #         constraint_score.block_until_ready()
+            #         print(f'\tGen {t:05}, fit={best_fitness_total:.6f}, ', end=' ')
+            #         print(f'\tconstraint={constraint_score:.5f}', end=' ')
+            #
+            #         t_inf, t_avg, p_l2 = private_loss(state.best_member)
+            #         t_inf.block_until_ready()
+            #         print(f'\ttrue error(max/avg/l2)=({t_inf:.5f}/{t_avg:.7f}/{p_l2:.3f})', end='')
+            #         print(f'\t|time={elapsed_time:.4f}(s):', end='')
+            #         print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
+            #         print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
+            #         debug_ask_time = self.strategy.ask_time + self.strategy.sampler_time
+            #         print(f'|\tdebug_ask={debug_ask_time:<3.3f}(s)\t', end='')
+            #         print()
+            #         last_fitness = best_fitness_total
 
         # Save progress for debugging.
+        self.true_results_df = pd.DataFrame(true_results, columns=['G', 'Max', 'Avg', 'L2'])
         X_sync = state.best_member
         sync_dataset = Dataset.from_numpy_to_dataset(self.domain, X_sync)
         return sync_dataset
 
 
-    def check_early_stop(self, t, best_fitness, LAST_LAG_FITNESS):
-        if (t % self.stop_early_min_generation) > 0: return False
-        if (t <= self.stop_early_min_generation): return False
-        if not self.stop_early or t == 0: return False
-        loss_change = jnp.abs(LAST_LAG_FITNESS - best_fitness) / LAST_LAG_FITNESS
-        #
-        if loss_change < 0.0001:
-            if self.print_progress:
-                print(f'\t\t ### Stop early at {t} ###')
-            return True
-        return False
-            # constraint_loss = constraint_fn_jit(state.best_member)
-            # constraint_loss.block_unitl_ready()
-            # if weight_updates > 0 and constraint_loss > 0:
-            #     const_weight = 2 * const_weight + 0.1  # Increase weight assigned to constraints
-            #     state = state.replace(best_fitness=1e9)  # For the algorithm to update the next generation
-            #     weight_updates = weight_updates - 1
-            #     if self.print_progress:
-            #         print(f'\tGen {t:<3}: Increasing weight({weight_updates:<3}): w={const_weight:.5f}.'
-            #               f' Constraint loss={constraint_loss:.5f}')
-            # else:
-            #     if self.print_progress:
-            #         print(f'\t\t ### Stop early at {t} ###')
-            #     break
-    def print_time(self, t, init_time, set_up_time, ask_time, fit_time, upt_x_time, tell_time, elite_stat_time):
+    def print_time(self, t, init_time, set_up_time, ask_time, fit_time, tell_time, elite_stat_time):
         elapsed_time = timer() - init_time
         print(f'\tGen {t:05},  ', end=' ')
-        print(f'\t|time={elapsed_time:.5f}(s):', end='')
-        print(f'\task={ask_time:<5.3f} fit={fit_time:<5.3f} upt_x={upt_x_time:<5.3f} tell={tell_time:<4.3f} ', end='')
-        print(f'elite_stat={elite_stat_time:<5.3f}\t', end='')
+        print(f'\t|time={elapsed_time:.4f}(s):', end='')
+        print(f'\task={ask_time:<3.3f}(s), fit={fit_time:<3.3f}(s), tell={tell_time:<3.3f}, ', end='')
+        print(f'elite_stat={elite_stat_time:<3.3f}(s)\t', end='')
+        debug_ask_time = self.strategy.ask_time + self.strategy.sampler_time
+        print(f'|\tdebug_ask={debug_ask_time:<3.3f}(s)\t', end='')
+        total_time = set_up_time + ask_time + fit_time + tell_time + elite_stat_time
+        print(f'(m={self.strategy.ask_time:<3.3f}(s), ', end='')
+        print(f's={self.strategy.sampler_time:<3.3f}(s))', end='')
+        print(f'|\ttotal_time={total_time:<.4f}(s)\t', end='')
+
         print()
-
-
-    def fit_ada_non_priv(self, key,
-                            true_stats,
-                            queries,
-                            rounds,
-                            samples_per_round: int,
-                            sync_dataset=None,
-                            constraint_fn=None, debug_fn=None):
-
-        if sync_dataset is None:
-            sync_dataset = Dataset.synthetic(self.domain, self.data_size, 0)
-
-        selected_stats = jnp.array([], dtype=jnp.int32)
-        keys = jax.random.split(key, rounds)
-        for T, subkey in enumerate(keys):
-            sync_stats = queries.get_all_stats(sync_dataset)
-            errors = jnp.abs(true_stats - sync_stats)
-            errors = errors.at[selected_stats].set(-jnp.inf)
-            print(f'\nT={T}:')
-            print(f'Errors: ', errors.max().round(5), errors.mean().round(8))
-            debug_fn(-1, 0, sync_dataset)
-
-
-            select_query_ids = jnp.argsort(-errors)[:samples_per_round]
-            select_stats = jnp.concatenate((selected_stats, select_query_ids))
-
-            round_true_stats = true_stats[select_stats]
-            round_stat_fn = queries.get_stats_fn(select_stats)
-
-            sync_dataset = self.fit_help(subkey, round_true_stats, round_stat_fn, sync_dataset=sync_dataset, debug_fn=debug_fn)
-
-        return sync_dataset

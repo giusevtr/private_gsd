@@ -13,6 +13,7 @@ def get_marginal_query(seed, data: Dataset, domain: Domain,
                        min_bin_density: float = 0.0,
                        minimum_density=1,
                        max_marginal_size: int = None,
+                       min_marginal_size: int = 1000,
                        sigma: float = 0,
                        include_features=(),
                        verbose=False):
@@ -37,7 +38,6 @@ def get_marginal_query(seed, data: Dataset, domain: Domain,
     min_bin_size = int(N * (min_bin_density / 2) + 1)  # Number of points on each edge
     for col_name in domain.get_numerical_cols():
         features_bin_edges[col_name] = get_thresholds_realvalued(data.df[col_name], min_bin_size, levels=20)
-        print(features_bin_edges[col_name])
     for col_name in domain.get_ordinal_cols():
         features_bin_edges[col_name] = get_thresholds_ordinal(data.df[col_name], min_bin_size, domain.size(col_name), levels=20)-0.001
     for col_name in domain.get_categorical_cols():
@@ -90,7 +90,6 @@ def get_marginal_query(seed, data: Dataset, domain: Domain,
         stats = hist.flatten() / N
         stats_noised = stats + np.random.normal(0, sigma, size=stats.shape)
         stats_sum += stats_noised.shape[0]
-        print(f'{stats.max():.5f}')
         bin_positions = list(itertools.product(*[features_bin_indices[col_name][1:] for col_name in marginal]))
 
         stats_ids_sorted = np.argsort(-stats_noised)
@@ -115,8 +114,11 @@ def get_marginal_query(seed, data: Dataset, domain: Domain,
             query_params.append(np.concatenate((np.array(indices), np.array(upper), np.array(lower))))
             informative_stats_ids.append(stat_id)
 
-            if density_sum >= minimum_density:
+            if density_sum >= 1.0-1e-8:
                 break
+            if density_sum >= minimum_density-1e-8:
+                if min_marginal_size is not None and len(informative_stats_ids) >= min_marginal_size:
+                    break
 
         # Add stats to answers in the same order of the queries.
         final_stats = stats_noised[np.array(informative_stats_ids)]

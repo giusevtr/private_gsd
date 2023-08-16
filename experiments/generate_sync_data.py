@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from experiments.run_exp import run_experiment
+from experiments.run_exp import run_experiment, get_ml_score_fn
 
 def get_constraint_fn(domain):
     # Build  constraint
@@ -17,20 +17,20 @@ def get_constraint_fn(domain):
         loss2 = (males_inc - females_inc)**2
         return loss1 + loss2
 
-SEEDS = [0, 1, 2]
+SEEDS = [0, 1, 2, 3, 4]
 
-datasets = [ 'adult', 'churn2',
-              'cardio',
-             'higgs-small',
-             'wilt',
-             'miniboone'
-             ]
-for data_name in datasets:
-    if data_name == 'miniboone':
-        run_experiment(data_name=data_name, data_size_str='N', k=2, max_marginal_size=1000, min_density=0.99, seeds=SEEDS)
-    else:
-        run_experiment(data_name=data_name, data_size_str='N', k=2, max_marginal_size=5000, min_density=0.99, seeds=SEEDS)
-        run_experiment(data_name=data_name, data_size_str='N', k=2, max_marginal_size=50000, min_density=0.99, seeds=SEEDS)
+datasets = [
+    ('miniboone', '2000'),
+    ('adult', '2000'),
+    ('diabetes', 'N'),
+    ('churn2', '2000'),
+    ('cardio', '2000'),
+    ('higgs-small', '2000'),
+    ('wilt', '2000'),
+]
+for data_name, data_size in datasets:
+
+    run_experiment(data_name=data_name, data_size_str=data_size,  seeds=SEEDS, verbose=False)
 
 
 

@@ -1,5 +1,8 @@
-from functools import reduce
+import chex
 import jax.numpy as jnp
+import jax
+import numpy as np
+import random
 
 class Domain:
     def __init__(self, config: dict, null_cols: list = (), bin_edges: dict = None):
@@ -122,10 +125,103 @@ class Domain:
     def size(self, att):
         return self.config[att]['size']
 
-    def get_attribute_indices(self, atts):
+    def get_attribute_indices(self, atts: list) -> chex.Array:
         indices = []
         for i, temp in enumerate(self.attrs):
             if temp not in atts:
                continue
             indices.append(i)
         return jnp.array(indices)
+
+    def get_attribute_index(self, att: str) -> int:
+        for i, temp in enumerate(self.attrs):
+            if temp == att: return i
+        return -1
+
+
+    def get_sampler(self, col, samples):
+
+        if self. config[col]['type'] == 'categorical':
+            return self.get_categorical_sampler_jax(col, samples)
+        if self. config[col]['type'] == 'numerical':
+            return self.get_numerical_sampler_jax(col, samples)
+        if self. config[col]['type'] == 'ordinal':
+            return self.get_ordinal_sampler_jax(col, samples)
+
+    def nulls_fn(self):
+        def nulls(rng: chex.PRNGKey, col_values: chex.Array, num_nulls: int):
+            n = col_values.shape[0]
+            null_idx = jax.random.randint(rng, minval=0, maxval=n, shape=(num_nulls,))
+            col_values = col_values.astype(float).at[null_idx].set(jnp.nan)
+            return col_values
+        return nulls
+
+    def get_categorical_sampler_jax(self, col_name, samples):
+        size = self.size(col_name)
+        def sampling_fn(rng: chex.PRNGKey):
+            c = jax.random.randint(rng, shape=(samples,), minval=0, maxval=size)
+            return c
+        return sampling_fn
+
+    def get_numerical_sampler_jax(self, col_name, samples):
+        has_bin_edges, bin_edges = self.get_bin_edges(col_name)
+
+        if has_bin_edges:
+            def sampling_fn(rng: chex.PRNGKey):
+                rng_bin_0, rng_bin_1 = jax.random.split(rng, 2)
+                num_bins = bin_edges.shape[0]
+                bin_pos = jax.random.randint(rng_bin_0, shape=(samples,), minval=1, maxval=num_bins)
+                right_edge = bin_edges[bin_pos]
+                left_edge = bin_edges[bin_pos - 1]
+                u = jax.random.uniform(rng_bin_1, shape=(samples,))
+                c = (right_edge - left_edge) * u + left_edge
+                return c
+        else:
+            def sampling_fn(rng: chex.PRNGKey):
+                c = jax.random.uniform(rng, shape=(samples,))
+                return c
+        return sampling_fn
+
+    def get_ordinal_sampler_jax(self, col_name, samples):
+        size = self.size(col_name)
+        has_bin_edges, bin_edges = self.get_bin_edges(col_name)
+
+        if has_bin_edges:
+            def sampling_fn(rng: chex.PRNGKey):
+                # 1) Sample a bin
+                rng_bin_0, rng_bin_1 = jax.random.split(rng, 2)
+                num_bins = bin_edges.shape[0]
+                bin_pos = jax.random.randint(rng_bin_0, shape=(samples,), minval=1, maxval=num_bins)
+                # 2) Sample a value inside the interval edges
+                right_edge = jnp.ceil(bin_edges[bin_pos]).astype(int)
+                left_edge = jnp.ceil(bin_edges[bin_pos - 1]).astype(int)
+                c = jax.random.randint(rng_bin_1, minval=left_edge, maxval=right_edge, shape=(samples,))
+                return c
+        else:
+            def sampling_fn(rng: chex.PRNGKey):
+                return jax.random.randint(rng, shape=(samples,), minval=0, maxval=size)
+        return sampling_fn
+
+
+    def get_log_sizes(self):
+        # Get the cardinality or number of bins of each column
+        log_sizes = []
+        for att in self.attrs:
+            has_bin_edges, bin_edges = self.get_bin_edges(att)
+            if has_bin_edges:
+                num_bins = bin_edges.shape[0]
+                log_num_bins = int(np.log(num_bins) + 1)
+                log_sizes.append(log_num_bins)
+            else:
+                sz = int(np.log(self.size(att)) + 1)
+                log_sizes.append(sz)
+        return log_sizes
+
+    def sample_columns_based_on_logsize(self):
+        log_sizes = self.get_log_sizes()
+        col_ids = []
+        for i, (col, sz) in enumerate(zip(self.attrs, log_sizes)):
+            for _ in range(sz):
+                col_ids.append(i)
+        random.shuffle(col_ids)
+        return col_ids

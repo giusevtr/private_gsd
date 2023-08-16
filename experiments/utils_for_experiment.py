@@ -27,6 +27,18 @@ def is_ordinal(col_df):
     return error <= 1e-9
 
 
+def read_tabddpm(dataset_name, seed, root_dir ='../../dp-data-dev/data2/data'):
+    X_cat_train = np.load(f'{root_dir}/{dataset_name}/X_cat.npy')
+    X_num_train = np.load(f'{root_dir}/{dataset_name}/X_num.npy')
+    y_train = np.load(f'{root_dir}/{dataset_name}/y.npy')
+
+    cat_cols = [f'cat_{i}' for i in range(X_cat_train.shape[1])]
+    num_cols = [f'num_{i}' for i in range(X_num_train.shape[1])]
+    all_cols = cat_cols + num_cols + ['Label']
+
+    train_df = pd.DataFrame(np.column_stack([X_cat_train, X_num_train, y_train]), columns=all_cols)
+    return train_df
+
 def read_original_data(dataset_name, root_dir ='../../dp-data-dev/data2/data'):
 
     train_data_list = []
