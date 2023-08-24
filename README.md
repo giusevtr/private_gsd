@@ -35,7 +35,7 @@ pip install -e .
 
 Install [JAX](https://github.com/google/jax#installation) separately. For example,
 ````
-!pip install --upgrade  "jax[cuda11_cudnn82]==0.4.6" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+pip install --upgrade  "jax[cuda11_cudnn82]==0.4.6" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ````
 Please make sure that the command you execute matches your system (i.e., tpu vs. gpu, right CUDA/cuDNN versions, etc.)
 
