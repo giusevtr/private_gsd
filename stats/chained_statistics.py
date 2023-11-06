@@ -214,6 +214,26 @@ class ChainedStatistics:
                 # selected_noised_stat = stats + gau_noise
                 self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
 
+    def non_private_measure_all_statistics(self, key: chex.PRNGKey, stat_ids: list = None):
+        self.selected_workloads = []
+        for stat_id in range(len(self.stat_modules)):
+            self.selected_workloads.append([])
+
+        # Choose the statistic modules to measure with zCDP
+        measure_stats_ids = range(len(self.stat_modules)) if stat_ids is None else stat_ids
+
+        for stat_id in measure_stats_ids:
+            stat_mod = self.stat_modules[stat_id]
+            true_stats = self.modules_all_statistics[stat_id]
+
+            for workload_id in range(stat_mod.get_num_workloads()):
+                key, key_gaussian = jax.random.split(key, 2)
+                wrk_a, wrk_b = stat_mod._get_workload_positions(workload_id)
+                stats = true_stats[wrk_a:wrk_b]
+                selected_noised_stat = stats
+                # selected_noised_stat = stats + gau_noise
+                self.__add_stats(stat_id, workload_id, selected_noised_stat, stats)
+
     def get_sync_data_errors(self, data: Dataset):
         max_errors = []
         for stat_id in range(len(self.stat_modules)):
