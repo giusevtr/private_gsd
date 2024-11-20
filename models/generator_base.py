@@ -45,18 +45,18 @@ class Generator:
             self.last_update_iteration = t
         return stop_early
 
-    def fit(self, key: jax.random.PRNGKeyArray, stat: ChainedStatistics, init_data: Dataset = None,
+    def fit(self, key: jax.Array, stat: ChainedStatistics, init_data: Dataset = None,
             tolerance: float = 0, adaptive_epoch: int = 1) -> Dataset:
         pass
 
-    def fit_dp(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics, epsilon: float, delta: float,
+    def fit_dp(self, key: jax.Array, stat_module: ChainedStatistics, epsilon: float, delta: float,
                init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         rho = cdp_rho(epsilon, delta)
         eps2 = cdp_eps(rho, delta)
         assert eps2 <= epsilon, f'Error: ({eps2})-zCDP -> ({eps2})-DP'
         return self.fit_zcdp(key, stat_module, rho, init_data, tolerance)
 
-    def fit_zcdp(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics, rho: float,
+    def fit_zcdp(self, key: jax.Array, stat_module: ChainedStatistics, rho: float,
                  init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         key_stats, key_fit = jax.random.split(key)
         stat_module.reselect_stats()
@@ -65,7 +65,7 @@ class Generator:
         return self.fit(key_fit, stat_module, init_data, tolerance, adaptive_epoch=1)
 
 
-    def fit_non_private(self, key: jax.random.PRNGKeyArray, stat_module: ChainedStatistics,
+    def fit_non_private(self, key: jax.Array, stat_module: ChainedStatistics,
                  init_data: Dataset = None, tolerance: float = 0) -> Dataset:
         key_stats, key_fit = jax.random.split(key)
         stat_module.reselect_stats()
@@ -73,7 +73,7 @@ class Generator:
 
         return self.fit(key_fit, stat_module, init_data, tolerance, adaptive_epoch=1)
 
-    def fit_dp_adaptive(self, key: jax.random.PRNGKeyArray,
+    def fit_dp_adaptive(self, key: jax.Array,
                         stat_module: ChainedStatistics, rounds,
                         epsilon: float, delta: float,
                         tolerance: float = 0,
@@ -86,7 +86,7 @@ class Generator:
         return self.fit_zcdp_adaptive(key, stat_module, rounds, rho, tolerance, start_sync, print_progress, debug_fn,
                                       num_sample)
 
-    def fit_zcdp_adaptive(self, key: jax.random.PRNGKeyArray,
+    def fit_zcdp_adaptive(self, key: jax.Array,
                           stat_module: ChainedStatistics,
                           rounds: int,
                           rho: float, tolerance: float = 0,
@@ -155,7 +155,7 @@ class Generator:
 
         return sync_dataset
 
-    def fit_dp_hybrid(self, key: jax.random.PRNGKeyArray,
+    def fit_dp_hybrid(self, key: jax.Array,
                         stat_module: ChainedStatistics,
                         rounds,
                         epsilon: float, delta: float,
@@ -171,7 +171,7 @@ class Generator:
         return self.fit_zcdp_hybrid(key, stat_module, rounds, rho, tolerance,
                                     start_sync, print_progress, debug_fn, num_sample, oneshot_share_opt)
 
-    def fit_zcdp_hybrid(self, key: jax.random.PRNGKeyArray,
+    def fit_zcdp_hybrid(self, key: jax.Array,
                             stat_module: ChainedStatistics,
                             rounds: int,
                             rho: float, tolerance: float = 0,
