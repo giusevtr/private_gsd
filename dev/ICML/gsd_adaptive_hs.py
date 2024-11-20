@@ -47,7 +47,7 @@ def run(dataset_name,
 
 
     module1 = HalfspacesPrefix(data.domain,
-                        key=jax.random.PRNGKey(0),
+                        key=jax.random.key(0),
                         random_proj=max_num_queries)
 
 
@@ -70,7 +70,7 @@ def run(dataset_name,
                        domain=domain, data_size=2000, population_size=100, muta_rate=1, mate_rate=1,
                        print_progress=False)
 
-            key = jax.random.PRNGKey(seed)
+            key = jax.random.key(seed)
             t0 = timer()
             sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/{rounds}/{num_sample}/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)

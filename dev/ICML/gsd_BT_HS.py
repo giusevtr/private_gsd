@@ -50,7 +50,7 @@ def run(dataset_name, target,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.
 
 
     # module = Marginals.get_all_kway_combinations(domain, k=2, bins=[2, 4, 8, 16, 32])
-    module = HalfspacesBT(data.domain, key=jax.random.PRNGKey(0), random_proj=10000, bins=(2, 4, 8, 16, 32))
+    module = HalfspacesBT(data.domain, key=jax.random.key(0), random_proj=10000, bins=(2, 4, 8, 16, 32))
 
 
     stat_module = ChainedStatistics([module])
@@ -70,7 +70,7 @@ def run(dataset_name, target,  seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52, 0.
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
-            key = jax.random.PRNGKey(seed)
+            key = jax.random.key(seed)
             t0 = timer()
             sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/oneshot/oneshot/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)

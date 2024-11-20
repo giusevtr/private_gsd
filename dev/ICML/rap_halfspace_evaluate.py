@@ -51,7 +51,7 @@ if __name__ == "__main__":
         print(f'{data_name} has {num_real} real features.')
         d = domain.get_dimension() - num_real
         # Create statistics and evaluate
-        key = jax.random.PRNGKey(0)
+        key = jax.random.key(0)
 
         max_num_queries = 200000
         halfspaces = max_num_queries // d

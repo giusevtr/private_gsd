@@ -27,7 +27,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), num_samples=(10, 100, 1000))
     data = Dataset(df_train, domain)
 
     # Create statistics and evaluate
-    key = jax.random.PRNGKey(0)
+    key = jax.random.key(0)
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
     num_real = len(domain.get_numeric_cols())
     num_cat = len(domain.get_categorical_cols())
@@ -54,7 +54,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), num_samples=(10, 100, 1000))
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for samples in num_samples:
-            key = jax.random.PRNGKey(seed)
+            key = jax.random.key(seed)
             t0 = timer()
 
             sync_data = data.sample(n=samples, seed=seed)

@@ -55,7 +55,7 @@ def run(dataset_name, module_name):
                    sparse_statistics=True
                    )
 
-        key = jax.random.PRNGKey(0)
+        key = jax.random.key(0)
         t0 = timer()
         sync_data = algo.fit_dp(key, stat_module=stat_module,
                                        epsilon=1, delta=delta,

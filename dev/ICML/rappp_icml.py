@@ -38,7 +38,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     data = Dataset(df_train, domain)
 
     # Create statistics and evaluate
-    key = jax.random.PRNGKey(0)
+    key = jax.random.key(0)
     # module0 = MarginalsDiff.get_all_kway_categorical_combinations(data.domain, k=2)
     num_real = len(domain.get_numeric_cols())
     print(f'{dataset_name} has {num_real} real features.')
@@ -70,7 +70,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
-            key = jax.random.PRNGKey(seed)
+            key = jax.random.key(seed)
             t0 = timer()
             sync_dir = f'sync_data/{dataset_name}/RAP++_old/{module_name}/{rounds}/{num_sample}/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)
