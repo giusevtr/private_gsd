@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     algo = GSD(num_generations=100000, domain=domain, data_size=1000, population_size=100)
 
-    sync_data = algo.fit_dp(key=jax.random.PRNGKey(0), stat_module=stat_module, epsilon=1, delta=1e-6)
+    sync_data = algo.fit_dp(key=jax.random.key(0), stat_module=stat_module, epsilon=1, delta=1e-6)
 
     sync_stats = stat_fn(sync_data)
 

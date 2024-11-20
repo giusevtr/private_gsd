@@ -39,7 +39,7 @@ for algo_name in ['RP', 'GN']:
                         cat_kway_combinations=binary_features,
                         k_prefix=2,
                         num_random_prefixes=num_random_prefixes,
-                        rng=jax.random.PRNGKey(0))
+                        rng=jax.random.key(0))
         stat_module = ChainedStatistics([module])
         stat_module.fit(data)
         true_stats = stat_module.get_all_true_statistics()

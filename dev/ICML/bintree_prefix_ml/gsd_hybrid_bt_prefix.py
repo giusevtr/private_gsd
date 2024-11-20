@@ -60,7 +60,7 @@ if __name__ == "__main__":
                     # cat_kway_combinations=[],
                     k_prefix=2,
                     num_random_prefixes=num_random_prefixes,
-                    rng=jax.random.PRNGKey(0))
+                    rng=jax.random.key(0))
     stat_module = ChainedStatistics([module_bt, module])
     stat_module.fit(data)
     true_stats = stat_module.get_all_true_statistics()
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     algo = GSD(num_generations=500000, domain=domain, data_size=2000, population_size=100, print_progress=False)
     delta = 1.0 / len(data) ** 2
     for eps, seed, (samples, epochs) in itertools.product(EPSILON, SEEDS, PARAMS):
-        key = jax.random.PRNGKey(seed)
+        key = jax.random.key(seed)
         t0 = timer()
         sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/{epochs}/{samples}/{eps:.2f}/'
         os.makedirs(sync_dir, exist_ok=True)

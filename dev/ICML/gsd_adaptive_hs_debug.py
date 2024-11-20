@@ -59,7 +59,7 @@ def run(dataset_name,
 
     module1 = Halfspace(data.domain, k_cat=1,
                         cat_kway_combinations=[(bf, ) for bf in binary_feats],
-                        rng=jax.random.PRNGKey(0),
+                        rng=jax.random.key(0),
                         num_random_halfspaces=max_num_queries // bin_dims)
 
     stat_module = ChainedStatistics([module0, module1])
@@ -79,7 +79,7 @@ def run(dataset_name,
     delta = 1.0 / len(data) ** 2
     for seed in seeds:
         for eps in eps_values:
-            key = jax.random.PRNGKey(seed)
+            key = jax.random.key(seed)
             t0 = timer()
             sync_dir = f'sync_data/{dataset_name}/GSD/{module_name}/{rounds}/{num_sample}/{eps:.2f}/'
             os.makedirs(sync_dir, exist_ok=True)

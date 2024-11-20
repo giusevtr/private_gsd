@@ -44,11 +44,6 @@ if __name__ == "__main__":
     q_short_name = 'HS'
     ml_fn = ml_eval.get_evaluate_ml(df_test, config, targets, models=[model])
 
-<<<<<<< HEAD
-    # Debug marginals
-
-    T = [50]
-=======
     # data = Dataset(df_train, domain)
     # # Debug marginals
     # module0 = Marginals.get_kway_categorical(domain, k=2)
@@ -59,13 +54,12 @@ if __name__ == "__main__":
     # hs = Halfspace(domain=domain,
     #                                      k_cat=1,
     #              cat_kway_combinations=[(c,) for c in targets],
-    #              rng=jax.random.PRNGKey(0),
+    #              rng=jax.random.key(0),
     #              num_random_halfspaces=200000)
     # hs_stat_fn = hs._get_dataset_statistics_fn()
     # hs_true_stats = hs_stat_fn(data)
 
     T = [100]
->>>>>>> 5959434720650aeb3e5867105da945038e42f97c
     S = [5]
     # epsilon_vals = [1, 0.74, 0.52, 0.23, 0.07]
     epsilon_vals = [1]

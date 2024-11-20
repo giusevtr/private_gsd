@@ -383,7 +383,7 @@ if __name__ == "__main__":
     marginal_module2 = Marginals.get_all_kway_combinations(data.domain, k=2, bins=[2, 4, 8, 16, 32])
     chained_module = ChainedStatistics([marginal_module2])
     chained_module.fit(data)
-    chained_module.private_measure_all_statistics(key=jax.random.PRNGKey(0), rho=10)
+    chained_module.private_measure_all_statistics(key=jax.random.key(0), rho=10)
 
     chained_module.get_selected_trimmed_statistics_fn()
 

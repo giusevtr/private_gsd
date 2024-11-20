@@ -197,7 +197,7 @@ def test_proj():
     proj_fn_0 = get_proj(domain)
     proj_fn = jax.jit(jax.vmap(proj_fn_0, in_axes=(None, 0)))
 
-    key = jax.random.PRNGKey(2)
+    key = jax.random.key(2)
 
 
     df_list = []

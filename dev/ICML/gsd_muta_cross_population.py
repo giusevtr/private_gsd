@@ -68,7 +68,7 @@ def run(dataset_name, module_name, seeds=(0, 1, 2), eps_values=(0.07, 0.23, 0.52
         delta = 1.0 / len(data) ** 2
         for seed in seeds:
             for eps in eps_values:
-                key = jax.random.PRNGKey(seed)
+                key = jax.random.key(seed)
                 t0 = timer()
                 sync_data = algo.fit_dp(key, stat_module=stat_module,
                                                epsilon=eps, delta=delta,

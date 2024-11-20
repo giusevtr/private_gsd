@@ -134,7 +134,7 @@ def get_upsample_fn(oversample):
 def get_upsampled_dataset_from_relaxed(D, domain: Domain, oversample=1, seed=0):
     feats_idx = domain.get_feats_idx()
     n, d = D.shape
-    key = jax.random.PRNGKey(seed)
+    key = jax.random.key(seed)
     key_cols = jax.random.split(key, len(feats_idx))
 
     all_columns = []

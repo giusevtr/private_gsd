@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 
 
-key = jax.random.PRNGKey(0)
+key = jax.random.key(0)
 
 A = jax.random.uniform(key, shape=(10, ))
 
