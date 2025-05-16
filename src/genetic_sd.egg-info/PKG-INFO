@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: genetic_sd
+Version: 0.1
+Requires-Python: >=3.9
+Requires-Dist: smartnoise-synth
+Requires-Dist: numpy<2
+Requires-Dist: jupyter
+Requires-Dist: pytest
+Requires-Dist: tqdm
+Provides-Extra: cpu
+Requires-Dist: jax[cpu]==0.4.6; extra == "cpu"
+Requires-Dist: flax; extra == "cpu"
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python

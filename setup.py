@@ -1,15 +1,22 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
-
-    name='Private-GSD',
-    version='1.00',
-    description='Implementation of Private-GSD mechanism.',
-    url='https://github.com/giusevtr/private_gsd.git',
-    author='Giuseppe Vietri, Jingwu Tang, Terrence Liu',
-    license='MIT',
-    packages=['dev', 'models', 'stats', 'utils'],
-    zip_safe=False,
-    install_requires=['numpy', 'pandas', 'scipy', 'scikit-learn',
-                      'tqdm', 'matplotlib', 'seaborn', 'chex', 'diffprivlib', 'flax'],
+    name='genetic_sd',
+    version='0.1',
+    package_dir={'': 'src'},
+    packages=find_packages(where='src'),
+    install_requires=[
+        'smartnoise-synth',
+        'numpy<2',  # Ensures compatibility with packages compiled against NumPy 1.x
+        'jupyter',
+        'pytest',  # example dev dependency
+        'tqdm'
+    ],
+    extras_require={
+        'cpu': [
+            'jax[cpu]==0.4.6',
+            'flax',
+        ]
+    },
+    python_requires='>=3.9',
 )
