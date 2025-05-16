@@ -8,7 +8,6 @@ PrivGA.egg-info
 save
 dev/results
 Datasets
-*.ipynb
 *.csv
 *.zip
 *.json
